@@ -45,8 +45,23 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
     private var lastChangeAt: Date = .distantPast
     private var pauseWatchdog: Task<Void, Never>?
     private var isRunning = false
-    /// When true, incoming buffers are dropped (e.g. while TTS plays)
-    var isSuspended = false
+    /// When true, incoming buffers are dropped (e.g. while TTS plays).
+    /// Suspending also discards any half-heard words and restarts the
+    /// recognition cycle, so TTS audio can never leak into the next query.
+    var isSuspended = false {
+        didSet {
+            guard isSuspended, !oldValue else { return }
+            latestPartial = ""
+            lastChangeAt = .distantPast
+            if isRunning {
+                tearDownCycle()
+                startRecognitionCycle()
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.onPartial?("")
+            }
+        }
+    }
 
     /// Silence after the last new word before the utterance is final
     private let pauseInterval: TimeInterval = 1.5

@@ -102,6 +102,13 @@ final class HermesCameraManager: @unchecked Sendable {
         }
         defer { Task { await stateToken.cancel() } }
 
+        // The SDK reports WHY a stream dies here — without this listener
+        // an aborted stream looks like a silent timeout
+        let errorToken = stream.errorPublisher.listen { [weak self] streamError in
+            self?.debug("camera: ERROR → \(streamError)")
+        }
+        defer { Task { await errorToken.cancel() } }
+
         // The stream must run only while a capture is in flight. Register
         // the stop before starting it so every exit path — including a
         // start-timeout — guarantees the stream is torn down. Streams are
@@ -144,12 +151,23 @@ final class HermesCameraManager: @unchecked Sendable {
         do {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
                 token = stream.statePublisher.listen { state in
-                    if state == .streaming {
+                    switch state {
+                    case .streaming:
                         done.withLock { finished in
                             guard !finished else { return }
                             finished = true
                             cont.resume()
                         }
+                    case .stopped:
+                        // Stream aborted before reaching .streaming — fail
+                        // fast instead of burning the whole timeout
+                        done.withLock { finished in
+                            guard !finished else { return }
+                            finished = true
+                            cont.resume(throwing: HermesCameraError.streamUnavailable)
+                        }
+                    default:
+                        break
                     }
                 }
 

@@ -230,6 +230,7 @@ final class HermesSessionViewModel {
         client.onPlaybackComplete = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.connectionState = .listening
+                try? await Task.sleep(nanoseconds: 700_000_000)
                 self?.speechRecognizer.isSuspended = false
             }
         }
@@ -278,12 +279,10 @@ final class HermesSessionViewModel {
                 if case .speaking = self.connectionState {
                     self.connectionState = .listening
                 }
+                // Grace period: let the speaker's tail fade before the mic
+                // listens again, or the recognizer hears the end of the TTS
+                try? await Task.sleep(nanoseconds: 700_000_000)
                 self.speechRecognizer.isSuspended = false
-            }
-        }
-        audioManager.onDebug = { [weak self] message in
-            Task { @MainActor [weak self] in
-                self?.apiClient?.sendDebug(message)
             }
         }
 
