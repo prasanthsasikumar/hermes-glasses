@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-Hermes Glasses Bridge — WebSocket server that bridges Meta Ray-Ban glasses
-audio to Hermes Agent for voice conversation.
+Hermes Glasses Bridge — WebSocket server connecting the Hermes Glasses iOS
+app to a Hermes Agent. STT happens on the phone; this bridge handles text
+queries, photo requests, conversation memory, and TTS.
 
-Protocol:
-  - Receives binary PCM16 16kHz mono audio chunks
-  - Receives {"type":"end_of_audio"} when user stops speaking
-  - Transcribes audio via speech_recognition (Google STT or local whisper)
-  - Sends transcript to Hermes Agent via CLI
-  - Returns TTS audio response
+Protocol (JSON text frames):
+  app → bridge: {"type":"query","text":...}      transcribed utterance
+  app → bridge: {"type":"new_session"}           forget the conversation
+  app → bridge: {"type":"photo","data":<b64>}    reply to capture_photo
+  app → bridge: {"type":"photo_error", ...}
+  bridge → app: {"type":"welcome"} / {"type":"capture_photo"} /
+                {"type":"response","text":...} / {"type":"session_reset"} /
+                audio_start + binary PCM16 mono 24kHz TTS + audio_end
 """
 
-import array
 import asyncio
 import base64
 import json
-import math
 import os
 import shutil
 import subprocess
@@ -23,7 +24,6 @@ import sys
 import tempfile
 import time
 import wave
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 try:
@@ -45,9 +45,6 @@ HERMES_BIN = os.environ.get(
 # reachable from the internet — hermes has tool access, so an open bridge
 # is remote code execution for anyone who finds the port.
 AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
-
-# STT backend: "google" (free, needs internet) or "whisper" (local)
-STT_BACKEND = "google"
 
 # Utterances containing any of these ask about something the user sees;
 # the bridge then requests a photo from the glasses.
@@ -132,57 +129,6 @@ def extract_session_id(stderr_text: str) -> str | None:
     import re as _re
     match = _re.search(r"session_id:\s*(\S+)", stderr_text)
     return match.group(1) if match else None
-
-# ── Server-side VAD (utterance detection) ──────────────────────────────────
-# The app streams audio continuously; the bridge decides when an utterance
-# has ended. Tune SPEECH_RMS using the [VAD] level logs.
-SPEECH_RMS = 0.006   # normalized RMS above this counts as speech
-SILENCE_MS = 1000    # this much silence after speech ends the utterance
-PREROLL_MS = 500     # audio kept from before speech starts
-
-
-def chunk_rms(pcm: bytes) -> float:
-    """Normalized RMS (0..1) of a PCM16 chunk."""
-    n = len(pcm) // 2 * 2
-    if n == 0:
-        return 0.0
-    samples = array.array("h", pcm[:n])
-    return math.sqrt(sum(s * s for s in samples) / len(samples)) / 32768.0
-
-
-# ── Speech-to-Text ─────────────────────────────────────────────────────────
-
-def transcribe_google(audio_path: str) -> str | None:
-    """Transcribe using Google Speech Recognition (free tier)."""
-    try:
-        import speech_recognition as sr
-    except ImportError:
-        return None
-
-    r = sr.Recognizer()
-    with sr.AudioFile(audio_path) as source:
-        audio = r.record(source)
-    try:
-        return r.recognize_google(audio)
-    except sr.UnknownValueError:
-        return None
-    except sr.RequestError as e:
-        print(f"[STT] Google error: {e}")
-        return None
-
-
-def transcribe_whisper(audio_path: str) -> str | None:
-    """Transcribe using local Whisper."""
-    try:
-        import whisper
-    except ImportError:
-        return None
-
-    model = whisper.load_model("tiny")  # tiny/base/small/medium/large
-    result = model.transcribe(audio_path, fp16=False)
-    text = result["text"].strip()
-    return text if text else None
-
 
 # ── Hermes Agent ────────────────────────────────────────────────────────────
 
@@ -339,20 +285,6 @@ def synthesize_speech(text: str) -> bytes | None:
         return None
 
 
-# ── PCM16 to WAV ───────────────────────────────────────────────────────────
-
-def pcm_to_wav(pcm_data: bytes, sample_rate: int = 16000) -> str:
-    """Convert raw PCM16 audio to a temporary WAV file. Returns path."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    tmp.close()
-    with wave.open(tmp.name, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)  # 16-bit
-        wf.setframerate(sample_rate)
-        wf.writeframes(pcm_data)
-    return tmp.name
-
-
 # ── WebSocket Handler ──────────────────────────────────────────────────────
 
 async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
@@ -373,7 +305,7 @@ async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
             print("[Bridge] Photo wait timed out")
             return None
         if isinstance(message, bytes):
-            continue  # mic audio while waiting — drop it
+            continue  # stray binary frame while waiting — drop it
         data = json.loads(message)
         msg_type = data.get("type")
         if msg_type == "photo":
@@ -390,43 +322,10 @@ async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
         # any other message type: keep waiting
 
 
-async def process_utterance(websocket, pcm: bytes, sample_rate: int):
-    """Transcribe an utterance, ask Hermes, and stream the TTS reply."""
-    wav_path = pcm_to_wav(pcm, sample_rate)
-
-    # ── Step 1: Transcribe ── (in a thread so the socket stays alive)
-    print("[Bridge] Transcribing...")
-    if STT_BACKEND == "whisper":
-        transcript = await asyncio.to_thread(transcribe_whisper, wav_path)
-    else:
-        transcript = await asyncio.to_thread(transcribe_google, wav_path)
-
-    os.unlink(wav_path)
-
-    if not transcript:
-        print("[Bridge] STT returned nothing")
-        await websocket.send(json.dumps({
-            "type": "error",
-            "message": "Couldn't understand. Please try again."
-        }))
-        return
-
-    print(f"[Bridge] Transcript: {transcript}")
-
-    # Send transcript to glasses app
-    await websocket.send(json.dumps({
-        "type": "transcript",
-        "text": transcript,
-    }))
-
-    await process_query(websocket, transcript)
-
-
 async def process_query(websocket, text: str, conn_state: dict | None = None):
     """Answer a text query: photo capture if visual, Hermes, TTS reply.
 
-    Used both by the audio path (after STT) and directly for
-    {"type":"query"} messages from apps that transcribe on-device.
+    The app transcribes on-device and sends {"type":"query"} text.
     conn_state carries per-connection context: {"last_photo_at": float}.
     """
     if conn_state is None:
@@ -523,125 +422,49 @@ async def handle_connection(websocket):
 
     # Send welcome to confirm connection
     await websocket.send(json.dumps({"type": "welcome"}))
-    audio_buffer = bytearray()
-    debug_dump = bytearray()  # everything received, saved to WAV on close
-    sample_rate = 16000
-    bytes_per_ms = sample_rate * 2 / 1000.0
-
-    in_speech = False
-    silence_ms = 0.0
-    last_level_log = 0.0
-    # Audio that arrives while we were processing (incl. TTS echo) is stale;
-    # discard it until this wall-clock time.
-    drop_until = 0.0
     # Per-connection context for photo-recency suppression
     conn_state = {"last_photo_at": 0.0}
 
     try:
         async for message in websocket:
             if isinstance(message, bytes):
-                now = time.monotonic()
-                if now < drop_until:
-                    continue
+                # Binary frames were the legacy mic-audio path; the app
+                # transcribes on-device now. Ignore them.
+                continue
 
-                audio_buffer.extend(message)
-                if len(debug_dump) < sample_rate * 2 * 120:  # cap at 2 min
-                    debug_dump.extend(message)
-                rms = chunk_rms(message)
-                chunk_ms = len(message) / bytes_per_ms
+            data = json.loads(message)
+            msg_type = data.get("type")
 
-                if now - last_level_log > 1.0:
-                    state = "SPEECH" if in_speech else "quiet"
-                    print(f"[VAD] level={rms:.4f} threshold={SPEECH_RMS} "
-                          f"({state}, buffer={len(audio_buffer)}b)")
-                    last_level_log = now
-
-                if rms > SPEECH_RMS:
-                    if not in_speech:
-                        in_speech = True
-                        print(f"[VAD] Speech started (rms={rms:.4f})")
-                    silence_ms = 0.0
-                elif in_speech:
-                    silence_ms += chunk_ms
-                    if silence_ms >= SILENCE_MS:
-                        print(f"[VAD] Utterance ended "
-                              f"({len(audio_buffer)} bytes)")
-                        pcm = bytes(audio_buffer)
-                        audio_buffer.clear()
-                        in_speech = False
-                        silence_ms = 0.0
-                        await process_utterance(websocket, pcm, sample_rate)
-                        drop_until = time.monotonic() + 0.5
+            if msg_type == "query":
+                # App transcribed on-device and sends text directly
+                text = (data.get("text") or "").strip()
+                if text:
+                    print(f"[Bridge] Query: {text}")
+                    await process_query(websocket, text, conn_state)
                 else:
-                    # No speech yet — keep only a short pre-roll so silence
-                    # doesn't accumulate forever
-                    max_preroll = int(PREROLL_MS * bytes_per_ms)
-                    if len(audio_buffer) > max_preroll:
-                        del audio_buffer[:len(audio_buffer) - max_preroll]
+                    await websocket.send(json.dumps({
+                        "type": "error",
+                        "message": "Empty query."
+                    }))
 
-            elif isinstance(message, str):
-                data = json.loads(message)
-                msg_type = data.get("type")
+            elif msg_type == "new_session":
+                # Forget the conversation; next query starts fresh
+                clear_session()
+                conn_state["last_photo_at"] = 0.0
+                print("[Bridge] Conversation reset by app")
+                await websocket.send(json.dumps({"type": "session_reset"}))
 
-                if msg_type == "end_of_audio":
-                    # Manual end-of-utterance from the app (backup path)
-                    if len(audio_buffer) < 1600:  # < 100ms — too short
-                        await websocket.send(json.dumps({
-                            "type": "error",
-                            "message": "Audio too short. Please speak again."
-                        }))
-                        audio_buffer.clear()
-                        continue
+            elif msg_type == "debug":
+                print(f"[App] {data.get('msg')}")
 
-                    pcm = bytes(audio_buffer)
-                    audio_buffer.clear()
-                    in_speech = False
-                    silence_ms = 0.0
-                    await process_utterance(websocket, pcm, sample_rate)
-                    drop_until = time.monotonic() + 0.5
-
-                elif msg_type == "query":
-                    # App transcribed on-device and sends text directly
-                    text = (data.get("text") or "").strip()
-                    if text:
-                        print(f"[Bridge] Query: {text}")
-                        audio_buffer.clear()
-                        in_speech = False
-                        silence_ms = 0.0
-                        await process_query(websocket, text, conn_state)
-                        drop_until = time.monotonic() + 0.5
-                    else:
-                        await websocket.send(json.dumps({
-                            "type": "error",
-                            "message": "Empty query."
-                        }))
-
-                elif msg_type == "new_session":
-                    # Forget the conversation; next query starts fresh
-                    clear_session()
-                    conn_state["last_photo_at"] = 0.0
-                    print("[Bridge] Conversation reset by app")
-                    await websocket.send(json.dumps({"type": "session_reset"}))
-
-                elif msg_type == "debug":
-                    print(f"[App] {data.get('msg')}")
-
-                elif msg_type == "ping":
-                    await websocket.send(json.dumps({"type": "pong"}))
+            elif msg_type == "ping":
+                await websocket.send(json.dumps({"type": "pong"}))
 
     except websockets.exceptions.ConnectionClosed:
         print("[Bridge] Glasses disconnected")
     except Exception as e:
         print(f"[Bridge] Error: {e}")
     finally:
-        if debug_dump:
-            with wave.open("/tmp/hermes_last_audio.wav", "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(sample_rate)
-                wf.writeframes(bytes(debug_dump))
-            print(f"[Bridge] Session audio saved: /tmp/hermes_last_audio.wav "
-                  f"({len(debug_dump)} bytes)")
         print("[Bridge] Connection closed")
 
 
@@ -664,8 +487,7 @@ async def main():
 ║              Hermes Glasses Bridge Server                ║
 ║                                                          ║
 ║  Listening on ws://{HOST}:{PORT}/voice                       ║
-║  STT: on the phone (app sends text queries)              ║
-║       (raw-audio fallback: {STT_BACKEND} — unused by the app)  ║
+║  STT: on the phone — the app sends text queries          ║
 ║                                                          ║
 ║  Connect your glasses app to:                            ║
 ║  ws://{local_ip()}:{PORT}/voice                             ║
