@@ -148,11 +148,34 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
         logger.info("Audio session active. Input route: \(self.currentInputName, privacy: .public)")
 
+        // Route changes (especially to/from HFP) renegotiate the hardware
+        // sample rate. Give it a moment, drop cached formats, and wait for
+        // a valid input format — starting too early fails with -10868
+        // (kAudioUnitErr_FormatNotSupported).
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        audioEngine.reset()
+        var waited = 0
+        while inputNode.outputFormat(forBus: 0).sampleRate == 0, waited < 10 {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            waited += 1
+        }
+
         isCapturing = true
         tapBufferCount = 0
         observeConfigurationChanges()
         installTap()
-        try audioEngine.start()
+        do {
+            try audioEngine.start()
+        } catch {
+            // One retry after a full reset — the first start can race the
+            // route transition
+            logger.warning("Engine start failed (\(error.localizedDescription, privacy: .public)) — resetting and retrying")
+            inputNode.removeTap(onBus: 0)
+            audioEngine.reset()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            installTap()
+            try audioEngine.start()
+        }
         logger.info("Audio engine started")
         return isUsingBluetoothInput
     }
