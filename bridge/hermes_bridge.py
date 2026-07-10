@@ -241,7 +241,7 @@ def pcm_to_wav(pcm_data: bytes, sample_rate: int = 16000) -> str:
 
 # ── WebSocket Handler ──────────────────────────────────────────────────────
 
-async def await_photo(websocket, timeout: float = 10.0) -> bytes | None:
+async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
     """Wait for the app to answer a capture_photo request.
 
     Discards mic-audio (binary) frames that arrive meanwhile. Returns the

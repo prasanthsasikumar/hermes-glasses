@@ -133,6 +133,9 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
     func stopCapture() {
         isCapturing = false
+        // Stop playback but keep the node attached — it is reused across
+        // sessions (attaching a second node would leak one per session)
+        playerNode?.stop()
         if let observer = configChangeObserver {
             NotificationCenter.default.removeObserver(observer)
             configChangeObserver = nil
@@ -151,19 +154,21 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             return
         }
 
-        // Tear down any previous player before attaching a new one
-        if let old = playerNode {
-            old.stop()
-            audioEngine.detach(old)
-            playerNode = nil
+        // One player, attached once and reused. Detaching a live node
+        // raises NSException inside AVAudioEngine (SIGABRT on the second
+        // response) — never detach, just stop/reschedule.
+        let player: AVAudioPlayerNode
+        if let existing = playerNode {
+            player = existing
+            player.stop()
+        } else {
+            player = AVAudioPlayerNode()
+            audioEngine.attach(player)
+            // TTS is always PCM16 mono 24kHz; the engine resamples to the
+            // hardware rate through the mixer.
+            audioEngine.connect(player, to: audioEngine.mainMixerNode, format: buffer.format)
+            playerNode = player
         }
-
-        let player = AVAudioPlayerNode()
-        audioEngine.attach(player)
-        // Connect through the mixer with the buffer's own format; the
-        // engine resamples 24kHz → hardware rate.
-        audioEngine.connect(player, to: audioEngine.mainMixerNode, format: buffer.format)
-        playerNode = player
 
         if !audioEngine.isRunning {
             do {

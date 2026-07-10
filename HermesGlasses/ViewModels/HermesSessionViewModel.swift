@@ -194,6 +194,11 @@ final class HermesSessionViewModel {
         // Session is started — set up Hermes and audio
         isGlassesConnected = true
         cameraManager.configure(session: session)
+        cameraManager.onDebug = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.apiClient?.sendDebug(message)
+            }
+        }
 
         // 2. Connect to Hermes first, with all callbacks wired up before
         // any audio flows, so no chunks are dropped.

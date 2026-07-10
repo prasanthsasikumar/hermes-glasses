@@ -39,6 +39,10 @@ enum HermesCameraError: LocalizedError {
 final class HermesCameraManager: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "camera")
 
+    /// Diagnostic breadcrumbs (stream states, timings) — surfaced in the
+    /// bridge log via the debug channel
+    var onDebug: ((String) -> Void)?
+
     /// All mutable state lives behind one lock so `configure()`/`reset()`
     /// are safe against an in-flight `capturePhoto()`.
     private struct State {
@@ -87,8 +91,16 @@ final class HermesCameraManager: @unchecked Sendable {
         defer { stateLock.withLockUnchecked { $0.captureInFlight = false } }
 
         guard let stream = try session.addStream() else {
+            debug("camera: addStream returned nil")
             throw HermesCameraError.streamUnavailable
         }
+        debug("camera: stream created, state=\(stream.state)")
+
+        // Report every state transition while this capture runs
+        let stateToken = stream.statePublisher.listen { [weak self] state in
+            self?.debug("camera: state → \(state)")
+        }
+        defer { Task { await stateToken.cancel() } }
 
         // The stream must run only while a capture is in flight. Register
         // the stop before starting it so every exit path — including a
@@ -96,16 +108,30 @@ final class HermesCameraManager: @unchecked Sendable {
         // one-shot: never cached or reused across captures.
         defer { stream.stop() }
 
+        let started = Date()
         if stream.state != .streaming {
             stream.start()
-            try await waitForStreaming(stream, timeout: 4.0)
+            // First start can take several seconds (camera sensor + LED
+            // wake). The bridge waits 25 s, so 10+10 fits comfortably.
+            try await waitForStreaming(stream, timeout: 10.0)
         }
+        debug(String(format: "camera: streaming after %.1fs — capturing",
+                     Date().timeIntervalSince(started)))
 
-        logger.info("Camera streaming — capturing photo")
-        return try await awaitPhotoData(stream, timeout: 5.0)
+        let photo = try await awaitPhotoData(stream, timeout: 10.0)
+        debug(String(format: "camera: photo %d bytes in %.1fs total",
+                     photo.count, Date().timeIntervalSince(started)))
+        return photo
     }
 
     // MARK: - Private
+
+    private func debug(_ message: String) {
+        logger.info("\(message, privacy: .public)")
+        DispatchQueue.main.async { [weak self] in
+            self?.onDebug?(message)
+        }
+    }
 
     private func waitForStreaming(
         _ stream: MWDATCamera.Stream,
