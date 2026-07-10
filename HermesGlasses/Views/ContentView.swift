@@ -36,7 +36,10 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView(hermesVM: hermesVM)
+                SettingsView(hermesVM: hermesVM, wearablesVM: wearablesVM)
+            }
+            .task {
+                await hermesVM.checkBridge()
             }
         }
     }
@@ -90,9 +93,39 @@ struct ContentView: View {
                     .padding(.vertical, 4)
                     .background(.green.opacity(0.15), in: Capsule())
             }
+
+            // Bridge reachability — checked on launch, tap to re-check
+            Button {
+                Task { await hermesVM.checkBridge() }
+            } label: {
+                Label(bridgeLabel, systemImage: "server.rack")
+                    .font(.caption)
+                    .foregroundStyle(bridgeColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(bridgeColor.opacity(0.15), in: Capsule())
+            }
+            .buttonStyle(.plain)
         }
         .padding()
         .background(.ultraThinMaterial)
+    }
+
+    private var bridgeLabel: String {
+        switch hermesVM.bridgeStatus {
+        case .unknown: return "Bridge ?"
+        case .checking: return "Bridge …"
+        case .reachable: return "Bridge ✓"
+        case .unreachable: return "Bridge ✗"
+        }
+    }
+
+    private var bridgeColor: Color {
+        switch hermesVM.bridgeStatus {
+        case .reachable: return .green
+        case .unreachable: return .red
+        case .unknown, .checking: return .gray
+        }
     }
 
     // MARK: - Conversation Area
@@ -339,6 +372,7 @@ struct ContentView: View {
 
 struct SettingsView: View {
     let hermesVM: HermesSessionViewModel
+    let wearablesVM: WearablesViewModel
     @State private var endpoint: String = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -353,6 +387,21 @@ struct SettingsView: View {
                     Text("Default: ws://localhost:8765/voice")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Glasses Diagnostics") {
+                    LabeledContent("Registration", value: registrationText)
+                    LabeledContent(
+                        "Devices seen by SDK",
+                        value: "\(wearablesVM.devices.count)"
+                    )
+                    Text("0 devices with \"Registered\" means the glasses aren't reachable over Bluetooth right now, or the pairing is stale.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button("Re-pair Glasses", role: .destructive) {
+                        Task { await wearablesVM.repairGlasses() }
+                    }
                 }
 
                 Section("About") {
@@ -378,6 +427,15 @@ struct SettingsView: View {
             .onAppear {
                 endpoint = hermesVM.hermesEndpoint
             }
+        }
+    }
+
+    private var registrationText: String {
+        switch wearablesVM.registrationState {
+        case .notRegistered: return "Not registered"
+        case .registering: return "Registering…"
+        case .registered: return "Registered"
+        case .unavailable: return "Unavailable"
         }
     }
 }

@@ -22,6 +22,14 @@ enum HermesConnectionState: Equatable {
     case error(String)
 }
 
+/// Whether the Hermes bridge on the Mac is reachable, independent of glasses
+enum BridgeStatus: Equatable {
+    case unknown
+    case checking
+    case reachable
+    case unreachable
+}
+
 @Observable
 @MainActor
 final class HermesSessionViewModel {
@@ -29,6 +37,7 @@ final class HermesSessionViewModel {
 
     var connectionState: HermesConnectionState = .disconnected
     var isGlassesConnected: Bool = false
+    var bridgeStatus: BridgeStatus = .unknown
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -304,6 +313,18 @@ final class HermesSessionViewModel {
 
     func setEndpoint(_ endpoint: String) {
         UserDefaults.standard.set(endpoint, forKey: "hermes_endpoint")
+        Task { await checkBridge() }
+    }
+
+    /// Probe the Hermes bridge (connect, await welcome, disconnect) without
+    /// touching the glasses — lets the UI show bridge reachability on launch.
+    func checkBridge() async {
+        guard bridgeStatus != .checking else { return }
+        bridgeStatus = .checking
+        let probe = HermesAPIClient(endpoint: hermesEndpoint)
+        let ok = await probe.connect()
+        probe.disconnect()
+        bridgeStatus = ok ? .reachable : .unreachable
     }
 
     func dismissError() {
