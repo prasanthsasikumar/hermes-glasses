@@ -30,6 +30,14 @@ struct ContentView: View {
             }
             .navigationTitle("Hermes Glasses")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        hermesVM.startNewConversation()
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .disabled(hermesVM.connectionState == .disconnected)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showSettings = true

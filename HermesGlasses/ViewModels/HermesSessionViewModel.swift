@@ -271,6 +271,15 @@ final class HermesSessionViewModel {
                 self?.show(error)
             }
         }
+        client.onSessionReset = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.conversationHistory.removeAll()
+                self.lastTranscript = ""
+                self.lastResponse = ""
+                self.liveTranscript = ""
+            }
+        }
         client.onCapturePhotoRequested = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -386,6 +395,12 @@ final class HermesSessionViewModel {
     /// "Send now" button — don't wait for the pause detection
     func sendNow() {
         speechRecognizer.finalizeNow()
+    }
+
+    /// Forget the conversation: bridge clears its same-day Hermes session,
+    /// the app clears its history on the session_reset confirmation
+    func startNewConversation() {
+        apiClient?.sendNewSession()
     }
 
     /// Cut Hermes off mid-reply (tap on the speaking indicator, or voice

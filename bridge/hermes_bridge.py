@@ -62,6 +62,77 @@ def is_visual_query(text: str) -> bool:
     lowered = text.lower()
     return any(keyword in lowered for keyword in VISUAL_KEYWORDS)
 
+
+# "this drink", "that building", "the one on the left" — references to
+# something the user is (probably) looking at
+DEICTIC_RE = None  # compiled below, after re is imported
+
+
+def should_capture_photo(text: str, last_photo_at: float, now: float) -> bool:
+    """Decide whether a query needs a fresh photo.
+
+    Explicit visual keywords always capture. Deictic references ("this X")
+    capture only when no photo was taken recently — within the window,
+    conversation memory already knows what the user is looking at.
+    """
+    if is_visual_query(text):
+        return True
+    if DEICTIC_RE and DEICTIC_RE.search(text):
+        return (now - last_photo_at) > PHOTO_MEMORY_WINDOW_S
+    return False
+
+
+PHOTO_MEMORY_WINDOW_S = 120.0
+
+# ── Conversation memory (same-day hermes session) ──────────────────────────
+SESSION_FILE = os.path.expanduser("~/.hermes_glasses_bridge_session.json")
+
+VOICE_PERSONA = (
+    "(You are a voice assistant running on smart glasses. Your answers are "
+    "spoken aloud - keep them to 1-3 conversational sentences unless the "
+    "user asks for detail. The user may reference things they see; photos "
+    "may be attached to queries. Do not mention codebases or files unless "
+    "asked.) "
+)
+
+
+def _today() -> str:
+    import datetime
+    return datetime.date.today().isoformat()
+
+
+def load_session() -> str | None:
+    """Stored hermes session ID, if it is from today."""
+    try:
+        with open(SESSION_FILE) as f:
+            data = json.load(f)
+        if data.get("date") == _today() and data.get("session_id"):
+            return data["session_id"]
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def store_session(session_id: str):
+    try:
+        with open(SESSION_FILE, "w") as f:
+            json.dump({"session_id": session_id, "date": _today()}, f)
+    except OSError as e:
+        print(f"[Bridge] Could not persist session: {e}")
+
+
+def clear_session():
+    try:
+        os.unlink(SESSION_FILE)
+    except OSError:
+        pass
+
+
+def extract_session_id(stderr_text: str) -> str | None:
+    import re as _re
+    match = _re.search(r"session_id:\s*(\S+)", stderr_text)
+    return match.group(1) if match else None
+
 # ── Server-side VAD (utterance detection) ──────────────────────────────────
 # The app streams audio continuously; the bridge decides when an utterance
 # has ended. Tune SPEECH_RMS using the [VAD] level logs.
@@ -120,6 +191,10 @@ import re
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 BOX_CHARS = set("╭╮╰╯│─═╞╡┌┐└┘┤├")
 
+# Deictic references — compiled here because `re` is imported at this point
+DEICTIC_RE = re.compile(r"\b(this|that|these|those)\s+[a-z]+|\bthe one\b",
+                        re.IGNORECASE)
+
 
 def extract_hermes_reply(raw: str) -> str | None:
     """Pull just the assistant's reply out of the hermes CLI output.
@@ -148,11 +223,21 @@ def extract_hermes_reply(raw: str) -> str | None:
     return reply or None
 
 
-def ask_hermes(text: str, image_path: str | None = None) -> str | None:
-    """Send text (and optionally an image) to Hermes Agent."""
+def ask_hermes(
+    text: str,
+    image_path: str | None = None,
+    resume: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Send text (and optionally an image) to Hermes Agent.
+
+    Returns (reply, session_id). session_id enables conversation memory
+    via --resume on the next query; either value may be None.
+    """
     cmd = [HERMES_BIN, "chat", "-q", text, "-Q", "--cli"]
     if image_path:
         cmd += ["--image", image_path]
+    if resume:
+        cmd += ["--resume", resume]
     try:
         result = subprocess.run(
             cmd,
@@ -161,22 +246,28 @@ def ask_hermes(text: str, image_path: str | None = None) -> str | None:
             timeout=120 if image_path else 60,
             env={**os.environ, "HERMES_NO_COLOR": "1"},
         )
+        session_id = extract_session_id(result.stderr)
         output = result.stdout.strip()
         if output:
             # -Q should print only the reply; if box UI sneaks in, unwrap it
             if BOX_CHARS & set(output):
                 reply = extract_hermes_reply(output)
                 if reply:
-                    return reply
-            return output
+                    return reply, session_id
+            return output, session_id
         if result.stderr.strip():
-            return result.stderr.strip()
-        return None
+            # No reply on stdout — return the error text sans session line
+            err = "\n".join(
+                line for line in result.stderr.strip().splitlines()
+                if not line.startswith("session_id:")
+            ).strip()
+            return (err or None), session_id
+        return None, session_id
     except subprocess.TimeoutExpired:
-        return "Sorry, Hermes took too long to respond."
+        return "Sorry, Hermes took too long to respond.", None
     except Exception as e:
         print(f"[Hermes] Error: {e}")
-        return f"Error: {e}"
+        return f"Error: {e}", None
 
 
 # ── Text-to-Speech ─────────────────────────────────────────────────────────
@@ -331,16 +422,21 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
     await process_query(websocket, transcript)
 
 
-async def process_query(websocket, text: str):
+async def process_query(websocket, text: str, conn_state: dict | None = None):
     """Answer a text query: photo capture if visual, Hermes, TTS reply.
 
     Used both by the audio path (after STT) and directly for
     {"type":"query"} messages from apps that transcribe on-device.
+    conn_state carries per-connection context: {"last_photo_at": float}.
     """
-    # ── Capture a photo for visual queries ──
+    if conn_state is None:
+        conn_state = {"last_photo_at": 0.0}
+
+    # ── Capture a photo for visual/deictic queries ──
     image_path = None
     query_text = text
-    if is_visual_query(text):
+    if should_capture_photo(text, conn_state.get("last_photo_at", 0.0),
+                            time.monotonic()):
         print("[Bridge] Visual query — requesting photo from glasses")
         await websocket.send(json.dumps({"type": "capture_photo"}))
         photo = await await_photo(websocket)
@@ -349,16 +445,32 @@ async def process_query(websocket, text: str):
             img_tmp.write(photo)
             img_tmp.close()
             image_path = img_tmp.name
+            conn_state["last_photo_at"] = time.monotonic()
             print(f"[Bridge] Photo received: {len(photo)} bytes")
         else:
             print("[Bridge] No photo — answering text-only")
             query_text = ("(No photo could be captured from the glasses.) "
                           + text)
 
-    # ── Ask Hermes ──
-    print("[Bridge] Asking Hermes...")
+    # ── Ask Hermes (with same-day conversation memory) ──
+    resume = load_session()
+    if not resume:
+        # Fresh conversation: teach Hermes it is a glasses voice assistant
+        query_text = VOICE_PERSONA + query_text
+    print(f"[Bridge] Asking Hermes... (session: {resume or 'new'})")
     try:
-        response = await asyncio.to_thread(ask_hermes, query_text, image_path)
+        response, session_id = await asyncio.to_thread(
+            ask_hermes, query_text, image_path, resume
+        )
+        if resume and not response:
+            # Stored session may have been pruned — retry fresh once
+            print("[Bridge] Resume failed — retrying with a fresh session")
+            clear_session()
+            response, session_id = await asyncio.to_thread(
+                ask_hermes, VOICE_PERSONA + text, image_path, None
+            )
+        if session_id:
+            store_session(session_id)
     finally:
         if image_path:
             os.unlink(image_path)
@@ -422,6 +534,8 @@ async def handle_connection(websocket):
     # Audio that arrives while we were processing (incl. TTS echo) is stale;
     # discard it until this wall-clock time.
     drop_until = 0.0
+    # Per-connection context for photo-recency suppression
+    conn_state = {"last_photo_at": 0.0}
 
     try:
         async for message in websocket:
@@ -494,13 +608,20 @@ async def handle_connection(websocket):
                         audio_buffer.clear()
                         in_speech = False
                         silence_ms = 0.0
-                        await process_query(websocket, text)
+                        await process_query(websocket, text, conn_state)
                         drop_until = time.monotonic() + 0.5
                     else:
                         await websocket.send(json.dumps({
                             "type": "error",
                             "message": "Empty query."
                         }))
+
+                elif msg_type == "new_session":
+                    # Forget the conversation; next query starts fresh
+                    clear_session()
+                    conn_state["last_photo_at"] = 0.0
+                    print("[Bridge] Conversation reset by app")
+                    await websocket.send(json.dumps({"type": "session_reset"}))
 
                 elif msg_type == "debug":
                     print(f"[App] {data.get('msg')}")

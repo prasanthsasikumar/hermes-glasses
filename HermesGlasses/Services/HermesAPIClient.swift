@@ -21,6 +21,8 @@ final class HermesAPIClient: NSObject {
     var onDisconnected: (() -> Void)?
     /// Bridge asks the app to take a photo with the glasses
     var onCapturePhotoRequested: (() -> Void)?
+    /// Bridge confirmed the conversation was reset
+    var onSessionReset: (() -> Void)?
 
     // MARK: - Private
 
@@ -109,6 +111,12 @@ final class HermesAPIClient: NSObject {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let text = String(data: data, encoding: .utf8) else { return }
         ws.send(.string(text)) { _ in }
+    }
+
+    /// Ask the bridge to forget the conversation (same-day memory reset)
+    func sendNewSession() {
+        guard isConnected, let ws = webSocket else { return }
+        ws.send(.string(#"{"type":"new_session"}"#)) { _ in }
     }
 
     /// Send an on-device-transcribed query; the bridge skips STT for these
@@ -236,6 +244,8 @@ final class HermesAPIClient: NSObject {
                 }
             case "capture_photo":
                 self?.onCapturePhotoRequested?()
+            case "session_reset":
+                self?.onSessionReset?()
             default:
                 break
             }
