@@ -414,6 +414,35 @@ final class HermesSessionViewModel {
         Task { await checkBridge() }
     }
 
+    // MARK: - Endpoint presets
+
+    /// Named endpoint presets (UserDefaults-backed; tokens stay on-device)
+    var endpointPresets: [(name: String, url: String)] {
+        let dict = UserDefaults.standard
+            .dictionary(forKey: "endpoint_presets") as? [String: String]
+            ?? ["Mac (local)": "ws://192.168.1.16:8765/voice"]
+        return dict.sorted { $0.key < $1.key }
+            .map { (name: $0.key, url: $0.value) }
+    }
+
+    func savePreset(name: String, url: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let trimmedURL = url.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty, !trimmedURL.isEmpty else { return }
+        var dict = UserDefaults.standard
+            .dictionary(forKey: "endpoint_presets") as? [String: String]
+            ?? ["Mac (local)": "ws://192.168.1.16:8765/voice"]
+        dict[trimmedName] = trimmedURL
+        UserDefaults.standard.set(dict, forKey: "endpoint_presets")
+    }
+
+    func deletePreset(name: String) {
+        var dict = UserDefaults.standard
+            .dictionary(forKey: "endpoint_presets") as? [String: String] ?? [:]
+        dict.removeValue(forKey: name)
+        UserDefaults.standard.set(dict, forKey: "endpoint_presets")
+    }
+
     /// Probe the Hermes bridge (connect, await welcome, disconnect) without
     /// touching the glasses — lets the UI show bridge reachability on launch.
     func checkBridge() async {

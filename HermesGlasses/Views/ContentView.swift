@@ -471,19 +471,54 @@ struct SettingsView: View {
     let hermesVM: HermesSessionViewModel
     let wearablesVM: WearablesViewModel
     @State private var endpoint: String = ""
+    @State private var showSavePreset: Bool = false
+    @State private var presetName: String = ""
+    @State private var presetsVersion: Int = 0  // bump to refresh list
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Hermes Agent Endpoint") {
+                    // Saved presets — tap to select
+                    ForEach(hermesVM.endpointPresets, id: \.name) { preset in
+                        Button {
+                            endpoint = preset.url
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.name)
+                                        .foregroundStyle(.primary)
+                                    Text(preset.url)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                if endpoint == preset.url {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                hermesVM.deletePreset(name: preset.name)
+                                presetsVersion += 1
+                            }
+                        }
+                    }
+                    .id(presetsVersion)
+
                     TextField("WebSocket URL", text: $endpoint)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
 
-                    Text("Default: ws://localhost:8765/voice")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Button("Save current URL as preset…") {
+                        presetName = ""
+                        showSavePreset = true
+                    }
+                    .disabled(endpoint.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
 
                 Section("Microphone") {
@@ -545,6 +580,16 @@ struct SettingsView: View {
             }
             .onAppear {
                 endpoint = hermesVM.hermesEndpoint
+            }
+            .alert("Save preset", isPresented: $showSavePreset) {
+                TextField("Name (e.g. Maya remote)", text: $presetName)
+                Button("Save") {
+                    hermesVM.savePreset(name: presetName, url: endpoint)
+                    presetsVersion += 1
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Saves the current URL so you can switch with one tap.")
             }
         }
     }

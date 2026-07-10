@@ -17,12 +17,14 @@ import base64
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import wave
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 try:
     import websockets
@@ -33,7 +35,16 @@ except ImportError:
 # ── Configuration ──────────────────────────────────────────────────────────
 HOST = "0.0.0.0"
 PORT = 8765
-HERMES_BIN = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+HERMES_BIN = os.environ.get(
+    "HERMES_BIN",
+    os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes"),
+)
+
+# Shared-secret auth. When set (HERMES_BRIDGE_TOKEN env), clients must
+# connect with ws://host:8765/voice?token=<value>. REQUIRED on any bridge
+# reachable from the internet — hermes has tool access, so an open bridge
+# is remote code execution for anyone who finds the port.
+AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
 
 # STT backend: "google" (free, needs internet) or "whisper" (local)
 STT_BACKEND = "google"
@@ -188,26 +199,38 @@ def synthesize_speech(text: str) -> bytes | None:
 
         asyncio.run(_synth())
 
-        # Decode MP3 → raw PCM16 mono 24kHz via afconvert (macOS built-in)
-        result = subprocess.run(
-            ["afconvert", "-f", "WAVE", "-d", "LEI16@24000", "-c", "1",
-             mp3_tmp.name, wav_tmp.name],
-            capture_output=True, timeout=30,
-        )
-        os.unlink(mp3_tmp.name)
-        if result.returncode == 0:
-            with wave.open(wav_tmp.name, "rb") as wf:
-                data = wf.readframes(wf.getnframes())
+        # Decode MP3 → PCM16 mono 24kHz WAV. afconvert on macOS,
+        # ffmpeg elsewhere (Linux).
+        if shutil.which("afconvert"):
+            cmd = ["afconvert", "-f", "WAVE", "-d", "LEI16@24000", "-c", "1",
+                   mp3_tmp.name, wav_tmp.name]
+        elif shutil.which("ffmpeg"):
+            cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", mp3_tmp.name,
+                   "-ar", "24000", "-ac", "1", "-sample_fmt", "s16",
+                   wav_tmp.name]
+        else:
+            cmd = None
+            print("[TTS] Neither afconvert nor ffmpeg found")
+
+        if cmd:
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            os.unlink(mp3_tmp.name)
+            if result.returncode == 0:
+                with wave.open(wav_tmp.name, "rb") as wf:
+                    data = wf.readframes(wf.getnframes())
+                os.unlink(wav_tmp.name)
+                return data
             os.unlink(wav_tmp.name)
-            return data
-        os.unlink(wav_tmp.name)
-        print(f"[TTS] afconvert failed: {result.stderr.decode()[:200]}")
+            print(f"[TTS] decode failed: {result.stderr.decode()[:200]}")
     except ImportError:
         pass
     except Exception as e:
         print(f"[TTS] Edge TTS error: {e}")
 
     # Fallback: macOS say command, directly as PCM16 24kHz WAV
+    if not shutil.which("say"):
+        print("[TTS] No 'say' fallback available on this platform")
+        return None
     try:
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         tmp.close()
@@ -364,8 +387,26 @@ async def process_query(websocket, text: str):
     print("[Bridge] Response complete.")
 
 
+def is_authorized(websocket) -> bool:
+    """When AUTH_TOKEN is set, require ?token=<AUTH_TOKEN> in the WS path."""
+    if not AUTH_TOKEN:
+        return True
+    try:
+        path = websocket.request.path if websocket.request else ""
+        query = parse_qs(urlparse(path).query)
+        return query.get("token", [""])[0] == AUTH_TOKEN
+    except Exception:
+        return False
+
+
 async def handle_connection(websocket):
     """Handle a single glasses connection."""
+    if not is_authorized(websocket):
+        print(f"[Bridge] REJECTED unauthorized connection from "
+              f"{websocket.remote_address}")
+        await websocket.close(code=4401, reason="unauthorized")
+        return
+
     print(f"[Bridge] Glasses connected from {websocket.remote_address}")
 
     # Send welcome to confirm connection

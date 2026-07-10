@@ -42,6 +42,9 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     private var tapBufferCount: Int = 0
     private var lastDebugTime: TimeInterval = 0
     private var lastLevelTime: TimeInterval = 0
+    // Lazy conversion state — rebuilt whenever the tap's buffer format changes
+    private var converter: AVAudioConverter?
+    private var converterInputFormat: AVAudioFormat?
 
     // VAD
     private var isSpeechActive: Bool = false
@@ -165,6 +168,8 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         }
         inputNode.removeTap(onBus: 0)
         audioEngine.stop()
+        converter = nil
+        converterInputFormat = nil
         try? AVAudioSession.sharedInstance().setActive(false)
     }
 
@@ -255,35 +260,34 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         let inputFormat = inputNode.outputFormat(forBus: 0)
         logger.info("Installing tap. Input format: \(inputFormat.sampleRate, privacy: .public) Hz, \(inputFormat.channelCount, privacy: .public) ch")
 
-        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
-            logger.error("Input format is invalid (0 Hz) — no microphone available yet")
-            return
-        }
-
-        guard let converter = AVAudioConverter(from: inputFormat, to: captureFormat) else {
-            logger.error("Failed to create AVAudioConverter")
-            return
-        }
-
         let session = AVAudioSession.sharedInstance()
         let inputs = session.currentRoute.inputs
             .map { "\($0.portName) (\($0.portType.rawValue))" }
             .joined(separator: ", ")
         sendDebug("tap installed: route=[\(inputs)] format=\(inputFormat.sampleRate)Hz/\(inputFormat.channelCount)ch gain=\(session.inputGain)")
 
+        // format: nil — the tap follows the node's live format. Passing an
+        // explicit format raises NSException (SIGABRT) when the cached
+        // format mismatches the hardware mid-route-change (e.g. switching
+        // to Bluetooth HFP). The converter is built lazily per buffer
+        // format instead.
         inputNode.installTap(
             onBus: 0,
             bufferSize: 1024,
-            format: inputFormat
+            format: nil
         ) { [weak self] buffer, _ in
-            self?.processInputBuffer(buffer, converter: converter)
+            self?.processInputBuffer(buffer)
         }
     }
 
-    private func processInputBuffer(
-        _ buffer: AVAudioPCMBuffer,
-        converter: AVAudioConverter
-    ) {
+    private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
+        // (Re)build the converter whenever the incoming format changes —
+        // route switches change the sample rate under our feet
+        if converter == nil || converterInputFormat != buffer.format {
+            converter = AVAudioConverter(from: buffer.format, to: captureFormat)
+            converterInputFormat = buffer.format
+        }
+        guard let converter else { return }
         tapBufferCount += 1
         if tapBufferCount == 1 || tapBufferCount % 100 == 0 {
             logger.info("Tap delivered buffer #\(self.tapBufferCount, privacy: .public) (\(buffer.frameLength, privacy: .public) frames)")
