@@ -83,6 +83,10 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Hermes Glasses uses the microphone on your glasses to capture your voice for the AI assistant.</string>
 
+	<!-- Local network access for the Hermes bridge on your Mac -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Hermes Glasses connects to the Hermes bridge running on your Mac over the local network.</string>
+
 	<!-- DAT SDK configuration -->
 	<key>MWDAT</key>
 	<dict>
