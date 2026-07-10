@@ -69,22 +69,27 @@ struct ContentView: View {
 
             Spacer()
 
-            // Mic source indicator
+            // Mic source — shows the ACTUAL route; tap to toggle
             if hermesVM.connectionState != .disconnected {
                 let audio = hermesVM.audio
-                Label(
-                    audio.isUsingBluetoothInput ? "Glasses Mic" : "iPhone Mic",
-                    systemImage: audio.isUsingBluetoothInput ? "eyeglasses" : "iphone.gen3"
-                )
-                .font(.caption2)
-                .foregroundStyle(audio.isUsingBluetoothInput ? .green : .orange)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    (audio.isUsingBluetoothInput ? Color.green : Color.orange)
-                        .opacity(0.15),
-                    in: Capsule()
-                )
+                Button {
+                    Task { await hermesVM.toggleMicSource() }
+                } label: {
+                    Label(
+                        audio.isUsingBluetoothInput ? "Glasses Mic" : "iPhone Mic",
+                        systemImage: audio.isUsingBluetoothInput ? "eyeglasses" : "iphone.gen3"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(audio.isUsingBluetoothInput ? .green : .orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        (audio.isUsingBluetoothInput ? Color.green : Color.orange)
+                            .opacity(0.15),
+                        in: Capsule()
+                    )
+                }
+                .buttonStyle(.plain)
             }
 
             // Glasses connection state
@@ -477,6 +482,24 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
 
                     Text("Default: ws://localhost:8765/voice")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Microphone") {
+                    Picker("Voice input", selection: Binding(
+                        get: { hermesVM.micSource },
+                        set: { newValue in
+                            if newValue != hermesVM.micSource {
+                                Task { await hermesVM.toggleMicSource() }
+                            }
+                        }
+                    )) {
+                        ForEach(MicSource.allCases, id: \.self) { source in
+                            Text(source.label).tag(source)
+                        }
+                    }
+                    Text("Glasses mode uses Bluetooth hands-free: Hermes's voice also plays through the glasses, at call quality.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -122,6 +122,19 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
         emitFinalIfAny()
     }
 
+    /// Restart the recognition cycle with a fresh request. Required after
+    /// an audio route change: the tap's buffer format changes and
+    /// SFSpeechAudioBufferRecognitionRequest cannot absorb that mid-request.
+    func restartCycle() {
+        guard isRunning else { return }
+        latestPartial = ""
+        lastChangeAt = .distantPast
+        tearDownCycle()
+        if !isSuspended {
+            startRecognitionCycle()
+        }
+    }
+
     // MARK: - Private
 
     private func startRecognitionCycle() {

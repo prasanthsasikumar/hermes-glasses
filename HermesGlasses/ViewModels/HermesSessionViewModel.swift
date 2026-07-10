@@ -30,6 +30,20 @@ enum BridgeStatus: Equatable {
     case unreachable
 }
 
+/// Where voice is captured (and, for glasses, where TTS plays — HFP is
+/// bidirectional)
+enum MicSource: String, CaseIterable {
+    case phone
+    case glasses
+
+    var label: String {
+        switch self {
+        case .phone: return "iPhone Mic"
+        case .glasses: return "Glasses Mic"
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class HermesSessionViewModel {
@@ -47,6 +61,10 @@ final class HermesSessionViewModel {
     var testRunning: Set<String> = []
     /// Glasses camera permission (granted in the Meta AI app); nil = unknown
     var cameraPermissionGranted: Bool? = nil
+    /// Preferred microphone source; the banner chip shows the ACTUAL route
+    var micSource: MicSource = MicSource(
+        rawValue: UserDefaults.standard.string(forKey: "mic_source") ?? ""
+    ) ?? .phone
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -306,8 +324,19 @@ final class HermesSessionViewModel {
             self?.submitQuery(text)
         }
 
+        audioManager.onRouteChanged = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.speechRecognizer.restartCycle()
+            }
+        }
+
         do {
-            try await audioManager.startCapture()
+            let glassesActive = try await audioManager.startCapture(
+                useGlassesMic: micSource == .glasses
+            )
+            if micSource == .glasses && !glassesActive {
+                show("Glasses mic not available — using iPhone mic")
+            }
             if speechOK {
                 try speechRecognizer.start()
             }
@@ -336,6 +365,31 @@ final class HermesSessionViewModel {
     /// "Send now" button — don't wait for the pause detection
     func sendNow() {
         speechRecognizer.finalizeNow()
+    }
+
+    /// Flip between iPhone and glasses mic. Persists the preference and,
+    /// when a session is live, reconfigures capture and restarts the
+    /// recognizer (new route = new buffer format).
+    func toggleMicSource() async {
+        let target: MicSource = micSource == .phone ? .glasses : .phone
+        micSource = target
+        UserDefaults.standard.set(target.rawValue, forKey: "mic_source")
+
+        guard connectionState != .disconnected else { return }
+
+        audioManager.stopCapture()
+        do {
+            let glassesActive = try await audioManager.startCapture(
+                useGlassesMic: target == .glasses
+            )
+            speechRecognizer.restartCycle()
+            if target == .glasses && !glassesActive {
+                show("Glasses mic not available — using iPhone mic")
+            }
+        } catch {
+            show("Mic switch failed: \(error.localizedDescription)")
+            endSession()
+        }
     }
 
     func endSession() {

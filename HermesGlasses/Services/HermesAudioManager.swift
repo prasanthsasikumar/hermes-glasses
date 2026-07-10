@@ -23,6 +23,10 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     var onRawBuffer: ((AVAudioPCMBuffer) -> Void)?
     /// Mic RMS level (0..~1), throttled to ~4/s — for the UI level meter
     var onLevel: ((Float) -> Void)?
+    /// Fired (on main) after a route/config change re-installed the tap.
+    /// Consumers feeding SFSpeech MUST restart their recognition request —
+    /// it cannot absorb a buffer-format change mid-request.
+    var onRouteChanged: (() -> Void)?
 
     // MARK: - Private
 
@@ -81,7 +85,11 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
     /// Start capturing audio — uses iPhone mic by default (reliable).
     /// Set useGlassesMic=true to try routing through glasses Bluetooth.
-    func startCapture(useGlassesMic: Bool = false) async throws {
+    /// Start capturing. Returns true when the glasses (Bluetooth HFP) route
+    /// is actually active — false means the iPhone mic is in use (either by
+    /// choice or as fallback when the glasses route never appeared).
+    @discardableResult
+    func startCapture(useGlassesMic: Bool = false) async throws -> Bool {
         guard await requestMicrophonePermission() else {
             logger.error("Microphone permission denied")
             throw HermesAudioError.microphonePermissionDenied
@@ -90,9 +98,12 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         let session = AVAudioSession.sharedInstance()
 
         if useGlassesMic {
+            // Mode .default, NOT .voiceChat — its DSP gates speech to the
+            // noise floor. HFP is bidirectional: TTS also moves to the
+            // glasses speakers while this mode is active (by design).
             try session.setCategory(
                 .playAndRecord,
-                mode: .voiceChat,
+                mode: .default,
                 options: [.allowBluetoothHFP]
             )
 
@@ -108,11 +119,22 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             for _ in 0..<30 where !isUsingBluetoothInput {
                 try await Task.sleep(nanoseconds: 100_000_000)
             }
+
+            if !isUsingBluetoothInput {
+                // Glasses route never materialized — fall back to the
+                // iPhone mic so the session still works.
+                logger.warning("HFP route unavailable — falling back to iPhone mic")
+                try? session.setPreferredInput(nil)
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.defaultToSpeaker]
+                )
+                try session.setActive(true)
+            }
         } else {
             // iPhone mic only: no Bluetooth options, so iOS cannot
             // re-route input to the glasses and kill the tap.
-            // Mode .default, NOT .voiceChat: the voice-processing unit's
-            // noise suppression gates speech down to the noise floor here.
             try session.setCategory(
                 .playAndRecord,
                 mode: .default,
@@ -129,6 +151,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         installTap()
         try audioEngine.start()
         logger.info("Audio engine started")
+        return isUsingBluetoothInput
     }
 
     func stopCapture() {
@@ -224,6 +247,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                     self.logger.error("Failed to restart engine: \(error.localizedDescription, privacy: .public)")
                 }
             }
+            self.onRouteChanged?()
         }
     }
 
