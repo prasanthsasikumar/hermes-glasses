@@ -305,10 +305,19 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
         "text": transcript,
     }))
 
-    # ── Step 1.5: capture a photo for visual queries ──
+    await process_query(websocket, transcript)
+
+
+async def process_query(websocket, text: str):
+    """Answer a text query: photo capture if visual, Hermes, TTS reply.
+
+    Used both by the audio path (after STT) and directly for
+    {"type":"query"} messages from apps that transcribe on-device.
+    """
+    # ── Capture a photo for visual queries ──
     image_path = None
-    query_text = transcript
-    if is_visual_query(transcript):
+    query_text = text
+    if is_visual_query(text):
         print("[Bridge] Visual query — requesting photo from glasses")
         await websocket.send(json.dumps({"type": "capture_photo"}))
         photo = await await_photo(websocket)
@@ -321,13 +330,15 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
         else:
             print("[Bridge] No photo — answering text-only")
             query_text = ("(No photo could be captured from the glasses.) "
-                          + transcript)
+                          + text)
 
-    # ── Step 2: Ask Hermes ──
+    # ── Ask Hermes ──
     print("[Bridge] Asking Hermes...")
-    response = await asyncio.to_thread(ask_hermes, query_text, image_path)
-    if image_path:
-        os.unlink(image_path)
+    try:
+        response = await asyncio.to_thread(ask_hermes, query_text, image_path)
+    finally:
+        if image_path:
+            os.unlink(image_path)
     response_text = response or "I'm not sure what to say."
 
     print(f"[Bridge] Hermes: {response_text[:100]}...")
@@ -337,7 +348,7 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
         "text": response_text,
     }))
 
-    # ── Step 3: TTS ──
+    # ── TTS ──
     print("[Bridge] Generating speech...")
     await websocket.send(json.dumps({"type": "audio_start"}))
 
@@ -433,6 +444,22 @@ async def handle_connection(websocket):
                     silence_ms = 0.0
                     await process_utterance(websocket, pcm, sample_rate)
                     drop_until = time.monotonic() + 0.5
+
+                elif msg_type == "query":
+                    # App transcribed on-device and sends text directly
+                    text = (data.get("text") or "").strip()
+                    if text:
+                        print(f"[Bridge] Query: {text}")
+                        audio_buffer.clear()
+                        in_speech = False
+                        silence_ms = 0.0
+                        await process_query(websocket, text)
+                        drop_until = time.monotonic() + 0.5
+                    else:
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": "Empty query."
+                        }))
 
                 elif msg_type == "debug":
                     print(f"[App] {data.get('msg')}")

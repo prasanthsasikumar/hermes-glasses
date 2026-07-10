@@ -22,6 +22,9 @@ struct ContentView: View {
                 // Main conversation area
                 conversationArea
 
+                // Testing panel — every subsystem as a button
+                testPanel
+
                 // Control bar
                 controlBar
             }
@@ -165,9 +168,9 @@ struct ContentView: View {
                             TurnBubble(turn: turn)
                         }
 
-                        // Live transcript — shown as soon as STT finishes,
-                        // before Hermes responds
-                        if !hermesVM.lastTranscript.isEmpty {
+                        // Submitted query awaiting Hermes's answer
+                        if !hermesVM.lastTranscript.isEmpty,
+                           hermesVM.connectionState == .processing {
                             HStack {
                                 Spacer()
                                 Text(hermesVM.lastTranscript)
@@ -175,6 +178,28 @@ struct ContentView: View {
                                     .background(.blue.opacity(0.15))
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                     .frame(maxWidth: 280, alignment: .trailing)
+                            }
+                        }
+
+                        // LIVE transcription — words appear as you speak
+                        if !hermesVM.liveTranscript.isEmpty {
+                            HStack(alignment: .bottom) {
+                                Spacer()
+                                Text(hermesVM.liveTranscript)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .padding(12)
+                                    .background(.blue.opacity(0.08))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .frame(maxWidth: 280, alignment: .trailing)
+
+                                Button {
+                                    hermesVM.sendNow()
+                                } label: {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.title2)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
 
@@ -281,6 +306,73 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
+    }
+
+    // MARK: - Test Panel
+
+    @ViewBuilder
+    private var testPanel: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("TESTING")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                // Live mic level meter
+                HStack(spacing: 4) {
+                    Image(systemName: "mic.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    ProgressView(value: min(1.0, Double(hermesVM.micLevel) * 8))
+                        .frame(width: 80)
+                }
+            }
+
+            HStack(spacing: 8) {
+                testButton("Bridge") { await hermesVM.testBridge() }
+                testButton("Photo") { await hermesVM.testPhoto() }
+                testButton("Query") { await hermesVM.testQuery() }
+                testButton("Visual") { await hermesVM.testVisualQuery() }
+            }
+
+            // Most recent failure message, if any
+            if let failure = hermesVM.testResults.values
+                .compactMap({ $0 }).first(where: { !$0.isEmpty }) {
+                Text(failure)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+    }
+
+    private func testButton(
+        _ name: String,
+        action: @escaping () async -> Void
+    ) -> some View {
+        Button {
+            Task { await action() }
+        } label: {
+            HStack(spacing: 4) {
+                if hermesVM.testRunning.contains(name) {
+                    ProgressView().scaleEffect(0.6)
+                } else if let result = hermesVM.testResults[name] ?? nil {
+                    Image(systemName: result.isEmpty
+                        ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(result.isEmpty ? .green : .red)
+                }
+                Text(name)
+                    .font(.caption)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        .disabled(hermesVM.testRunning.contains(name))
     }
 
     // MARK: - Control Bar

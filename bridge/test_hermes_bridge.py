@@ -67,3 +67,53 @@ class TestAwaitPhoto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProcessQuery(unittest.TestCase):
+    """process_query: text in → hermes → response + TTS out, incl. photo path."""
+
+    def _run(self, text, ws, fake_reply="ok", fake_tts=b"\x00\x00"):
+        import hermes_bridge as hb
+
+        orig_ask, orig_tts = hb.ask_hermes, hb.synthesize_speech
+        calls = {}
+
+        def fake_ask(query, image_path=None):
+            calls["query"] = query
+            calls["image_path"] = image_path
+            return fake_reply
+
+        hb.ask_hermes = fake_ask
+        hb.synthesize_speech = lambda t: fake_tts
+        try:
+            asyncio.run(hb.process_query(ws, text))
+        finally:
+            hb.ask_hermes, hb.synthesize_speech = orig_ask, orig_tts
+        return calls
+
+    def test_plain_query_answers_without_photo(self):
+        ws = FakeWebSocket([])
+        calls = self._run("tell me a joke", ws)
+        self.assertEqual(calls["query"], "tell me a joke")
+        self.assertIsNone(calls["image_path"])
+        sent_types = [m for m in ws.sent if isinstance(m, str)]
+        self.assertFalse(any('"capture_photo"' in m for m in sent_types))
+        self.assertTrue(any('"response"' in m for m in sent_types))
+        self.assertTrue(any('"audio_end"' in m for m in sent_types))
+
+    def test_visual_query_requests_photo_and_passes_image(self):
+        jpeg = b"\xff\xd8\xff\xe0fakejpeg"
+        ws = FakeWebSocket([
+            '{"type":"photo","data":"%s"}' % base64.b64encode(jpeg).decode(),
+        ])
+        calls = self._run("what am I looking at", ws)
+        self.assertTrue(any('"capture_photo"' in m
+                            for m in ws.sent if isinstance(m, str)))
+        self.assertIsNotNone(calls["image_path"])
+        self.assertEqual(calls["query"], "what am I looking at")
+
+    def test_visual_query_photo_error_falls_back_to_text(self):
+        ws = FakeWebSocket(['{"type":"photo_error","message":"no camera"}'])
+        calls = self._run("what am I looking at", ws)
+        self.assertIsNone(calls["image_path"])
+        self.assertIn("No photo could be captured", calls["query"])

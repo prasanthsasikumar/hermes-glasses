@@ -38,6 +38,13 @@ final class HermesSessionViewModel {
     var connectionState: HermesConnectionState = .disconnected
     var isGlassesConnected: Bool = false
     var bridgeStatus: BridgeStatus = .unknown
+    /// Words recognized so far in the current utterance (live)
+    var liveTranscript: String = ""
+    /// Mic input level 0..~1 for the UI meter
+    var micLevel: Float = 0
+    /// Test-panel results keyed by test name: nil=never run, ""=pass, else error
+    var testResults: [String: String?] = [:]
+    var testRunning: Set<String> = []
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -59,6 +66,7 @@ final class HermesSessionViewModel {
     @ObservationIgnored private var apiClient: HermesAPIClient?
     @ObservationIgnored private var sessionObserverTask: Task<Void, Never>?
     @ObservationIgnored private let cameraManager = HermesCameraManager()
+    @ObservationIgnored private let speechRecognizer = HermesSpeechRecognizer()
     @ObservationIgnored private var pendingPhoto: Data?
 
     /// Exposed for UI to show audio route
@@ -217,6 +225,7 @@ final class HermesSessionViewModel {
         client.onPlaybackComplete = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.connectionState = .listening
+                self?.speechRecognizer.isSuspended = false
             }
         }
         client.onError = { [weak self] error in
@@ -244,26 +253,27 @@ final class HermesSessionViewModel {
             return
         }
 
-        // 3. Start audio capture (iPhone mic first; glasses routing later)
-        audioManager.onAudioChunk = { [weak self] chunk in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                // Don't stream the mic while Hermes is thinking or talking —
-                // without echo cancellation the mic hears the TTS and the
-                // bridge would transcribe Hermes back to itself.
-                switch self.connectionState {
-                case .processing, .speaking:
-                    return
-                default:
-                    self.apiClient?.sendAudioChunk(chunk)
-                }
-            }
+        // 3. Start audio capture + on-device recognition.
+        // Audio is transcribed ON the phone; only final text goes to the
+        // bridge. No mic audio is streamed over WiFi anymore.
+        let speechOK = await speechRecognizer.requestAuthorization()
+        if !speechOK {
+            show(HermesSpeechError.notAuthorized.localizedDescription)
+        }
+
+        audioManager.onRawBuffer = { [weak self] buffer in
+            self?.speechRecognizer.append(buffer)
+        }
+        audioManager.onLevel = { [weak self] level in
+            self?.micLevel = level
         }
         audioManager.onPlaybackComplete = { [weak self] in
             Task { @MainActor [weak self] in
-                if case .speaking = self?.connectionState {
-                    self?.connectionState = .listening
+                guard let self else { return }
+                if case .speaking = self.connectionState {
+                    self.connectionState = .listening
                 }
+                self.speechRecognizer.isSuspended = false
             }
         }
         audioManager.onDebug = { [weak self] message in
@@ -271,35 +281,52 @@ final class HermesSessionViewModel {
                 self?.apiClient?.sendDebug(message)
             }
         }
-        audioManager.onSpeechDetected = { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.connectionState = .recording
-            }
+
+        speechRecognizer.onPartial = { [weak self] text in
+            self?.liveTranscript = text
         }
-        audioManager.onSilenceDetected = { [weak self] in
-            Task { @MainActor [weak self] in
-                if case .recording = self?.connectionState {
-                    self?.connectionState = .processing
-                    await self?.apiClient?.finalizeAudio()
-                }
-            }
+        speechRecognizer.onFinal = { [weak self] text in
+            self?.submitQuery(text)
         }
 
         do {
             try await audioManager.startCapture()
+            if speechOK {
+                try speechRecognizer.start()
+            }
         } catch {
             show("Audio setup failed: \(error.localizedDescription)")
             endSession()
             return
         }
 
-        // Bridge connected and mic capturing — ready to listen
+        // Bridge connected, mic live, recognizer running
         connectionState = .listening
+    }
+
+    /// Send finalized text to Hermes and move the UI into processing
+    func submitQuery(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, apiClient?.isConnected == true else { return }
+        liveTranscript = ""
+        lastTranscript = trimmed
+        connectionState = .processing
+        // Pause recognition so the mic doesn't transcribe Hermes's TTS
+        speechRecognizer.isSuspended = true
+        apiClient?.sendQuery(trimmed)
+    }
+
+    /// "Send now" button — don't wait for the pause detection
+    func sendNow() {
+        speechRecognizer.finalizeNow()
     }
 
     func endSession() {
         sessionObserverTask?.cancel()
         sessionObserverTask = nil
+        speechRecognizer.stop()
+        liveTranscript = ""
+        micLevel = 0
         audioManager.stopCapture()
         apiClient?.disconnect()
         apiClient = nil
@@ -329,6 +356,74 @@ final class HermesSessionViewModel {
 
     func dismissError() {
         showError = false
+    }
+
+    // MARK: - Test panel
+
+    /// Explicit bridge test: connect + welcome + disconnect
+    func testBridge() async {
+        await runTest("Bridge") { [self] in
+            let probe = HermesAPIClient(endpoint: hermesEndpoint)
+            let ok = await probe.connect()
+            probe.disconnect()
+            if !ok { throw TestFailure("No welcome from \(hermesEndpoint)") }
+            bridgeStatus = .reachable
+        }
+    }
+
+    /// Glasses camera alone — no Hermes involved
+    func testPhoto() async {
+        await runTest("Photo") { [self] in
+            guard isGlassesConnected else {
+                throw TestFailure("Start a session first (needs glasses)")
+            }
+            let photo = try await cameraManager.capturePhoto()
+            pendingPhoto = photo
+            addTurn(
+                userText: "[Test Photo]",
+                agentText: "Captured \(photo.count / 1024) KB from glasses camera"
+            )
+        }
+    }
+
+    /// Round trip through bridge → Hermes → response text (+TTS)
+    func testQuery() async {
+        await runTest("Query") { [self] in
+            guard apiClient?.isConnected == true else {
+                throw TestFailure("Start a session first (needs bridge)")
+            }
+            submitQuery("Respond with exactly: OK")
+        }
+    }
+
+    /// Full photo pipeline via a canned visual query
+    func testVisualQuery() async {
+        await runTest("Visual") { [self] in
+            guard apiClient?.isConnected == true else {
+                throw TestFailure("Start a session first (needs bridge)")
+            }
+            guard isGlassesConnected else {
+                throw TestFailure("Glasses not connected")
+            }
+            submitQuery("What am I looking at? Answer in one short sentence.")
+        }
+    }
+
+    private struct TestFailure: LocalizedError {
+        let message: String
+        init(_ message: String) { self.message = message }
+        var errorDescription: String? { message }
+    }
+
+    private func runTest(_ name: String, _ body: () async throws -> Void) async {
+        testRunning.insert(name)
+        defer { testRunning.remove(name) }
+        do {
+            try await body()
+            testResults[name] = ""
+        } catch {
+            testResults[name] = error.localizedDescription
+        }
     }
 
     // MARK: - Private

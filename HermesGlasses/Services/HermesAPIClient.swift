@@ -111,6 +111,21 @@ final class HermesAPIClient: NSObject {
         ws.send(.string(text)) { _ in }
     }
 
+    /// Send an on-device-transcribed query; the bridge skips STT for these
+    func sendQuery(_ text: String) {
+        guard isConnected, let ws = webSocket else { return }
+        let payload: [String: String] = ["type": "query", "text": text]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        ws.send(.string(json)) { [weak self] error in
+            if let error {
+                Task { @MainActor in
+                    self?.onError?("Query send error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     /// Send a captured JPEG as base64 JSON (binary frames are mic audio only)
     func sendPhoto(_ data: Data) {
         guard isConnected, let ws = webSocket else { return }
