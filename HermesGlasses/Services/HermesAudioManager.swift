@@ -61,7 +61,9 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     private var playerNode: AVAudioPlayerNode?
     private var playbackBuffer: AVAudioPCMBuffer?
     private var isPlaying = false
-    private var didReplayAfterRouteChange = false
+    /// Debounced replay after route flaps; reset per response
+    private var replayTask: Task<Void, Never>?
+    private var replayCount = 0
     /// Bumped per response; stale completions/watchdogs become no-ops
     private var playbackGeneration = 0
 
@@ -261,7 +263,8 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
         playbackBuffer = buffer
         isPlaying = true
-        didReplayAfterRouteChange = false
+        replayCount = 0
+        replayTask?.cancel()
         playbackGeneration += 1
         let generation = playbackGeneration
 
@@ -278,12 +281,12 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             logger.warning("Engine stopped before play — deferring to route-change replay")
         }
 
-        // Watchdog: opening the Bluetooth HFP audio link mid-playback fires
-        // a config change that flushes the buffer — the completion then
-        // never arrives and the app would hang in "speaking" forever.
+        // Watchdog: if completion never arrives (flushed buffers, dead
+        // route) the app must not hang in "speaking". Margin covers the
+        // route-flap debounce plus up to one full replay.
         let duration = Double(buffer.frameLength) / buffer.format.sampleRate
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64((duration + 3.0) * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64((duration * 2 + 6.0) * 1_000_000_000))
             self?.finishPlayback(generation)
         }
     }
@@ -311,6 +314,44 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         return samples.withUnsafeBufferPointer { Data(buffer: $0) }
     }
 
+    /// Replay the in-flight response once the route has settled (600 ms
+    /// after the LAST config change), up to 3 attempts per response.
+    private func scheduleDebouncedReplay() {
+        replayTask?.cancel()
+        let generation = playbackGeneration
+        replayTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.isPlaying,
+                      generation == self.playbackGeneration,
+                      self.replayCount < 3,
+                      let buffer = self.playbackBuffer,
+                      let player = self.playerNode else { return }
+
+                if !self.audioEngine.isRunning {
+                    do { try self.audioEngine.start() } catch {
+                        self.logger.warning("Engine restart for replay failed — abandoning playback")
+                        self.finishPlayback(generation)
+                        return
+                    }
+                }
+                guard self.audioEngine.isRunning else {
+                    self.finishPlayback(generation)
+                    return
+                }
+
+                self.replayCount += 1
+                self.logger.info("Route settled — replay attempt #\(self.replayCount)")
+                player.stop()
+                player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                    self?.finishPlayback(generation)
+                }
+                player.play()
+            }
+        }
+    }
+
     /// Complete the current playback exactly once (idempotent per generation)
     private func finishPlayback(_ generation: Int) {
         DispatchQueue.main.async { [weak self] in
@@ -318,6 +359,8 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                   self.isPlaying else { return }
             self.isPlaying = false
             self.playbackBuffer = nil
+            self.replayTask?.cancel()
+            self.replayTask = nil
             self.onPlaybackComplete?()
         }
     }
@@ -357,26 +400,12 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                 }
             }
 
-            // A config change during playback (e.g. the HFP audio link
-            // opening) flushed the scheduled TTS — replay it once so the
-            // response is actually heard on the new route. NEVER call
-            // play() unless the engine is verifiably running: that raises
-            // NSException (SIGABRT).
-            if self.isPlaying, !self.didReplayAfterRouteChange,
-               let buffer = self.playbackBuffer, let player = self.playerNode {
-                self.didReplayAfterRouteChange = true
-                let generation = self.playbackGeneration
-                if self.audioEngine.isRunning {
-                    self.logger.info("Route change during playback — replaying response")
-                    player.stop()
-                    player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                        self?.finishPlayback(generation)
-                    }
-                    player.play()
-                } else {
-                    self.logger.warning("Engine not running after route change — abandoning playback")
-                    self.finishPlayback(generation)
-                }
+            // A config change during playback (the HFP audio link opening)
+            // flushes the scheduled TTS. The flap is a BURST of config
+            // changes — debounce, and replay only after the route has been
+            // quiet for a moment. Replaying instantly gets flushed again.
+            if self.isPlaying {
+                self.scheduleDebouncedReplay()
             }
 
             self.onRouteChanged?()
