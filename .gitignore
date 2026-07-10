@@ -20,3 +20,6 @@ nohup.out
 
 # Superpowers scratch
 .superpowers/
+
+# Xcode user state (any depth)
+**/xcuserdata/
