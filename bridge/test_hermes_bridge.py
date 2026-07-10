@@ -73,12 +73,14 @@ class TestProcessQuery(unittest.TestCase):
     """process_query: text in → hermes → response + TTS out, incl. photo path."""
 
     def _run(self, text, ws, fake_reply="ok", fake_tts=b"\x00\x00",
-             stored_session=None):
+             stored_session=None, bridge_tts=True):
         import tempfile as tf
 
         import hermes_bridge as hb
 
         orig_ask, orig_tts = hb.ask_hermes, hb.synthesize_speech
+        orig_bridge_tts = hb.BRIDGE_TTS
+        hb.BRIDGE_TTS = bridge_tts
         orig_session_file = hb.SESSION_FILE
         tmp = tf.NamedTemporaryFile(suffix=".json", delete=False)
         tmp.close()
@@ -101,12 +103,21 @@ class TestProcessQuery(unittest.TestCase):
             asyncio.run(hb.process_query(ws, text))
         finally:
             hb.ask_hermes, hb.synthesize_speech = orig_ask, orig_tts
+            hb.BRIDGE_TTS = orig_bridge_tts
             try:
                 os_mod.unlink(tmp.name)
             except OSError:
                 pass
             hb.SESSION_FILE = orig_session_file
         return calls
+
+    def test_default_no_bridge_tts(self):
+        ws = FakeWebSocket([])
+        self._run("tell me a joke", ws, bridge_tts=False)
+        sent = [m for m in ws.sent if isinstance(m, str)]
+        self.assertTrue(any('"tts": false' in m for m in sent))
+        self.assertFalse(any('"audio_start"' in m for m in sent))
+        self.assertFalse(any('"audio_end"' in m for m in sent))
 
     def test_plain_query_answers_without_photo(self):
         ws = FakeWebSocket([])

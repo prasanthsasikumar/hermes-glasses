@@ -13,7 +13,9 @@ final class HermesAPIClient: NSObject {
     // MARK: - Callbacks
 
     var onTranscript: ((String) -> Void)?
-    var onResponse: ((String) -> Void)?
+    /// (text, bridgeWillSendAudio) — when the second value is false, the
+    /// app speaks the text itself with on-device TTS
+    var onResponse: ((String, Bool) -> Void)?
     var onAudioResponse: ((Data) -> Void)?
     var onPlaybackComplete: (() -> Void)?
     var onError: ((String) -> Void)?
@@ -225,7 +227,10 @@ final class HermesAPIClient: NSObject {
                 }
             case "response":
                 if let response = json["text"] as? String {
-                    self?.onResponse?(response)
+                    // Absent "tts" field = old bridge that always streams
+                    // audio afterwards
+                    let bridgeAudio = (json["tts"] as? Bool) ?? true
+                    self?.onResponse?(response, bridgeAudio)
                 }
             case "audio_start":
                 self?.ttsBuffer.removeAll()

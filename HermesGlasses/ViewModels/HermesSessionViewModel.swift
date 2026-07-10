@@ -88,6 +88,7 @@ final class HermesSessionViewModel {
     @ObservationIgnored private var sessionObserverTask: Task<Void, Never>?
     @ObservationIgnored private let cameraManager = HermesCameraManager()
     @ObservationIgnored private let speechRecognizer = HermesSpeechRecognizer()
+    @ObservationIgnored private let speechSynthesizer = HermesSpeechSynthesizer()
     @ObservationIgnored private var pendingPhoto: Data?
 
     /// Exposed for UI to show audio route
@@ -234,13 +235,25 @@ final class HermesSessionViewModel {
                 self?.connectionState = .processing
             }
         }
-        client.onResponse = { [weak self] text in
+        client.onResponse = { [weak self] text, bridgeWillSendAudio in
             Task { @MainActor [weak self] in
-                self?.lastResponse = text
-                self?.addTurn(
-                    userText: self?.lastTranscript ?? "",
+                guard let self else { return }
+                self.lastResponse = text
+                self.addTurn(
+                    userText: self.lastTranscript,
                     agentText: text
                 )
+                // On-device TTS: speak immediately unless the bridge is
+                // about to stream its own audio (legacy flag)
+                if !bridgeWillSendAudio {
+                    self.connectionState = .speaking
+                    self.speechSynthesizer.speak(text)
+                    if self.audioManager.isUsingBluetoothInput {
+                        // Glasses echo-cancel their own speaker: voice
+                        // barge-in stays available while Hermes talks
+                        self.speechRecognizer.isSuspended = false
+                    }
+                }
             }
         }
         client.onAudioResponse = { [weak self] audioData in
@@ -336,6 +349,19 @@ final class HermesSessionViewModel {
             }
         }
 
+        // On-device TTS finished (or was interrupted) — same completion
+        // flow as bridge-audio playback
+        speechSynthesizer.onFinished = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if case .speaking = self.connectionState {
+                    self.connectionState = .listening
+                }
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                self.speechRecognizer.isSuspended = false
+            }
+        }
+
         speechRecognizer.onPartial = { [weak self] text in
             guard let self else { return }
             if case .speaking = self.connectionState {
@@ -408,7 +434,11 @@ final class HermesSessionViewModel {
     /// which returns the state machine to listening.
     func interruptSpeech() {
         guard case .speaking = connectionState else { return }
-        audioManager.stopPlayback()
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stop()
+        } else {
+            audioManager.stopPlayback()
+        }
     }
 
     /// True when a partial heard during .speaking is (part of) Hermes's own
@@ -454,6 +484,7 @@ final class HermesSessionViewModel {
     func endSession() {
         sessionObserverTask?.cancel()
         sessionObserverTask = nil
+        speechSynthesizer.stop()
         speechRecognizer.stop()
         liveTranscript = ""
         micLevel = 0

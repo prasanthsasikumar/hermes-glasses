@@ -46,6 +46,11 @@ HERMES_BIN = os.environ.get(
 # is remote code execution for anyone who finds the port.
 AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
 
+# Bridge-side TTS (edge-tts/say → PCM streaming). Default OFF: the app
+# speaks replies on-device with AVSpeechSynthesizer. Set HERMES_BRIDGE_TTS=1
+# to fall back to server TTS for clients that can't speak locally.
+BRIDGE_TTS = os.environ.get("HERMES_BRIDGE_TTS", "") == "1"
+
 # Utterances containing any of these ask about something the user sees;
 # the bridge then requests a photo from the glasses.
 VISUAL_KEYWORDS = [
@@ -377,24 +382,28 @@ async def process_query(websocket, text: str, conn_state: dict | None = None):
 
     print(f"[Bridge] Hermes: {response_text[:100]}...")
 
+    # "tts": whether PCM audio follows. False → the app speaks the text
+    # itself with on-device synthesis.
     await websocket.send(json.dumps({
         "type": "response",
         "text": response_text,
+        "tts": BRIDGE_TTS,
     }))
 
-    # ── TTS ──
-    print("[Bridge] Generating speech...")
-    await websocket.send(json.dumps({"type": "audio_start"}))
+    if BRIDGE_TTS:
+        # ── Server-side TTS (legacy fallback, HERMES_BRIDGE_TTS=1) ──
+        print("[Bridge] Generating speech...")
+        await websocket.send(json.dumps({"type": "audio_start"}))
 
-    audio_data = await asyncio.to_thread(synthesize_speech, response_text)
-    if audio_data:
-        # Send in chunks to avoid frame size limits
-        chunk_size = 16384
-        for i in range(0, len(audio_data), chunk_size):
-            await websocket.send(audio_data[i:i+chunk_size])
-            await asyncio.sleep(0.01)
+        audio_data = await asyncio.to_thread(synthesize_speech, response_text)
+        if audio_data:
+            # Send in chunks to avoid frame size limits
+            chunk_size = 16384
+            for i in range(0, len(audio_data), chunk_size):
+                await websocket.send(audio_data[i:i+chunk_size])
+                await asyncio.sleep(0.01)
 
-    await websocket.send(json.dumps({"type": "audio_end"}))
+        await websocket.send(json.dumps({"type": "audio_end"}))
     print("[Bridge] Response complete.")
 
 
