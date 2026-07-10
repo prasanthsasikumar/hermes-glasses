@@ -2,8 +2,10 @@
 // HermesCameraManager.swift
 //
 // Captures photos from the Meta Ray-Ban glasses camera via the DAT SDK.
-// Owns the camera stream lifecycle: the stream runs only while a photo
-// is being captured, so the glasses don't drain battery between shots.
+// Owns the camera stream lifecycle: a fresh stream is opened for every
+// capture and stopped when the capture finishes, so the glasses don't
+// drain battery between shots. Streams are not cached/reused across
+// captures — DAT streams are treated as one-shot.
 //
 
 import Foundation
@@ -41,33 +43,21 @@ final class HermesCameraManager: @unchecked Sendable {
     /// are safe against an in-flight `capturePhoto()`.
     private struct State {
         var deviceSession: DeviceSession?
-        var stream: MWDATCamera.Stream?
         var captureInFlight = false
     }
 
     private let stateLock = OSAllocatedUnfairLock(uncheckedState: State())
 
     func configure(session: DeviceSession) {
-        let streamToStop: MWDATCamera.Stream? = stateLock.withLockUnchecked { state in
-            // If a capture is in flight, don't stop its stream out from
-            // under it — just drop the stored reference; the in-flight
-            // capture holds its own local reference and stops it via defer.
-            let stale = state.captureInFlight ? nil : state.stream
-            state.stream = nil
+        stateLock.withLockUnchecked { state in
             state.deviceSession = session
-            return stale
         }
-        streamToStop?.stop()
     }
 
     func reset() {
-        let streamToStop: MWDATCamera.Stream? = stateLock.withLockUnchecked { state in
-            let stale = state.captureInFlight ? nil : state.stream
-            state.stream = nil
+        stateLock.withLockUnchecked { state in
             state.deviceSession = nil
-            return stale
         }
-        streamToStop?.stop()
     }
 
     /// Capture a single JPEG from the glasses camera.
@@ -75,58 +65,44 @@ final class HermesCameraManager: @unchecked Sendable {
         enum Entry {
             case busy
             case noSession
-            case proceed(DeviceSession, MWDATCamera.Stream?)
+            case proceed(DeviceSession)
         }
 
         let entry: Entry = stateLock.withLockUnchecked { state in
             if state.captureInFlight { return .busy }
             guard let session = state.deviceSession else { return .noSession }
             state.captureInFlight = true
-            return .proceed(session, state.stream)
+            return .proceed(session)
         }
 
         let session: DeviceSession
-        let existing: MWDATCamera.Stream?
         switch entry {
         case .busy:
             throw HermesCameraError.captureInProgress
         case .noSession:
             throw HermesCameraError.noSession
-        case .proceed(let s, let st):
+        case .proceed(let s):
             session = s
-            existing = st
         }
         defer { stateLock.withLockUnchecked { $0.captureInFlight = false } }
 
-        let stream: MWDATCamera.Stream
-        if let existing {
-            stream = existing
-        } else {
-            guard let created = try session.addStream() else {
-                throw HermesCameraError.streamUnavailable
-            }
-            stateLock.withLockUnchecked { state in
-                // Only keep the stream for reuse if the session hasn't been
-                // swapped by configure()/reset() in the meantime.
-                if state.deviceSession === session {
-                    state.stream = created
-                }
-            }
-            stream = created
+        guard let stream = try session.addStream() else {
+            throw HermesCameraError.streamUnavailable
         }
 
         // The stream must run only while a capture is in flight. Register
         // the stop before starting it so every exit path — including a
-        // start-timeout — guarantees the stream is torn down.
+        // start-timeout — guarantees the stream is torn down. Streams are
+        // one-shot: never cached or reused across captures.
         defer { stream.stop() }
 
         if stream.state != .streaming {
             stream.start()
-            try await waitForStreaming(stream, timeout: 6.0)
+            try await waitForStreaming(stream, timeout: 4.0)
         }
 
         logger.info("Camera streaming — capturing photo")
-        return try await awaitPhotoData(stream, timeout: 8.0)
+        return try await awaitPhotoData(stream, timeout: 5.0)
     }
 
     // MARK: - Private

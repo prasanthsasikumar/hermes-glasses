@@ -468,7 +468,11 @@ async def main():
 ║  ws://192.168.1.16:{PORT}/voice                 ║
 ╚══════════════════════════════════════════════╝
 """)
-    async with websockets.serve(handle_connection, HOST, PORT):
+    # Glasses photos arrive as a single large base64-encoded JSON text frame
+    # (a 1-3 MB raw JPEG becomes an even bigger base64 string), so raise
+    # max_size well above the websockets default of 1 MiB to avoid a 1009
+    # close before the frame is fully received.
+    async with websockets.serve(handle_connection, HOST, PORT, max_size=16 * 1024 * 1024):
         await asyncio.Future()  # run forever
 
 

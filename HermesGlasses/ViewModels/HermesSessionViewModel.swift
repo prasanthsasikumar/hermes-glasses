@@ -295,6 +295,7 @@ final class HermesSessionViewModel {
         apiClient?.disconnect()
         apiClient = nil
         cameraManager.reset()
+        pendingPhoto = nil
         deviceSession?.stop()
         deviceSession = nil
         isGlassesConnected = false
