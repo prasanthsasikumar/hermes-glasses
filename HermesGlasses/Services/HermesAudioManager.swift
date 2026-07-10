@@ -57,15 +57,8 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     private let silenceFrames: Int = 20
     private var vadDisabled: Bool = true
 
-    // Playback
-    private var playerNode: AVAudioPlayerNode?
-    private var playbackBuffer: AVAudioPCMBuffer?
-    private var isPlaying = false
-    /// Debounced replay after route flaps; reset per response
-    private var replayTask: Task<Void, Never>?
-    private var replayCount = 0
-    /// Bumped per response; stale completions/watchdogs become no-ops
-    private var playbackGeneration = 0
+    // Playback — a self-contained clip player, independent of the engine
+    private var clipPlayer: AVAudioPlayer?
 
     override init() {
         // 16 kHz mono PCM16 — the format the bridge expects. This
@@ -198,13 +191,6 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             configChangeObserver = nil
         }
         audioEngine.stop()
-        // A response mid-flight dies with the old engine — release the
-        // UI from "speaking" instead of leaving it wedged
-        if isPlaying {
-            let generation = playbackGeneration
-            finishPlayback(generation)
-        }
-        playerNode = nil
         converter = nil
         converterInputFormat = nil
         audioEngine = AVAudioEngine()
@@ -212,9 +198,8 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
     func stopCapture() {
         isCapturing = false
-        // Stop playback but keep the node attached — it is reused across
-        // sessions (attaching a second node would leak one per session)
-        playerNode?.stop()
+        clipPlayer?.stop()
+        clipPlayer = nil
         if let observer = configChangeObserver {
             NotificationCenter.default.removeObserver(observer)
             configChangeObserver = nil
@@ -227,68 +212,55 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     }
 
     // MARK: - Playback
+    //
+    // TTS plays through AVAudioPlayer, NOT the capture engine. AVAudioEngine
+    // playback proved unshippable against Bluetooth HFP route flaps: config
+    // changes flush scheduled buffers, and AVAudioPlayerNode.play() raises
+    // uncatchable NSExceptions when the engine stops under it (three
+    // distinct SIGABRTs in the field). AVAudioPlayer owns its rendering,
+    // survives route changes, and always calls its delegate on completion.
 
     func playResponse(_ audioData: Data) async {
-        guard let buffer = audioDataToBuffer(audioData) else {
-            logger.error("Could not build playback buffer (\(audioData.count) bytes)")
+        guard !audioData.isEmpty else {
             onPlaybackComplete?()
             return
         }
 
-        // One player, attached once and reused. Detaching a live node
-        // raises NSException inside AVAudioEngine (SIGABRT on the second
-        // response) — never detach, just stop/reschedule.
-        let player: AVAudioPlayerNode
-        if let existing = playerNode {
-            player = existing
-            player.stop()
-        } else {
-            player = AVAudioPlayerNode()
-            audioEngine.attach(player)
-            // TTS is always PCM16 mono 24kHz; the engine resamples to the
-            // hardware rate through the mixer.
-            audioEngine.connect(player, to: audioEngine.mainMixerNode, format: buffer.format)
-            playerNode = player
-        }
-
-        if !audioEngine.isRunning {
-            do {
-                try audioEngine.start()
-            } catch {
-                logger.error("Engine start for playback failed: \(error.localizedDescription, privacy: .public)")
-                onPlaybackComplete?()
-                return
-            }
-        }
-
-        playbackBuffer = buffer
-        isPlaying = true
-        replayCount = 0
-        replayTask?.cancel()
-        playbackGeneration += 1
-        let generation = playbackGeneration
-
-        logger.info("Playing TTS response: \(audioData.count) bytes")
-        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            self?.finishPlayback(generation)
-        }
-        // play() on a stopped engine raises NSException — if a config
-        // change stopped it since the check above, let the route-change
-        // handler (or the watchdog) pick this playback up instead.
-        if audioEngine.isRunning {
+        let wav = Self.wavContainer(pcm16: audioData, sampleRate: 24000)
+        do {
+            let player = try AVAudioPlayer(data: wav)
+            player.delegate = self
+            clipPlayer?.stop()
+            clipPlayer = player
+            logger.info("Playing TTS response: \(audioData.count) bytes (\(String(format: "%.1f", player.duration))s)")
             player.play()
-        } else {
-            logger.warning("Engine stopped before play — deferring to route-change replay")
+        } catch {
+            logger.error("AVAudioPlayer failed: \(error.localizedDescription, privacy: .public)")
+            onPlaybackComplete?()
         }
+    }
 
-        // Watchdog: if completion never arrives (flushed buffers, dead
-        // route) the app must not hang in "speaking". Margin covers the
-        // route-flap debounce plus up to one full replay.
-        let duration = Double(buffer.frameLength) / buffer.format.sampleRate
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64((duration * 2 + 6.0) * 1_000_000_000))
-            self?.finishPlayback(generation)
-        }
+    /// Wrap raw PCM16 mono samples in a WAV container for AVAudioPlayer
+    private static func wavContainer(pcm16: Data, sampleRate: Int) -> Data {
+        func le32(_ v: UInt32) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }
+        func le16(_ v: UInt16) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }
+
+        var wav = Data()
+        wav.append("RIFF".data(using: .ascii)!)
+        wav.append(le32(UInt32(36 + pcm16.count)))
+        wav.append("WAVE".data(using: .ascii)!)
+        wav.append("fmt ".data(using: .ascii)!)
+        wav.append(le32(16))                              // fmt chunk size
+        wav.append(le16(1))                               // PCM
+        wav.append(le16(1))                               // mono
+        wav.append(le32(UInt32(sampleRate)))
+        wav.append(le32(UInt32(sampleRate * 2)))          // byte rate
+        wav.append(le16(2))                               // block align
+        wav.append(le16(16))                              // bits/sample
+        wav.append("data".data(using: .ascii)!)
+        wav.append(le32(UInt32(pcm16.count)))
+        wav.append(pcm16)
+        return wav
     }
 
     /// Configure a playback-only audio session so the Sound test works
@@ -312,57 +284,6 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             samples[i] = Int16(sin(2.0 * .pi * 440.0 * t) * 12000.0 * envelope)
         }
         return samples.withUnsafeBufferPointer { Data(buffer: $0) }
-    }
-
-    /// Replay the in-flight response once the route has settled (600 ms
-    /// after the LAST config change), up to 3 attempts per response.
-    private func scheduleDebouncedReplay() {
-        replayTask?.cancel()
-        let generation = playbackGeneration
-        replayTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run { [weak self] in
-                guard let self, self.isPlaying,
-                      generation == self.playbackGeneration,
-                      self.replayCount < 3,
-                      let buffer = self.playbackBuffer,
-                      let player = self.playerNode else { return }
-
-                if !self.audioEngine.isRunning {
-                    do { try self.audioEngine.start() } catch {
-                        self.logger.warning("Engine restart for replay failed — abandoning playback")
-                        self.finishPlayback(generation)
-                        return
-                    }
-                }
-                guard self.audioEngine.isRunning else {
-                    self.finishPlayback(generation)
-                    return
-                }
-
-                self.replayCount += 1
-                self.logger.info("Route settled — replay attempt #\(self.replayCount)")
-                player.stop()
-                player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                    self?.finishPlayback(generation)
-                }
-                player.play()
-            }
-        }
-    }
-
-    /// Complete the current playback exactly once (idempotent per generation)
-    private func finishPlayback(_ generation: Int) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, generation == self.playbackGeneration,
-                  self.isPlaying else { return }
-            self.isPlaying = false
-            self.playbackBuffer = nil
-            self.replayTask?.cancel()
-            self.replayTask = nil
-            self.onPlaybackComplete?()
-        }
     }
 
     // MARK: - Private
@@ -398,14 +319,6 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                 } catch {
                     self.logger.error("Failed to restart engine: \(error.localizedDescription, privacy: .public)")
                 }
-            }
-
-            // A config change during playback (the HFP audio link opening)
-            // flushes the scheduled TTS. The flap is a BURST of config
-            // changes — debounce, and replay only after the route has been
-            // quiet for a moment. Replaying instantly gets flushed again.
-            if self.isPlaying {
-                self.scheduleDebouncedReplay()
             }
 
             self.onRouteChanged?()
@@ -578,36 +491,27 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         return sqrt(sum / Float(frameLength))
     }
 
-    /// Build a Float32 buffer from raw PCM16 mono 24kHz data.
-    /// AVAudioPlayerNode only accepts Float32 buffers — scheduling an
-    /// Int16 buffer raises an exception and crashes.
-    private func audioDataToBuffer(_ data: Data) -> AVAudioPCMBuffer? {
-        let sampleRate: Double = 24000
-        let frameCount = AVAudioFrameCount(data.count / 2)
-        guard frameCount > 0 else { return nil }
+}
 
-        let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: sampleRate,
-            channels: 1,
-            interleaved: false
-        )!
+// MARK: - AVAudioPlayerDelegate
 
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: frameCount
-        ) else { return nil }
-
-        buffer.frameLength = frameCount
-        data.withUnsafeBytes { raw in
-            let src = raw.bindMemory(to: Int16.self)
-            guard let dst = buffer.floatChannelData?[0] else { return }
-            for i in 0..<Int(frameCount) {
-                dst[i] = Float(src[i]) / 32768.0
-            }
+extension HermesAudioManager: AVAudioPlayerDelegate {
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.logger.info("TTS playback finished (success=\(flag))")
+            self.clipPlayer = nil
+            self.onPlaybackComplete?()
         }
+    }
 
-        return buffer
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.logger.error("TTS decode error: \(error?.localizedDescription ?? "?", privacy: .public)")
+            self.clipPlayer = nil
+            self.onPlaybackComplete?()
+        }
     }
 }
 
