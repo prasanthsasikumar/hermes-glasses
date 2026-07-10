@@ -90,7 +90,14 @@ final class HermesCameraManager: @unchecked Sendable {
         }
         defer { stateLock.withLockUnchecked { $0.captureInFlight = false } }
 
-        guard let stream = try session.addStream() else {
+        // Same lightweight config as Meta's CameraAccess sample — the video
+        // stream is just a carrier for photo capture, keep it cheap
+        let config = StreamConfiguration(
+            videoCodec: .raw,
+            resolution: .low,
+            frameRate: 24
+        )
+        guard let stream = try session.addStream(config: config) else {
             debug("camera: addStream returned nil")
             throw HermesCameraError.streamUnavailable
         }
