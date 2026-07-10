@@ -41,24 +41,32 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
 
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    /// Incremented on every cycle start; callbacks from cancelled tasks
+    /// carry an older generation and are ignored. Without this, each
+    /// task.cancel() fires that task's handler with an error, which would
+    /// tear down the NEW cycle — cascading until the recognizer is deaf
+    /// while the UI still says Listening.
+    private var cycleGeneration = 0
     private var latestPartial: String = ""
     private var lastChangeAt: Date = .distantPast
     private var pauseWatchdog: Task<Void, Never>?
     private var isRunning = false
-    /// When true, incoming buffers are dropped (e.g. while TTS plays).
-    /// Suspending also discards any half-heard words and restarts the
-    /// recognition cycle, so TTS audio can never leak into the next query.
+    /// When true, no recognition runs (e.g. while TTS plays). Suspending
+    /// discards any half-heard words and tears the cycle down entirely;
+    /// unsuspending starts a fresh cycle. This way TTS can't leak into the
+    /// next query and no task churns on silence while suspended.
     var isSuspended = false {
         didSet {
-            guard isSuspended, !oldValue else { return }
+            guard isSuspended != oldValue else { return }
             latestPartial = ""
             lastChangeAt = .distantPast
-            if isRunning {
-                tearDownCycle()
-                startRecognitionCycle()
-            }
-            DispatchQueue.main.async { [weak self] in
-                self?.onPartial?("")
+            if isSuspended {
+                if isRunning { tearDownCycle() }
+                DispatchQueue.main.async { [weak self] in
+                    self?.onPartial?("")
+                }
+            } else {
+                if isRunning { startRecognitionCycle() }
             }
         }
     }
@@ -117,7 +125,10 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
     // MARK: - Private
 
     private func startRecognitionCycle() {
-        guard let recognizer else { return }
+        guard let recognizer, !isSuspended else { return }
+
+        cycleGeneration += 1
+        let generation = cycleGeneration
 
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
@@ -129,7 +140,8 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
         lastChangeAt = .distantPast
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
-            guard let self, self.isRunning else { return }
+            guard let self, self.isRunning,
+                  generation == self.cycleGeneration else { return }
 
             if let result {
                 let text = result.bestTranscription.formattedString
@@ -146,18 +158,18 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
             }
 
             if error != nil {
-                // Recognizer gave up (silence limit, cancellation, transient
-                // failure). Emit anything we have and start a fresh cycle.
+                // Recognizer gave up (silence limit, transient failure).
+                // Emit anything we have and start a fresh cycle.
+                self.logger.info("Recognition cycle #\(generation) ended with error — restarting")
                 self.emitFinalIfAny()
-                if self.isRunning {
-                    self.tearDownCycle()
-                    self.startRecognitionCycle()
-                }
             }
         }
     }
 
     private func tearDownCycle() {
+        // Invalidate in-flight callbacks BEFORE cancel — cancel fires the
+        // old task's handler with an error, which must see itself as stale
+        cycleGeneration += 1
         task?.cancel()
         task = nil
         request?.endAudio()
@@ -183,8 +195,9 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
         latestPartial = ""
         lastChangeAt = .distantPast
 
-        // Restart the cycle so the next utterance starts clean
-        if isRunning {
+        // Restart the cycle so the next utterance starts clean (skipped
+        // while suspended — unsuspend starts the next cycle)
+        if isRunning, !isSuspended {
             tearDownCycle()
             startRecognitionCycle()
         }
