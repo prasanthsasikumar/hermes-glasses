@@ -1,0 +1,429 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AAAA00000000000000000001 /* HermesGlassesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000101 /* HermesGlassesApp.swift */; };
+		AAAA00000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000102 /* ContentView.swift */; };
+		AAAA00000000000000000003 /* RegistrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000103 /* RegistrationView.swift */; };
+		AAAA00000000000000000004 /* WearablesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000104 /* WearablesViewModel.swift */; };
+		AAAA00000000000000000005 /* HermesSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000105 /* HermesSessionViewModel.swift */; };
+		AAAA00000000000000000006 /* HermesAudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000106 /* HermesAudioManager.swift */; };
+		AAAA00000000000000000007 /* HermesAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000107 /* HermesAPIClient.swift */; };
+		AAAA00000000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000108 /* Assets.xcassets */; };
+		AAAA00000000000000000801 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000701 /* MWDATCore */; };
+		AAAA00000000000000000802 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000702 /* MWDATCamera */; };
+		AAAA00000000000000000803 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000703 /* MWDATMockDevice */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AAAA00000000000000000101 /* HermesGlassesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesGlassesApp.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000103 /* RegistrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationView.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000104 /* WearablesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WearablesViewModel.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000105 /* HermesSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesSessionViewModel.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000106 /* HermesAudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesAudioManager.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000107 /* HermesAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesAPIClient.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AAAA00000000000000000109 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AAAA00000000000000000110 /* HermesGlasses.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HermesGlasses.entitlements; sourceTree = "<group>"; };
+		AAAA00000000000000000111 /* Hermes Glasses.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Hermes Glasses.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AAAA00000000000000000402 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA00000000000000000801 /* MWDATCore in Frameworks */,
+				AAAA00000000000000000802 /* MWDATCamera in Frameworks */,
+				AAAA00000000000000000803 /* MWDATMockDevice in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AAAA0000000000000000000 = {
+			isa = PBXGroup;
+			children = (
+				AAAA0000000000000000001 /* HermesGlasses */,
+				AAAA0000000000000000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000001 /* HermesGlasses */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00000000000000000101 /* HermesGlassesApp.swift */,
+				AAAA0000000000000000002 /* Views */,
+				AAAA0000000000000000003 /* ViewModels */,
+				AAAA0000000000000000004 /* Services */,
+				AAAA00000000000000000108 /* Assets.xcassets */,
+				AAAA00000000000000000109 /* Info.plist */,
+				AAAA00000000000000000110 /* HermesGlasses.entitlements */,
+			);
+			path = HermesGlasses;
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000002 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00000000000000000102 /* ContentView.swift */,
+				AAAA00000000000000000103 /* RegistrationView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000003 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00000000000000000104 /* WearablesViewModel.swift */,
+				AAAA00000000000000000105 /* HermesSessionViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000004 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00000000000000000106 /* HermesAudioManager.swift */,
+				AAAA00000000000000000107 /* HermesAPIClient.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000005 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00000000000000000111 /* Hermes Glasses.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AAAA00000000000000000301 /* HermesGlasses */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAAA00000000000000000501 /* Build configuration list for PBXNativeTarget "HermesGlasses" */;
+			buildPhases = (
+				AAAA00000000000000000401 /* Sources */,
+				AAAA00000000000000000402 /* Frameworks */,
+				AAAA00000000000000000403 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HermesGlasses;
+			packageProductDependencies = (
+				AAAA00000000000000000701 /* MWDATCore */,
+				AAAA00000000000000000702 /* MWDATCamera */,
+				AAAA00000000000000000703 /* MWDATMockDevice */,
+			);
+			productName = HermesGlasses;
+			productReference = AAAA00000000000000000111 /* Hermes Glasses.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AAAA00000000000000000F00 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					AAAA00000000000000000301 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = AAAA00000000000000000506 /* Build configuration list for PBXProject "HermesGlasses" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AAAA0000000000000000000;
+			packageReferences = (
+				AAAA00000000000000000601 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */,
+			);
+			productRefGroup = AAAA0000000000000000005 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AAAA00000000000000000301 /* HermesGlasses */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AAAA00000000000000000403 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA00000000000000000008 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AAAA00000000000000000401 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA00000000000000000001 /* HermesGlassesApp.swift in Sources */,
+				AAAA00000000000000000002 /* ContentView.swift in Sources */,
+				AAAA00000000000000000003 /* RegistrationView.swift in Sources */,
+				AAAA00000000000000000004 /* WearablesViewModel.swift in Sources */,
+				AAAA00000000000000000005 /* HermesSessionViewModel.swift in Sources */,
+				AAAA00000000000000000006 /* HermesAudioManager.swift in Sources */,
+				AAAA00000000000000000007 /* HermesAPIClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AAAA00000000000000000502 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = HermesGlasses/HermesGlasses.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HermesGlasses/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.flowsxr.hermes-glasses";
+				PRODUCT_NAME = "Hermes Glasses";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AAAA00000000000000000503 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = HermesGlasses/HermesGlasses.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HermesGlasses/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.flowsxr.hermes-glasses";
+				PRODUCT_NAME = "Hermes Glasses";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AAAA00000000000000000504 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3U4384584Z;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AAAA00000000000000000505 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3U4384584Z;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AAAA00000000000000000501 /* Build configuration list for PBXNativeTarget "HermesGlasses" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA00000000000000000502 /* Debug */,
+				AAAA00000000000000000503 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AAAA00000000000000000506 /* Build configuration list for PBXProject "HermesGlasses" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA00000000000000000504 /* Debug */,
+				AAAA00000000000000000505 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AAAA00000000000000000601 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/meta-wearables-dat-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 0.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AAAA00000000000000000701 /* MWDATCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAA00000000000000000601 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCore;
+		};
+		AAAA00000000000000000702 /* MWDATCamera */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAA00000000000000000601 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCamera;
+		};
+		AAAA00000000000000000703 /* MWDATMockDevice */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAA00000000000000000601 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATMockDevice;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AAAA00000000000000000F00 /* Project object */;
+}

@@ -1,0 +1,22 @@
+# Xcode
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+
+# SPM
+.swiftpm/
+
+# OS
+.DS_Store
+
+# Hermes
+*.hermes/
+
+# Python
+bridge/__pycache__/
+*.pyc
+nohup.out
+
+# Superpowers scratch
+.superpowers/
