@@ -487,6 +487,10 @@ struct SettingsView: View {
                         "Devices seen by SDK",
                         value: "\(wearablesVM.devices.count)"
                     )
+                    LabeledContent(
+                        "Camera permission",
+                        value: cameraPermissionText
+                    )
                     Text("0 devices with \"Registered\" means the glasses aren't reachable over Bluetooth right now, or the pairing is stale.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -528,6 +532,14 @@ struct SettingsView: View {
         case .registering: return "Registering…"
         case .registered: return "Registered"
         case .unavailable: return "Unavailable"
+        }
+    }
+
+    private var cameraPermissionText: String {
+        switch hermesVM.cameraPermissionGranted {
+        case .some(true): return "Granted"
+        case .some(false): return "Denied — tap Photo test to grant"
+        case .none: return "Unknown (start a session)"
         }
     }
 }

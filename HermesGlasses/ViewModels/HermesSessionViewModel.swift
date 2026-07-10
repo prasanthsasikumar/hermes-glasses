@@ -45,6 +45,8 @@ final class HermesSessionViewModel {
     /// Test-panel results keyed by test name: nil=never run, ""=pass, else error
     var testResults: [String: String?] = [:]
     var testRunning: Set<String> = []
+    /// Glasses camera permission (granted in the Meta AI app); nil = unknown
+    var cameraPermissionGranted: Bool? = nil
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -199,6 +201,8 @@ final class HermesSessionViewModel {
                 self?.apiClient?.sendDebug(message)
             }
         }
+        // Surface camera permission state early (non-interactive)
+        Task { await ensureCameraPermission(interactive: false) }
 
         // 2. Connect to Hermes first, with all callbacks wired up before
         // any audio flows, so no chunks are dropped.
@@ -242,6 +246,15 @@ final class HermesSessionViewModel {
         client.onCapturePhotoRequested = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                // Fail fast if the Meta AI camera permission is missing —
+                // the interactive grant needs an app switch, which can't
+                // happen inside the bridge's photo wait.
+                guard await self.ensureCameraPermission(interactive: false) else {
+                    self.apiClient?.sendPhotoError(
+                        "Camera permission not granted. Tap the Photo test button to grant access via Meta AI."
+                    )
+                    return
+                }
                 do {
                     let photo = try await self.cameraManager.capturePhoto()
                     self.pendingPhoto = photo
@@ -375,11 +388,15 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Glasses camera alone — no Hermes involved
+    /// Glasses camera alone — no Hermes involved. Runs the interactive
+    /// permission flow (opens Meta AI) if camera access was never granted.
     func testPhoto() async {
         await runTest("Photo") { [self] in
             guard isGlassesConnected else {
                 throw TestFailure("Start a session first (needs glasses)")
+            }
+            guard await ensureCameraPermission(interactive: true) else {
+                throw TestFailure("Camera permission denied in Meta AI app")
             }
             let photo = try await cameraManager.capturePhoto()
             pendingPhoto = photo
@@ -387,6 +404,28 @@ final class HermesSessionViewModel {
                 userText: "[Test Photo]",
                 agentText: "Captured \(photo.count / 1024) KB from glasses camera"
             )
+        }
+    }
+
+    /// Check (and optionally request via Meta AI) the glasses camera
+    /// permission. The interactive request switches to the Meta AI app.
+    func ensureCameraPermission(interactive: Bool) async -> Bool {
+        do {
+            let status = try await wearables.checkPermissionStatus(.camera)
+            if status == .granted {
+                cameraPermissionGranted = true
+                return true
+            }
+            if interactive {
+                let result = try await wearables.requestPermission(.camera)
+                cameraPermissionGranted = (result == .granted)
+                return result == .granted
+            }
+            cameraPermissionGranted = false
+            return false
+        } catch {
+            cameraPermissionGranted = false
+            return false
         }
     }
 
