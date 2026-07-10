@@ -177,6 +177,18 @@ struct ContentView: View {
 
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
+                // Photo the glasses captured for this turn
+                if let photoData = turn.photo, let image = UIImage(data: photoData) {
+                    HStack {
+                        Spacer()
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: 200, maxHeight: 150)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+
                 // User message
                 HStack {
                     Spacer()

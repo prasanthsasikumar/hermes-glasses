@@ -49,6 +49,8 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let audioManager = HermesAudioManager()
     @ObservationIgnored private var apiClient: HermesAPIClient?
     @ObservationIgnored private var sessionObserverTask: Task<Void, Never>?
+    @ObservationIgnored private let cameraManager = HermesCameraManager()
+    @ObservationIgnored private var pendingPhoto: Data?
 
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
@@ -174,6 +176,7 @@ final class HermesSessionViewModel {
 
         // Session is started — set up Hermes and audio
         isGlassesConnected = true
+        cameraManager.configure(session: session)
 
         // 2. Connect to Hermes first, with all callbacks wired up before
         // any audio flows, so no chunks are dropped.
@@ -210,6 +213,18 @@ final class HermesSessionViewModel {
         client.onError = { [weak self] error in
             Task { @MainActor [weak self] in
                 self?.show(error)
+            }
+        }
+        client.onCapturePhotoRequested = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let photo = try await self.cameraManager.capturePhoto()
+                    self.pendingPhoto = photo
+                    self.apiClient?.sendPhoto(photo)
+                } catch {
+                    self.apiClient?.sendPhotoError(error.localizedDescription)
+                }
             }
         }
 
@@ -279,6 +294,7 @@ final class HermesSessionViewModel {
         audioManager.stopCapture()
         apiClient?.disconnect()
         apiClient = nil
+        cameraManager.reset()
         deviceSession?.stop()
         deviceSession = nil
         isGlassesConnected = false
@@ -318,8 +334,10 @@ final class HermesSessionViewModel {
         let turn = ConversationTurn(
             userText: userText,
             agentText: agentText,
-            timestamp: Date()
+            timestamp: Date(),
+            photo: pendingPhoto
         )
+        pendingPhoto = nil
         conversationHistory.append(turn)
         if conversationHistory.count > 50 {
             conversationHistory.removeFirst()
@@ -338,4 +356,5 @@ struct ConversationTurn: Identifiable {
     let userText: String
     let agentText: String
     let timestamp: Date
+    var photo: Data? = nil
 }
