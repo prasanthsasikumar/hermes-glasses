@@ -1,91 +1,53 @@
-# Hermes Glasses — Audio Capture Bug (for Claude)
+# Hermes Glasses — notes for Claude
 
-## What we're building
-An iOS app that captures voice from Meta Ray-Ban glasses, streams audio via WebSocket to a Python bridge on a Mac (port 8765), which transcribes (Google STT) → asks Hermes Agent (`hermes chat -q`) → TTS (macOS `say`) → sends response back.
+Part of the Sidekick project. See README.md for architecture and setup.
 
-## Current state
-- ✅ Xcode project builds for iOS (deployment target 17.0)
-- ✅ Meta Wearables DAT SDK 0.8.0 integrated (SPM)
-- ✅ Glasses registration/connection works (DAT DeviceSession reaches `.started`)
-- ✅ WebSocket connection from phone → Mac bridge WORKS (confirmed in bridge logs)
-- ✅ Python bridge works (tested locally on Mac)
-- ✅ Hermes Agent chat works (`hermes chat -q "hello" --cli`)
-- ❌ NO audio data reaches the Python bridge — connections open and close immediately
-- ❌ Phone microphone light flashes briefly then the audio route switches to glasses and dies
+## Current state (2026-07-10)
 
-## The core bug
-`AVAudioEngine.inputNode.installTap()` is not delivering audio buffers. The app connects to the bridge but no audio chunks arrive. The WebSocket stays connected (the bridge sees connections) but closes without data.
+Voice loop and vision loop both work end-to-end on device:
+live on-device transcription (SFSpeechRecognizer) → `{"type":"query"}` over
+WebSocket → Python bridge → `hermes chat -q [--image] -Q` → response text +
+TTS (PCM16 mono 24 kHz) back to the phone. Visual queries trigger a glasses
+photo via the DAT camera API.
 
-## Key files
-- `HermesGlasses/Services/HermesAudioManager.swift` — audio capture/playback
-- `HermesGlasses/Services/HermesAPIClient.swift` — WebSocket client
-- `HermesGlasses/ViewModels/HermesSessionViewModel.swift` — session orchestrator
-- `bridge/hermes_bridge.py` — Python WebSocket bridge on Mac
+## Key facts that are easy to get wrong
 
-## What we've tried
-1. VAD threshold tuning (0.005–0.05) — no effect
-2. Bypassing VAD entirely (sending ALL audio) — no effect
-3. `setPreferredInput` to Bluetooth before activation — causes phone→glasses route switch that breaks tap
-4. Waiting for Bluetooth route to stabilize before installing tap — still breaks
-5. Using iPhone mic only (no Bluetooth) — STILL no audio
+- **STT is on-device.** The app does NOT stream mic audio to the bridge
+  anymore. The bridge's audio/VAD/Google-STT path is legacy fallback only.
+- **Audio session uses mode `.default`, not `.voiceChat`** — voiceChat's DSP
+  gates speech to the noise floor (~20 dB down). There is therefore NO echo
+  cancellation: the recognizer is suspended while Hermes speaks and resumes
+  0.7 s after playback ends.
+- **Never detach the TTS player node** — `AVAudioEngine.detachNode` on a live
+  node raises NSException (SIGABRT). The player is attached once and reused.
+- **SFSpeechRecognizer:** `task.cancel()` fires the old task's handler with an
+  error. Restart cycles are guarded by a generation counter or the recognizer
+  goes deaf after the first suspend/resume.
+- **Glasses camera needs a separate permission** granted through the Meta AI
+  app: `wearables.requestPermission(.camera)` (the Photo test button runs it).
+  Streams fail with `permissionDenied` otherwise.
+- **Camera streams are one-shot:** fresh `addStream()` per capture, stopped
+  via `defer` on every path. Config matches Meta's CameraAccess sample
+  (`.raw`, `.low`, 24 fps).
+- **WebSocket frames:** binary from app = mic audio (legacy). Photos travel
+  ONLY as base64 JSON. The bridge runs `websockets.serve(..., max_size=16MiB)`
+  because a base64 JPEG exceeds the 1 MiB default.
 
-## Likely root causes (Claude should investigate)
-1. **Microphone permission never requested!** `NSMicrophoneUsageDescription` is in Info.plist but `AVAudioSession.recordPermission` / `requestRecordPermission()` is NEVER called. The AVAudioEngine tap silently fails without permission.
-2. The `startCapture()` method runs synchronously via `Thread.sleep()` on `@MainActor`, which blocks the main thread.
-3. The audio session category/options might conflict with the DAT SDK's own audio management.
-4. The `HermesAPIClient.connect()` uses a fragile continuation pattern that may cause the WebSocket to close prematurely.
+## Build & run
 
-## Project paths
-```
-~/Documents/github/hermes-glasses/
-├── HermesGlasses.xcodeproj/
-├── HermesGlasses/
-│   ├── HermesGlassesApp.swift
-│   ├── Info.plist
-│   ├── HermesGlasses.entitlements
-│   ├── Views/
-│   │   ├── ContentView.swift
-│   │   └── RegistrationView.swift
-│   ├── ViewModels/
-│   │   ├── WearablesViewModel.swift
-│   │   └── HermesSessionViewModel.swift
-│   └── Services/
-│       ├── HermesAudioManager.swift
-│       └── HermesAPIClient.swift
-└── bridge/
-    └── hermes_bridge.py
-```
-
-## How to build & deploy
 ```bash
-cd ~/Documents/github/hermes-glasses
+# iOS (from repo root; use your own device ID from `xcrun devicectl list devices`)
 xcodebuild -project HermesGlasses.xcodeproj -scheme HermesGlasses \
-  -destination 'platform=iOS,id=00008150-001410210C7A401C' build
-APP_PATH="$HOME/Library/Developer/Xcode/DerivedData/HermesGlasses-*/Build/Products/Debug-iphoneos/Hermes Glasses.app"
-xcrun devicectl device install app --device 00008150-001410210C7A401C "$APP_PATH"
-xcrun devicectl device process launch --device 00008150-001410210C7A401C com.flowsxr.hermes-glasses
+  -destination 'generic/platform=iOS' build
+
+# Bridge (from bridge/) — logs to stdout; tests:
+python -m unittest test_hermes_bridge -v
 ```
 
-## How to run the bridge
-```bash
-cd ~/Documents/github/hermes-glasses/bridge
-~/.hermes/hermes-agent/venv/bin/python hermes_bridge.py
-# Logs to /tmp/hermes_bridge.log
-# Listens on ws://0.0.0.0:8765/voice
-```
+## Next milestones
 
-## Bridge protocol
-- App sends: binary PCM16 16kHz mono audio chunks
-- App sends: `{"type":"end_of_audio"}` when done speaking
-- Bridge sends: `{"type":"welcome"}` on connect
-- Bridge sends: `{"type":"transcript","text":"..."}` after STT
-- Bridge sends: `{"type":"response","text":"..."}` after Hermes responds
-- Bridge sends: `{"type":"audio_start"}` / binary TTS data / `{"type":"audio_end"}`
-- Bridge sends: `{"type":"error","message":"..."}` on errors
-
-## What Claude should do
-1. Add `AVAudioSession.requestRecordPermission()` before starting capture
-2. Make `startCapture()` properly async (no `Thread.sleep` on main thread)
-3. Simplify the `HermesAPIClient.connect()` — no continuation pattern, just a simple connect + wait
-4. Test with iPhone mic first (don't try glasses Bluetooth routing yet)
-5. Once audio flows to the bridge, then tackle glasses Bluetooth routing
+- Route audio through the glasses microphone (`startCapture(useGlassesMic:
+  true)`, HFP path) — currently the iPhone mic is used.
+- Normalize EXIF rotation of glasses photos before sending to Hermes.
+- Word-boundary matching for visual keywords ("outlook" currently matches
+  "look").

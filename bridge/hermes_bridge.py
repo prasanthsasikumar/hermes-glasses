@@ -483,16 +483,29 @@ async def handle_connection(websocket):
         print("[Bridge] Connection closed")
 
 
+def local_ip() -> str:
+    """Best-effort LAN IP for the connection hint."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except OSError:
+        return "<your-mac-ip>"
+
+
 async def main():
     print(f"""
 ╔══════════════════════════════════════════════╗
 ║       Hermes Glasses Bridge Server           ║
 ║                                              ║
 ║  Listening on ws://{HOST}:{PORT}/voice           ║
-║  STT backend: {STT_BACKEND}                         ║
+║  STT backend: {STT_BACKEND} (legacy audio path)      ║
 ║                                              ║
 ║  Connect your glasses app to:                ║
-║  ws://192.168.1.16:{PORT}/voice                 ║
+║  ws://{local_ip()}:{PORT}/voice                 ║
 ╚══════════════════════════════════════════════╝
 """)
     # Glasses photos arrive as a single large base64-encoded JSON text frame
