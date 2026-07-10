@@ -65,6 +65,11 @@ final class HermesSessionViewModel {
     var micSource: MicSource = MicSource(
         rawValue: UserDefaults.standard.string(forKey: "mic_source") ?? ""
     ) ?? .phone
+    /// On-device voice (fast, robotic) vs bridge edge-tts (natural, +1-3s).
+    /// Default: bridge voice.
+    var useDeviceTTS: Bool = UserDefaults.standard.bool(forKey: "use_device_tts") {
+        didSet { UserDefaults.standard.set(useDeviceTTS, forKey: "use_device_tts") }
+    }
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -415,7 +420,7 @@ final class HermesSessionViewModel {
         connectionState = .processing
         // Pause recognition so the mic doesn't transcribe Hermes's TTS
         speechRecognizer.isSuspended = true
-        apiClient?.sendQuery(trimmed)
+        apiClient?.sendQuery(trimmed, bridgeTTS: !useDeviceTTS)
     }
 
     /// "Send now" button — don't wait for the pause detection

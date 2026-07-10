@@ -13,7 +13,6 @@ class TestIsVisualQuery(unittest.TestCase):
             "READ THIS for me",
             "what is this thing in front of me",
             "take a picture",
-            "describe this photo",
             "use the camera",
         ]:
             self.assertTrue(is_visual_query(phrase), phrase)
@@ -23,8 +22,22 @@ class TestIsVisualQuery(unittest.TestCase):
             "what's the weather tomorrow",
             "tell me a joke",
             "who wrote hamlet",
+            # bare 'picture'/'photo' must NOT trigger — meta-questions about
+            # photos were re-photographing the room. (Note: a meta-question
+            # containing the literal phrase 'take a picture' still triggers;
+            # keyword matching cannot tell it from the command.)
+            "why was a photo captured just now",
+            "do you always talk this much",
         ]:
             self.assertFalse(is_visual_query(phrase), phrase)
+
+    def test_deictic_covers_photo_reference(self):
+        from hermes_bridge import should_capture_photo
+        # "describe this photo" flows through the deictic path now
+        self.assertTrue(should_capture_photo("describe this photo", 0.0, 1000.0))
+        # ...but meta/degree deictics never capture
+        self.assertFalse(should_capture_photo("do you always talk this much", 0.0, 1000.0))
+        self.assertFalse(should_capture_photo("keep it short like this answer", 0.0, 1000.0))
 
 
 class FakeWebSocket:

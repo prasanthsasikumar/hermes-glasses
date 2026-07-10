@@ -52,11 +52,13 @@ AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
 BRIDGE_TTS = os.environ.get("HERMES_BRIDGE_TTS", "") == "1"
 
 # Utterances containing any of these ask about something the user sees;
-# the bridge then requests a photo from the glasses.
+# the bridge then requests a photo from the glasses. Phrases, not bare
+# words: "picture" alone would fire on "why did you take a picture?"
 VISUAL_KEYWORDS = [
-    "look", "looking at", "see this", "seeing", "what is this",
-    "what's this", "read this", "in front of me", "picture", "photo",
-    "camera",
+    "look at", "looking at", "see this", "what am i seeing",
+    "what is this", "what's this", "read this", "in front of me",
+    "take a picture", "take a photo", "snap a photo", "use the camera",
+    "through the camera",
 ]
 
 
@@ -70,17 +72,35 @@ def is_visual_query(text: str) -> bool:
 DEICTIC_RE = None  # compiled below, after re is imported
 
 
+# "this morning", "that question" — deictic in grammar but not about
+# anything visible. Nouns here never trigger a photo.
+DEICTIC_STOP_NOUNS = {
+    "morning", "afternoon", "evening", "night", "time", "day", "week",
+    "month", "year", "moment", "question", "answer", "idea", "point",
+    "case", "way", "reason", "sense", "stuff", "conversation", "chat",
+    "session", "app", "voice", "sound", "response", "reply", "much",
+    "long", "short", "many", "far", "fast", "slow", "bit", "lot", "kind",
+    "sort", "type",
+}
+
+
 def should_capture_photo(text: str, last_photo_at: float, now: float) -> bool:
     """Decide whether a query needs a fresh photo.
 
     Explicit visual keywords always capture. Deictic references ("this X")
-    capture only when no photo was taken recently — within the window,
-    conversation memory already knows what the user is looking at.
+    capture only for plausibly-visible nouns, and only when no photo was
+    taken recently — within the window, conversation memory already knows
+    what the user is looking at.
     """
     if is_visual_query(text):
         return True
-    if DEICTIC_RE and DEICTIC_RE.search(text):
-        return (now - last_photo_at) > PHOTO_MEMORY_WINDOW_S
+    if DEICTIC_RE:
+        for match in DEICTIC_RE.finditer(text):
+            noun = (match.group(2) or "").lower()
+            if match.group(0).lower() == "the one" or (
+                noun and noun not in DEICTIC_STOP_NOUNS
+            ):
+                return (now - last_photo_at) > PHOTO_MEMORY_WINDOW_S
     return False
 
 
@@ -143,7 +163,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 BOX_CHARS = set("╭╮╰╯│─═╞╡┌┐└┘┤├")
 
 # Deictic references — compiled here because `re` is imported at this point
-DEICTIC_RE = re.compile(r"\b(this|that|these|those)\s+[a-z]+|\bthe one\b",
+DEICTIC_RE = re.compile(r"\b(this|that|these|those)\s+([a-z]+)|\bthe one\b",
                         re.IGNORECASE)
 
 
@@ -327,12 +347,16 @@ async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
         # any other message type: keep waiting
 
 
-async def process_query(websocket, text: str, conn_state: dict | None = None):
+async def process_query(websocket, text: str, conn_state: dict | None = None,
+                        want_tts: bool | None = None):
     """Answer a text query: photo capture if visual, Hermes, TTS reply.
 
     The app transcribes on-device and sends {"type":"query"} text.
     conn_state carries per-connection context: {"last_photo_at": float}.
+    want_tts: app's per-query choice of bridge TTS; None falls back to the
+    HERMES_BRIDGE_TTS env default.
     """
+    bridge_tts = BRIDGE_TTS if want_tts is None else bool(want_tts)
     if conn_state is None:
         conn_state = {"last_photo_at": 0.0}
 
@@ -387,10 +411,10 @@ async def process_query(websocket, text: str, conn_state: dict | None = None):
     await websocket.send(json.dumps({
         "type": "response",
         "text": response_text,
-        "tts": BRIDGE_TTS,
+        "tts": bridge_tts,
     }))
 
-    if BRIDGE_TTS:
+    if bridge_tts:
         # ── Server-side TTS (legacy fallback, HERMES_BRIDGE_TTS=1) ──
         print("[Bridge] Generating speech...")
         await websocket.send(json.dumps({"type": "audio_start"}))
@@ -449,7 +473,8 @@ async def handle_connection(websocket):
                 text = (data.get("text") or "").strip()
                 if text:
                     print(f"[Bridge] Query: {text}")
-                    await process_query(websocket, text, conn_state)
+                    await process_query(websocket, text, conn_state,
+                                        data.get("tts"))
                 else:
                     await websocket.send(json.dumps({
                         "type": "error",

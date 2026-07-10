@@ -121,10 +121,12 @@ final class HermesAPIClient: NSObject {
         ws.send(.string(#"{"type":"new_session"}"#)) { _ in }
     }
 
-    /// Send an on-device-transcribed query; the bridge skips STT for these
-    func sendQuery(_ text: String) {
+    /// Send an on-device-transcribed query. bridgeTTS asks the bridge to
+    /// synthesize the reply voice (edge-tts); false = app speaks locally.
+    func sendQuery(_ text: String, bridgeTTS: Bool) {
         guard isConnected, let ws = webSocket else { return }
-        let payload: [String: String] = ["type": "query", "text": text]
+        let payload: [String: Any] = ["type": "query", "text": text,
+                                      "tts": bridgeTTS]
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
         ws.send(.string(json)) { [weak self] error in

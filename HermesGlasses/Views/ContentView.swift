@@ -538,6 +538,16 @@ struct SettingsView: View {
                     .disabled(endpoint.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
 
+                Section("Voice") {
+                    Toggle("iPhone voice (faster, more robotic)", isOn: Binding(
+                        get: { hermesVM.useDeviceTTS },
+                        set: { hermesVM.useDeviceTTS = $0 }
+                    ))
+                    Text("Off = natural voice generated on the bridge (adds 1–3 s per reply). Applies from the next question.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Microphone") {
                     Picker("Voice input", selection: Binding(
                         get: { hermesVM.micSource },
