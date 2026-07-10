@@ -22,6 +22,14 @@ enum HermesConnectionState: Equatable {
     case error(String)
 }
 
+/// Whether the Hermes bridge on the Mac is reachable, independent of glasses
+enum BridgeStatus: Equatable {
+    case unknown
+    case checking
+    case reachable
+    case unreachable
+}
+
 @Observable
 @MainActor
 final class HermesSessionViewModel {
@@ -29,6 +37,16 @@ final class HermesSessionViewModel {
 
     var connectionState: HermesConnectionState = .disconnected
     var isGlassesConnected: Bool = false
+    var bridgeStatus: BridgeStatus = .unknown
+    /// Words recognized so far in the current utterance (live)
+    var liveTranscript: String = ""
+    /// Mic input level 0..~1 for the UI meter
+    var micLevel: Float = 0
+    /// Test-panel results keyed by test name: nil=never run, ""=pass, else error
+    var testResults: [String: String?] = [:]
+    var testRunning: Set<String> = []
+    /// Glasses camera permission (granted in the Meta AI app); nil = unknown
+    var cameraPermissionGranted: Bool? = nil
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -49,6 +67,9 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let audioManager = HermesAudioManager()
     @ObservationIgnored private var apiClient: HermesAPIClient?
     @ObservationIgnored private var sessionObserverTask: Task<Void, Never>?
+    @ObservationIgnored private let cameraManager = HermesCameraManager()
+    @ObservationIgnored private let speechRecognizer = HermesSpeechRecognizer()
+    @ObservationIgnored private var pendingPhoto: Data?
 
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
@@ -174,6 +195,14 @@ final class HermesSessionViewModel {
 
         // Session is started — set up Hermes and audio
         isGlassesConnected = true
+        cameraManager.configure(session: session)
+        cameraManager.onDebug = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.apiClient?.sendDebug(message)
+            }
+        }
+        // Surface camera permission state early (non-interactive)
+        Task { await ensureCameraPermission(interactive: false) }
 
         // 2. Connect to Hermes first, with all callbacks wired up before
         // any audio flows, so no chunks are dropped.
@@ -205,11 +234,34 @@ final class HermesSessionViewModel {
         client.onPlaybackComplete = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.connectionState = .listening
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                self?.speechRecognizer.isSuspended = false
             }
         }
         client.onError = { [weak self] error in
             Task { @MainActor [weak self] in
                 self?.show(error)
+            }
+        }
+        client.onCapturePhotoRequested = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Fail fast if the Meta AI camera permission is missing —
+                // the interactive grant needs an app switch, which can't
+                // happen inside the bridge's photo wait.
+                guard await self.ensureCameraPermission(interactive: false) else {
+                    self.apiClient?.sendPhotoError(
+                        "Camera permission not granted. Tap the Photo test button to grant access via Meta AI."
+                    )
+                    return
+                }
+                do {
+                    let photo = try await self.cameraManager.capturePhoto()
+                    self.pendingPhoto = photo
+                    self.apiClient?.sendPhoto(photo)
+                } catch {
+                    self.apiClient?.sendPhotoError(error.localizedDescription)
+                }
             }
         }
 
@@ -220,65 +272,83 @@ final class HermesSessionViewModel {
             return
         }
 
-        // 3. Start audio capture (iPhone mic first; glasses routing later)
-        audioManager.onAudioChunk = { [weak self] chunk in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                // Don't stream the mic while Hermes is thinking or talking —
-                // without echo cancellation the mic hears the TTS and the
-                // bridge would transcribe Hermes back to itself.
-                switch self.connectionState {
-                case .processing, .speaking:
-                    return
-                default:
-                    self.apiClient?.sendAudioChunk(chunk)
-                }
-            }
+        // 3. Start audio capture + on-device recognition.
+        // Audio is transcribed ON the phone; only final text goes to the
+        // bridge. No mic audio is streamed over WiFi anymore.
+        let speechOK = await speechRecognizer.requestAuthorization()
+        if !speechOK {
+            show(HermesSpeechError.notAuthorized.localizedDescription)
+        }
+
+        audioManager.onRawBuffer = { [weak self] buffer in
+            self?.speechRecognizer.append(buffer)
+        }
+        audioManager.onLevel = { [weak self] level in
+            self?.micLevel = level
         }
         audioManager.onPlaybackComplete = { [weak self] in
             Task { @MainActor [weak self] in
-                if case .speaking = self?.connectionState {
-                    self?.connectionState = .listening
+                guard let self else { return }
+                if case .speaking = self.connectionState {
+                    self.connectionState = .listening
                 }
+                // Grace period: let the speaker's tail fade before the mic
+                // listens again, or the recognizer hears the end of the TTS
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                self.speechRecognizer.isSuspended = false
             }
         }
-        audioManager.onDebug = { [weak self] message in
-            Task { @MainActor [weak self] in
-                self?.apiClient?.sendDebug(message)
-            }
+
+        speechRecognizer.onPartial = { [weak self] text in
+            self?.liveTranscript = text
         }
-        audioManager.onSpeechDetected = { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.connectionState = .recording
-            }
-        }
-        audioManager.onSilenceDetected = { [weak self] in
-            Task { @MainActor [weak self] in
-                if case .recording = self?.connectionState {
-                    self?.connectionState = .processing
-                    await self?.apiClient?.finalizeAudio()
-                }
-            }
+        speechRecognizer.onFinal = { [weak self] text in
+            self?.submitQuery(text)
         }
 
         do {
             try await audioManager.startCapture()
+            if speechOK {
+                try speechRecognizer.start()
+            }
         } catch {
             show("Audio setup failed: \(error.localizedDescription)")
             endSession()
             return
         }
 
-        // Bridge connected and mic capturing — ready to listen
+        // Bridge connected, mic live, recognizer running
         connectionState = .listening
+    }
+
+    /// Send finalized text to Hermes and move the UI into processing
+    func submitQuery(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, apiClient?.isConnected == true else { return }
+        liveTranscript = ""
+        lastTranscript = trimmed
+        connectionState = .processing
+        // Pause recognition so the mic doesn't transcribe Hermes's TTS
+        speechRecognizer.isSuspended = true
+        apiClient?.sendQuery(trimmed)
+    }
+
+    /// "Send now" button — don't wait for the pause detection
+    func sendNow() {
+        speechRecognizer.finalizeNow()
     }
 
     func endSession() {
         sessionObserverTask?.cancel()
         sessionObserverTask = nil
+        speechRecognizer.stop()
+        liveTranscript = ""
+        micLevel = 0
         audioManager.stopCapture()
         apiClient?.disconnect()
         apiClient = nil
+        cameraManager.reset()
+        pendingPhoto = nil
         deviceSession?.stop()
         deviceSession = nil
         isGlassesConnected = false
@@ -287,10 +357,116 @@ final class HermesSessionViewModel {
 
     func setEndpoint(_ endpoint: String) {
         UserDefaults.standard.set(endpoint, forKey: "hermes_endpoint")
+        Task { await checkBridge() }
+    }
+
+    /// Probe the Hermes bridge (connect, await welcome, disconnect) without
+    /// touching the glasses — lets the UI show bridge reachability on launch.
+    func checkBridge() async {
+        guard bridgeStatus != .checking else { return }
+        bridgeStatus = .checking
+        let probe = HermesAPIClient(endpoint: hermesEndpoint)
+        let ok = await probe.connect()
+        probe.disconnect()
+        bridgeStatus = ok ? .reachable : .unreachable
     }
 
     func dismissError() {
         showError = false
+    }
+
+    // MARK: - Test panel
+
+    /// Explicit bridge test: connect + welcome + disconnect
+    func testBridge() async {
+        await runTest("Bridge") { [self] in
+            let probe = HermesAPIClient(endpoint: hermesEndpoint)
+            let ok = await probe.connect()
+            probe.disconnect()
+            if !ok { throw TestFailure("No welcome from \(hermesEndpoint)") }
+            bridgeStatus = .reachable
+        }
+    }
+
+    /// Glasses camera alone — no Hermes involved. Runs the interactive
+    /// permission flow (opens Meta AI) if camera access was never granted.
+    func testPhoto() async {
+        await runTest("Photo") { [self] in
+            guard isGlassesConnected else {
+                throw TestFailure("Start a session first (needs glasses)")
+            }
+            guard await ensureCameraPermission(interactive: true) else {
+                throw TestFailure("Camera permission denied in Meta AI app")
+            }
+            let photo = try await cameraManager.capturePhoto()
+            pendingPhoto = photo
+            addTurn(
+                userText: "[Test Photo]",
+                agentText: "Captured \(photo.count / 1024) KB from glasses camera"
+            )
+        }
+    }
+
+    /// Check (and optionally request via Meta AI) the glasses camera
+    /// permission. The interactive request switches to the Meta AI app.
+    func ensureCameraPermission(interactive: Bool) async -> Bool {
+        do {
+            let status = try await wearables.checkPermissionStatus(.camera)
+            if status == .granted {
+                cameraPermissionGranted = true
+                return true
+            }
+            if interactive {
+                let result = try await wearables.requestPermission(.camera)
+                cameraPermissionGranted = (result == .granted)
+                return result == .granted
+            }
+            cameraPermissionGranted = false
+            return false
+        } catch {
+            cameraPermissionGranted = false
+            return false
+        }
+    }
+
+    /// Round trip through bridge → Hermes → response text (+TTS)
+    func testQuery() async {
+        await runTest("Query") { [self] in
+            guard apiClient?.isConnected == true else {
+                throw TestFailure("Start a session first (needs bridge)")
+            }
+            submitQuery("Respond with exactly: OK")
+        }
+    }
+
+    /// Full photo pipeline via a canned visual query
+    func testVisualQuery() async {
+        await runTest("Visual") { [self] in
+            guard apiClient?.isConnected == true else {
+                throw TestFailure("Start a session first (needs bridge)")
+            }
+            guard isGlassesConnected else {
+                throw TestFailure("Glasses not connected")
+            }
+            submitQuery("What am I looking at? Answer in one short sentence.")
+        }
+    }
+
+    private struct TestFailure: LocalizedError {
+        let message: String
+        init(_ message: String) { self.message = message }
+        var errorDescription: String? { message }
+    }
+
+    private func runTest(_ name: String, _ body: () async throws -> Void) async {
+        testRunning.insert(name)
+        defer { testRunning.remove(name) }
+        do {
+            try await body()
+            testResults[name] = ""
+        } catch {
+            testResults[name] = error.localizedDescription
+        }
     }
 
     // MARK: - Private
@@ -318,8 +494,10 @@ final class HermesSessionViewModel {
         let turn = ConversationTurn(
             userText: userText,
             agentText: agentText,
-            timestamp: Date()
+            timestamp: Date(),
+            photo: pendingPhoto
         )
+        pendingPhoto = nil
         conversationHistory.append(turn)
         if conversationHistory.count > 50 {
             conversationHistory.removeFirst()
@@ -338,4 +516,5 @@ struct ConversationTurn: Identifiable {
     let userText: String
     let agentText: String
     let timestamp: Date
+    var photo: Data? = nil
 }

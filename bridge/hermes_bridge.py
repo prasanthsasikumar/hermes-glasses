@@ -13,6 +13,7 @@ Protocol:
 
 import array
 import asyncio
+import base64
 import json
 import math
 import os
@@ -36,6 +37,19 @@ HERMES_BIN = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
 
 # STT backend: "google" (free, needs internet) or "whisper" (local)
 STT_BACKEND = "google"
+
+# Utterances containing any of these ask about something the user sees;
+# the bridge then requests a photo from the glasses.
+VISUAL_KEYWORDS = [
+    "look", "looking at", "see this", "seeing", "what is this",
+    "what's this", "read this", "in front of me", "picture", "photo",
+    "camera",
+]
+
+
+def is_visual_query(text: str) -> bool:
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in VISUAL_KEYWORDS)
 
 # ── Server-side VAD (utterance detection) ──────────────────────────────────
 # The app streams audio continuously; the bridge decides when an utterance
@@ -123,23 +137,26 @@ def extract_hermes_reply(raw: str) -> str | None:
     return reply or None
 
 
-def ask_hermes(text: str) -> str | None:
-    """Send text to Hermes Agent and get a response."""
+def ask_hermes(text: str, image_path: str | None = None) -> str | None:
+    """Send text (and optionally an image) to Hermes Agent."""
+    cmd = [HERMES_BIN, "chat", "-q", text, "-Q", "--cli"]
+    if image_path:
+        cmd += ["--image", image_path]
     try:
         result = subprocess.run(
-            [HERMES_BIN, "chat", "-q", text, "--cli"],
+            cmd,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120 if image_path else 60,
             env={**os.environ, "HERMES_NO_COLOR": "1"},
         )
         output = result.stdout.strip()
         if output:
-            reply = extract_hermes_reply(output)
-            if reply:
-                return reply
-            print("[Hermes] Could not find reply box in CLI output; "
-                  "using raw output")
+            # -Q should print only the reply; if box UI sneaks in, unwrap it
+            if BOX_CHARS & set(output):
+                reply = extract_hermes_reply(output)
+                if reply:
+                    return reply
             return output
         if result.stderr.strip():
             return result.stderr.strip()
@@ -224,6 +241,41 @@ def pcm_to_wav(pcm_data: bytes, sample_rate: int = 16000) -> str:
 
 # ── WebSocket Handler ──────────────────────────────────────────────────────
 
+async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
+    """Wait for the app to answer a capture_photo request.
+
+    Discards mic-audio (binary) frames that arrive meanwhile. Returns the
+    decoded JPEG bytes, or None on photo_error or timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print("[Bridge] Photo wait timed out")
+            return None
+        try:
+            message = await asyncio.wait_for(websocket.recv(), timeout=remaining)
+        except asyncio.TimeoutError:
+            print("[Bridge] Photo wait timed out")
+            return None
+        if isinstance(message, bytes):
+            continue  # mic audio while waiting — drop it
+        data = json.loads(message)
+        msg_type = data.get("type")
+        if msg_type == "photo":
+            try:
+                return base64.b64decode(data.get("data", ""))
+            except Exception as e:
+                print(f"[Bridge] Bad photo payload: {e}")
+                return None
+        if msg_type == "photo_error":
+            print(f"[Bridge] Photo error from app: {data.get('message')}")
+            return None
+        if msg_type == "debug":
+            print(f"[App] {data.get('msg')}")
+        # any other message type: keep waiting
+
+
 async def process_utterance(websocket, pcm: bytes, sample_rate: int):
     """Transcribe an utterance, ask Hermes, and stream the TTS reply."""
     wav_path = pcm_to_wav(pcm, sample_rate)
@@ -253,9 +305,40 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
         "text": transcript,
     }))
 
-    # ── Step 2: Ask Hermes ──
+    await process_query(websocket, transcript)
+
+
+async def process_query(websocket, text: str):
+    """Answer a text query: photo capture if visual, Hermes, TTS reply.
+
+    Used both by the audio path (after STT) and directly for
+    {"type":"query"} messages from apps that transcribe on-device.
+    """
+    # ── Capture a photo for visual queries ──
+    image_path = None
+    query_text = text
+    if is_visual_query(text):
+        print("[Bridge] Visual query — requesting photo from glasses")
+        await websocket.send(json.dumps({"type": "capture_photo"}))
+        photo = await await_photo(websocket)
+        if photo:
+            img_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+            img_tmp.write(photo)
+            img_tmp.close()
+            image_path = img_tmp.name
+            print(f"[Bridge] Photo received: {len(photo)} bytes")
+        else:
+            print("[Bridge] No photo — answering text-only")
+            query_text = ("(No photo could be captured from the glasses.) "
+                          + text)
+
+    # ── Ask Hermes ──
     print("[Bridge] Asking Hermes...")
-    response = await asyncio.to_thread(ask_hermes, transcript)
+    try:
+        response = await asyncio.to_thread(ask_hermes, query_text, image_path)
+    finally:
+        if image_path:
+            os.unlink(image_path)
     response_text = response or "I'm not sure what to say."
 
     print(f"[Bridge] Hermes: {response_text[:100]}...")
@@ -265,7 +348,7 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
         "text": response_text,
     }))
 
-    # ── Step 3: TTS ──
+    # ── TTS ──
     print("[Bridge] Generating speech...")
     await websocket.send(json.dumps({"type": "audio_start"}))
 
@@ -362,6 +445,22 @@ async def handle_connection(websocket):
                     await process_utterance(websocket, pcm, sample_rate)
                     drop_until = time.monotonic() + 0.5
 
+                elif msg_type == "query":
+                    # App transcribed on-device and sends text directly
+                    text = (data.get("text") or "").strip()
+                    if text:
+                        print(f"[Bridge] Query: {text}")
+                        audio_buffer.clear()
+                        in_speech = False
+                        silence_ms = 0.0
+                        await process_query(websocket, text)
+                        drop_until = time.monotonic() + 0.5
+                    else:
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": "Empty query."
+                        }))
+
                 elif msg_type == "debug":
                     print(f"[App] {data.get('msg')}")
 
@@ -384,19 +483,36 @@ async def handle_connection(websocket):
         print("[Bridge] Connection closed")
 
 
+def local_ip() -> str:
+    """Best-effort LAN IP for the connection hint."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except OSError:
+        return "<your-mac-ip>"
+
+
 async def main():
     print(f"""
 ╔══════════════════════════════════════════════╗
 ║       Hermes Glasses Bridge Server           ║
 ║                                              ║
 ║  Listening on ws://{HOST}:{PORT}/voice           ║
-║  STT backend: {STT_BACKEND}                         ║
+║  STT backend: {STT_BACKEND} (legacy audio path)      ║
 ║                                              ║
 ║  Connect your glasses app to:                ║
-║  ws://192.168.1.16:{PORT}/voice                 ║
+║  ws://{local_ip()}:{PORT}/voice                 ║
 ╚══════════════════════════════════════════════╝
 """)
-    async with websockets.serve(handle_connection, HOST, PORT):
+    # Glasses photos arrive as a single large base64-encoded JSON text frame
+    # (a 1-3 MB raw JPEG becomes an even bigger base64 string), so raise
+    # max_size well above the websockets default of 1 MiB to avoid a 1009
+    # close before the frame is fully received.
+    async with websockets.serve(handle_connection, HOST, PORT, max_size=16 * 1024 * 1024):
         await asyncio.Future()  # run forever
 
 

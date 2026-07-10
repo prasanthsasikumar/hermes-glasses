@@ -22,6 +22,9 @@ struct ContentView: View {
                 // Main conversation area
                 conversationArea
 
+                // Testing panel — every subsystem as a button
+                testPanel
+
                 // Control bar
                 controlBar
             }
@@ -36,7 +39,10 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView(hermesVM: hermesVM)
+                SettingsView(hermesVM: hermesVM, wearablesVM: wearablesVM)
+            }
+            .task {
+                await hermesVM.checkBridge()
             }
         }
     }
@@ -90,9 +96,39 @@ struct ContentView: View {
                     .padding(.vertical, 4)
                     .background(.green.opacity(0.15), in: Capsule())
             }
+
+            // Bridge reachability — checked on launch, tap to re-check
+            Button {
+                Task { await hermesVM.checkBridge() }
+            } label: {
+                Label(bridgeLabel, systemImage: "server.rack")
+                    .font(.caption)
+                    .foregroundStyle(bridgeColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(bridgeColor.opacity(0.15), in: Capsule())
+            }
+            .buttonStyle(.plain)
         }
         .padding()
         .background(.ultraThinMaterial)
+    }
+
+    private var bridgeLabel: String {
+        switch hermesVM.bridgeStatus {
+        case .unknown: return "Bridge ?"
+        case .checking: return "Bridge …"
+        case .reachable: return "Bridge ✓"
+        case .unreachable: return "Bridge ✗"
+        }
+    }
+
+    private var bridgeColor: Color {
+        switch hermesVM.bridgeStatus {
+        case .reachable: return .green
+        case .unreachable: return .red
+        case .unknown, .checking: return .gray
+        }
     }
 
     // MARK: - Conversation Area
@@ -132,9 +168,9 @@ struct ContentView: View {
                             TurnBubble(turn: turn)
                         }
 
-                        // Live transcript — shown as soon as STT finishes,
-                        // before Hermes responds
-                        if !hermesVM.lastTranscript.isEmpty {
+                        // Submitted query awaiting Hermes's answer
+                        if !hermesVM.lastTranscript.isEmpty,
+                           hermesVM.connectionState == .processing {
                             HStack {
                                 Spacer()
                                 Text(hermesVM.lastTranscript)
@@ -142,6 +178,28 @@ struct ContentView: View {
                                     .background(.blue.opacity(0.15))
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                     .frame(maxWidth: 280, alignment: .trailing)
+                            }
+                        }
+
+                        // LIVE transcription — words appear as you speak
+                        if !hermesVM.liveTranscript.isEmpty {
+                            HStack(alignment: .bottom) {
+                                Spacer()
+                                Text(hermesVM.liveTranscript)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .padding(12)
+                                    .background(.blue.opacity(0.08))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .frame(maxWidth: 280, alignment: .trailing)
+
+                                Button {
+                                    hermesVM.sendNow()
+                                } label: {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.title2)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
 
@@ -177,6 +235,18 @@ struct ContentView: View {
 
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
+                // Photo the glasses captured for this turn
+                if let photoData = turn.photo, let image = UIImage(data: photoData) {
+                    HStack {
+                        Spacer()
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: 200, maxHeight: 150)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+
                 // User message
                 HStack {
                     Spacer()
@@ -236,6 +306,73 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
+    }
+
+    // MARK: - Test Panel
+
+    @ViewBuilder
+    private var testPanel: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("TESTING")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                // Live mic level meter
+                HStack(spacing: 4) {
+                    Image(systemName: "mic.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    ProgressView(value: min(1.0, Double(hermesVM.micLevel) * 8))
+                        .frame(width: 80)
+                }
+            }
+
+            HStack(spacing: 8) {
+                testButton("Bridge") { await hermesVM.testBridge() }
+                testButton("Photo") { await hermesVM.testPhoto() }
+                testButton("Query") { await hermesVM.testQuery() }
+                testButton("Visual") { await hermesVM.testVisualQuery() }
+            }
+
+            // Most recent failure message, if any
+            if let failure = hermesVM.testResults.values
+                .compactMap({ $0 }).first(where: { !$0.isEmpty }) {
+                Text(failure)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+    }
+
+    private func testButton(
+        _ name: String,
+        action: @escaping () async -> Void
+    ) -> some View {
+        Button {
+            Task { await action() }
+        } label: {
+            HStack(spacing: 4) {
+                if hermesVM.testRunning.contains(name) {
+                    ProgressView().scaleEffect(0.6)
+                } else if let result = hermesVM.testResults[name] ?? nil {
+                    Image(systemName: result.isEmpty
+                        ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(result.isEmpty ? .green : .red)
+                }
+                Text(name)
+                    .font(.caption)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+        .disabled(hermesVM.testRunning.contains(name))
     }
 
     // MARK: - Control Bar
@@ -327,6 +464,7 @@ struct ContentView: View {
 
 struct SettingsView: View {
     let hermesVM: HermesSessionViewModel
+    let wearablesVM: WearablesViewModel
     @State private var endpoint: String = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -341,6 +479,25 @@ struct SettingsView: View {
                     Text("Default: ws://localhost:8765/voice")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Glasses Diagnostics") {
+                    LabeledContent("Registration", value: registrationText)
+                    LabeledContent(
+                        "Devices seen by SDK",
+                        value: "\(wearablesVM.devices.count)"
+                    )
+                    LabeledContent(
+                        "Camera permission",
+                        value: cameraPermissionText
+                    )
+                    Text("0 devices with \"Registered\" means the glasses aren't reachable over Bluetooth right now, or the pairing is stale.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button("Re-pair Glasses", role: .destructive) {
+                        Task { await wearablesVM.repairGlasses() }
+                    }
                 }
 
                 Section("About") {
@@ -366,6 +523,23 @@ struct SettingsView: View {
             .onAppear {
                 endpoint = hermesVM.hermesEndpoint
             }
+        }
+    }
+
+    private var registrationText: String {
+        switch wearablesVM.registrationState {
+        case .notRegistered: return "Not registered"
+        case .registering: return "Registering…"
+        case .registered: return "Registered"
+        case .unavailable: return "Unavailable"
+        }
+    }
+
+    private var cameraPermissionText: String {
+        switch hermesVM.cameraPermissionGranted {
+        case .some(true): return "Granted"
+        case .some(false): return "Denied — tap Photo test to grant"
+        case .none: return "Unknown (start a session)"
         }
     }
 }

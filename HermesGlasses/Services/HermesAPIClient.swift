@@ -19,6 +19,8 @@ final class HermesAPIClient: NSObject {
     var onError: ((String) -> Void)?
     /// Called when the WebSocket disconnects
     var onDisconnected: (() -> Void)?
+    /// Bridge asks the app to take a photo with the glasses
+    var onCapturePhotoRequested: (() -> Void)?
 
     // MARK: - Private
 
@@ -109,6 +111,47 @@ final class HermesAPIClient: NSObject {
         ws.send(.string(text)) { _ in }
     }
 
+    /// Send an on-device-transcribed query; the bridge skips STT for these
+    func sendQuery(_ text: String) {
+        guard isConnected, let ws = webSocket else { return }
+        let payload: [String: String] = ["type": "query", "text": text]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        ws.send(.string(json)) { [weak self] error in
+            if let error {
+                Task { @MainActor in
+                    self?.onError?("Query send error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Send a captured JPEG as base64 JSON (binary frames are mic audio only)
+    func sendPhoto(_ data: Data) {
+        guard isConnected, let ws = webSocket else { return }
+        let payload: [String: String] = [
+            "type": "photo",
+            "data": data.base64EncodedString(),
+        ]
+        guard let json = try? JSONSerialization.data(withJSONObject: payload),
+              let text = String(data: json, encoding: .utf8) else { return }
+        ws.send(.string(text)) { [weak self] error in
+            if let error {
+                Task { @MainActor in
+                    self?.onError?("Photo send error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    func sendPhotoError(_ message: String) {
+        guard isConnected, let ws = webSocket else { return }
+        let payload: [String: String] = ["type": "photo_error", "message": message]
+        guard let json = try? JSONSerialization.data(withJSONObject: payload),
+              let text = String(data: json, encoding: .utf8) else { return }
+        ws.send(.string(text)) { _ in }
+    }
+
     func finalizeAudio() async {
         guard isConnected, let ws = webSocket, !isFinalized else { return }
         isFinalized = true
@@ -191,6 +234,8 @@ final class HermesAPIClient: NSObject {
                 if let msg = json["message"] as? String {
                     self?.onError?("Hermes: \(msg)")
                 }
+            case "capture_photo":
+                self?.onCapturePhotoRequested?()
             default:
                 break
             }
