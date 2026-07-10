@@ -60,6 +60,10 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     // Playback
     private var playerNode: AVAudioPlayerNode?
     private var playbackBuffer: AVAudioPCMBuffer?
+    private var isPlaying = false
+    private var didReplayAfterRouteChange = false
+    /// Bumped per response; stale completions/watchdogs become no-ops
+    private var playbackGeneration = 0
 
     override init() {
         // 16 kHz mono PCM16 — the format the bridge expects. This
@@ -192,6 +196,12 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             configChangeObserver = nil
         }
         audioEngine.stop()
+        // A response mid-flight dies with the old engine — release the
+        // UI from "speaking" instead of leaving it wedged
+        if isPlaying {
+            let generation = playbackGeneration
+            finishPlayback(generation)
+        }
         playerNode = nil
         converter = nil
         converterInputFormat = nil
@@ -249,14 +259,37 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             }
         }
 
-        logger.info("Playing TTS response: \(audioData.count) bytes")
-        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
-            Task { @MainActor [weak self] in
-                self?.onPlaybackComplete?()
-            }
-        }
+        playbackBuffer = buffer
+        isPlaying = true
+        didReplayAfterRouteChange = false
+        playbackGeneration += 1
+        let generation = playbackGeneration
 
+        logger.info("Playing TTS response: \(audioData.count) bytes")
+        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            self?.finishPlayback(generation)
+        }
         player.play()
+
+        // Watchdog: opening the Bluetooth HFP audio link mid-playback fires
+        // a config change that flushes the buffer — the completion then
+        // never arrives and the app would hang in "speaking" forever.
+        let duration = Double(buffer.frameLength) / buffer.format.sampleRate
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64((duration + 3.0) * 1_000_000_000))
+            self?.finishPlayback(generation)
+        }
+    }
+
+    /// Complete the current playback exactly once (idempotent per generation)
+    private func finishPlayback(_ generation: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, generation == self.playbackGeneration,
+                  self.isPlaying else { return }
+            self.isPlaying = false
+            self.playbackBuffer = nil
+            self.onPlaybackComplete?()
+        }
     }
 
     // MARK: - Private
@@ -293,6 +326,22 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                     self.logger.error("Failed to restart engine: \(error.localizedDescription, privacy: .public)")
                 }
             }
+
+            // A config change during playback (e.g. the HFP audio link
+            // opening) flushed the scheduled TTS — replay it once so the
+            // response is actually heard on the new route.
+            if self.isPlaying, !self.didReplayAfterRouteChange,
+               let buffer = self.playbackBuffer, let player = self.playerNode {
+                self.didReplayAfterRouteChange = true
+                self.logger.info("Route change during playback — replaying response")
+                let generation = self.playbackGeneration
+                player.stop()
+                player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                    self?.finishPlayback(generation)
+                }
+                player.play()
+            }
+
             self.onRouteChanged?()
         }
     }
