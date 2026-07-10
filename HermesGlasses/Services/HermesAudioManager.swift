@@ -32,9 +32,13 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "audio")
 
-    private let audioEngine = AVAudioEngine()
-    private let inputNode: AVAudioNode
-    private let outputNode: AVAudioNode
+    // Rebuilt fresh on every startCapture: AVAudioEngine caches the audio
+    // graph/hardware formats of the previous route, and starting a stale
+    // engine after an HFP route change fails with -10868
+    // (kAudioUnitErr_FormatNotSupported). reset() is not enough.
+    private var audioEngine = AVAudioEngine()
+    private var inputNode: AVAudioNode { audioEngine.inputNode }
+    private var outputNode: AVAudioNode { audioEngine.outputNode }
     private let captureFormat: AVAudioFormat
 
     private var isCapturing: Bool = false
@@ -58,9 +62,6 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     private var playbackBuffer: AVAudioPCMBuffer?
 
     override init() {
-        inputNode = audioEngine.inputNode
-        outputNode = audioEngine.outputNode
-
         // 16 kHz mono PCM16 — the format the bridge expects. This
         // initializer cannot fail for a standard PCM format.
         captureFormat = AVAudioFormat(
@@ -149,11 +150,14 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         logger.info("Audio session active. Input route: \(self.currentInputName, privacy: .public)")
 
         // Route changes (especially to/from HFP) renegotiate the hardware
-        // sample rate. Give it a moment, drop cached formats, and wait for
-        // a valid input format — starting too early fails with -10868
-        // (kAudioUnitErr_FormatNotSupported).
+        // sample rate — let it settle before touching the engine.
         try? await Task.sleep(nanoseconds: 300_000_000)
-        audioEngine.reset()
+
+        // Fresh engine every start: the old instance's cached graph is what
+        // produces -10868 after a route change. The old player node dies
+        // with the old engine (never detach — that raises NSException).
+        rebuildEngine()
+
         var waited = 0
         while inputNode.outputFormat(forBus: 0).sampleRate == 0, waited < 10 {
             try? await Task.sleep(nanoseconds: 200_000_000)
@@ -167,17 +171,31 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         do {
             try audioEngine.start()
         } catch {
-            // One retry after a full reset — the first start can race the
-            // route transition
-            logger.warning("Engine start failed (\(error.localizedDescription, privacy: .public)) — resetting and retrying")
-            inputNode.removeTap(onBus: 0)
-            audioEngine.reset()
+            // One retry with another fresh engine — the first start can
+            // race the route transition
+            logger.warning("Engine start failed (\(error.localizedDescription, privacy: .public)) — rebuilding and retrying")
             try? await Task.sleep(nanoseconds: 500_000_000)
+            rebuildEngine()
+            observeConfigurationChanges()
             installTap()
             try audioEngine.start()
         }
         logger.info("Audio engine started")
         return isUsingBluetoothInput
+    }
+
+    /// Replace the engine with a fresh instance, discarding all cached
+    /// graph state. The old engine (and its attached player) is released.
+    private func rebuildEngine() {
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configChangeObserver = nil
+        }
+        audioEngine.stop()
+        playerNode = nil
+        converter = nil
+        converterInputFormat = nil
+        audioEngine = AVAudioEngine()
     }
 
     func stopCapture() {

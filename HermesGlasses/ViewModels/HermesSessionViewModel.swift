@@ -73,8 +73,9 @@ final class HermesSessionViewModel {
 
     /// Hermes Agent WebSocket endpoint
     var hermesEndpoint: String {
-        UserDefaults.standard.string(forKey: "hermes_endpoint")
-            ?? "ws://localhost:8765/voice"
+        (UserDefaults.standard.string(forKey: "hermes_endpoint")
+            ?? "ws://localhost:8765/voice")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Private
@@ -410,7 +411,8 @@ final class HermesSessionViewModel {
     }
 
     func setEndpoint(_ endpoint: String) {
-        UserDefaults.standard.set(endpoint, forKey: "hermes_endpoint")
+        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(trimmed, forKey: "hermes_endpoint")
         Task { await checkBridge() }
     }
 
