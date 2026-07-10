@@ -336,6 +336,7 @@ struct ContentView: View {
 
             HStack(spacing: 8) {
                 testButton("Bridge") { await hermesVM.testBridge() }
+                testButton("Sound") { await hermesVM.testSound() }
                 testButton("Photo") { await hermesVM.testPhoto() }
                 testButton("Query") { await hermesVM.testQuery() }
                 testButton("Visual") { await hermesVM.testVisualQuery() }
@@ -580,6 +581,10 @@ struct SettingsView: View {
             }
             .onAppear {
                 endpoint = hermesVM.hermesEndpoint
+            }
+            .onDisappear {
+                // Swipe-dismiss must not silently discard the typed URL
+                hermesVM.setEndpoint(endpoint)
             }
             .alert("Save preset", isPresented: $showSavePreset) {
                 TextField("Name (e.g. Maya remote)", text: $presetName)

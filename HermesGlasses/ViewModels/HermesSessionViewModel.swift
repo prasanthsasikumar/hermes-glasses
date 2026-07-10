@@ -466,9 +466,15 @@ final class HermesSessionViewModel {
     func testBridge() async {
         await runTest("Bridge") { [self] in
             let probe = HermesAPIClient(endpoint: hermesEndpoint)
+            // Capture the transport-level failure so the test shows WHY
+            var underlying = ""
+            probe.onError = { message in underlying = message }
             let ok = await probe.connect()
             probe.disconnect()
-            if !ok { throw TestFailure("No welcome from \(hermesEndpoint)") }
+            if !ok {
+                let detail = underlying.isEmpty ? "no welcome received" : underlying
+                throw TestFailure("\(hermesEndpoint): \(detail)")
+            }
             bridgeStatus = .reachable
         }
     }
@@ -521,6 +527,18 @@ final class HermesSessionViewModel {
                 throw TestFailure("Start a session first (needs bridge)")
             }
             submitQuery("Respond with exactly: OK")
+        }
+    }
+
+    /// Pure output test: play a locally generated tone through the current
+    /// audio route (glasses in glasses mode). No bridge or Hermes involved.
+    func testSound() async {
+        await runTest("Sound") { [self] in
+            guard connectionState != .disconnected else {
+                throw TestFailure("Start a session first")
+            }
+            connectionState = .speaking
+            await audioManager.playResponse(HermesAudioManager.makeTestTone())
         }
     }
 

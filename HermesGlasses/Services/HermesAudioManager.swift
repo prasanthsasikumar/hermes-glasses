@@ -281,6 +281,21 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         }
     }
 
+    /// 1.5 s 440 Hz sine as PCM16 mono 24 kHz — same format as bridge TTS,
+    /// so playing it exercises the exact TTS playback path
+    static func makeTestTone(duration: Double = 1.5) -> Data {
+        let sampleRate = 24000.0
+        let frames = Int(duration * sampleRate)
+        var samples = [Int16](repeating: 0, count: frames)
+        for i in 0..<frames {
+            let t = Double(i) / sampleRate
+            // Gentle fade in/out to avoid clicks
+            let envelope = min(1.0, min(Double(i), Double(frames - i)) / 1200.0)
+            samples[i] = Int16(sin(2.0 * .pi * 440.0 * t) * 12000.0 * envelope)
+        }
+        return samples.withUnsafeBufferPointer { Data(buffer: $0) }
+    }
+
     /// Complete the current playback exactly once (idempotent per generation)
     private func finishPlayback(_ generation: Int) {
         DispatchQueue.main.async { [weak self] in
