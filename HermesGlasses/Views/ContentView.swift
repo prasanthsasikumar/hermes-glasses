@@ -302,14 +302,22 @@ struct ContentView: View {
     }
 
     private var speakingIndicator: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "waveform")
-                .symbolEffect(.variableColor.iterative)
+        Button {
+            hermesVM.interruptSpeech()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "waveform")
+                    .symbolEffect(.variableColor.iterative)
 
-            Text("Hermes is speaking...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("Hermes is speaking — tap to interrupt")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "stop.circle")
+                    .foregroundStyle(.secondary)
+            }
         }
+        .buttonStyle(.plain)
         .padding(.horizontal)
     }
 

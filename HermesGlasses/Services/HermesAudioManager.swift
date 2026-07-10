@@ -240,6 +240,18 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         }
     }
 
+    /// Stop the current TTS clip (barge-in). AVAudioPlayer.stop() does not
+    /// call the delegate, so completion is fired here.
+    func stopPlayback() {
+        guard let player = clipPlayer else { return }
+        player.stop()
+        clipPlayer = nil
+        logger.info("Playback interrupted")
+        DispatchQueue.main.async { [weak self] in
+            self?.onPlaybackComplete?()
+        }
+    }
+
     /// Wrap raw PCM16 mono samples in a WAV container for AVAudioPlayer
     private static func wavContainer(pcm16: Data, sampleRate: Int) -> Data {
         func le32(_ v: UInt32) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }

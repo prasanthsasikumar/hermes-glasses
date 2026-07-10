@@ -245,8 +245,17 @@ final class HermesSessionViewModel {
         }
         client.onAudioResponse = { [weak self] audioData in
             Task { @MainActor [weak self] in
-                self?.connectionState = .speaking
-                await self?.audioManager.playResponse(audioData)
+                guard let self else { return }
+                self.connectionState = .speaking
+                await self.audioManager.playResponse(audioData)
+                // Voice barge-in: on the Bluetooth route, the glasses'
+                // hardware echo cancellation lets us listen WHILE Hermes
+                // speaks. On the phone route the mic would hear the
+                // speaker, so recognition stays suspended until playback
+                // ends.
+                if self.audioManager.isUsingBluetoothInput {
+                    self.speechRecognizer.isSuspended = false
+                }
             }
         }
         // Fires only when the bridge sent no TTS audio at all
@@ -319,7 +328,18 @@ final class HermesSessionViewModel {
         }
 
         speechRecognizer.onPartial = { [weak self] text in
-            self?.liveTranscript = text
+            guard let self else { return }
+            if case .speaking = self.connectionState {
+                // Words while Hermes talks = barge-in, unless the glasses
+                // are hearing Hermes's own voice
+                guard !self.isEchoOfResponse(text) else { return }
+                self.liveTranscript = text
+                if text.split(separator: " ").count >= 2 {
+                    self.interruptSpeech()
+                }
+            } else {
+                self.liveTranscript = text
+            }
         }
         speechRecognizer.onFinal = { [weak self] text in
             self?.submitQuery(text)
@@ -366,6 +386,29 @@ final class HermesSessionViewModel {
     /// "Send now" button — don't wait for the pause detection
     func sendNow() {
         speechRecognizer.finalizeNow()
+    }
+
+    /// Cut Hermes off mid-reply (tap on the speaking indicator, or voice
+    /// barge-in in glasses mode). stopPlayback fires onPlaybackComplete,
+    /// which returns the state machine to listening.
+    func interruptSpeech() {
+        guard case .speaking = connectionState else { return }
+        audioManager.stopPlayback()
+    }
+
+    /// True when a partial heard during .speaking is (part of) Hermes's own
+    /// spoken words leaking into the mic, rather than the user talking.
+    private func isEchoOfResponse(_ partial: String) -> Bool {
+        func normalize(_ s: String) -> String {
+            s.lowercased().filter { $0.isLetter || $0.isNumber || $0 == " " }
+                .trimmingCharacters(in: .whitespaces)
+        }
+        let heard = normalize(partial)
+        guard !heard.isEmpty else { return true }
+        // Heuristic: if what we heard appears verbatim in the response,
+        // assume it's echo. A user genuinely quoting Hermes back loses —
+        // acceptable trade-off.
+        return normalize(lastResponse).contains(heard)
     }
 
     /// Flip between iPhone and glasses mic. Persists the preference and,
