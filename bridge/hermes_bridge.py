@@ -37,6 +37,19 @@ HERMES_BIN = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
 # STT backend: "google" (free, needs internet) or "whisper" (local)
 STT_BACKEND = "google"
 
+# Utterances containing any of these ask about something the user sees;
+# the bridge then requests a photo from the glasses.
+VISUAL_KEYWORDS = [
+    "look", "looking at", "see this", "seeing", "what is this",
+    "what's this", "read this", "in front of me", "picture", "photo",
+    "camera",
+]
+
+
+def is_visual_query(text: str) -> bool:
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in VISUAL_KEYWORDS)
+
 # ── Server-side VAD (utterance detection) ──────────────────────────────────
 # The app streams audio continuously; the bridge decides when an utterance
 # has ended. Tune SPEECH_RMS using the [VAD] level logs.
@@ -123,23 +136,26 @@ def extract_hermes_reply(raw: str) -> str | None:
     return reply or None
 
 
-def ask_hermes(text: str) -> str | None:
-    """Send text to Hermes Agent and get a response."""
+def ask_hermes(text: str, image_path: str | None = None) -> str | None:
+    """Send text (and optionally an image) to Hermes Agent."""
+    cmd = [HERMES_BIN, "chat", "-q", text, "-Q", "--cli"]
+    if image_path:
+        cmd += ["--image", image_path]
     try:
         result = subprocess.run(
-            [HERMES_BIN, "chat", "-q", text, "--cli"],
+            cmd,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120 if image_path else 60,
             env={**os.environ, "HERMES_NO_COLOR": "1"},
         )
         output = result.stdout.strip()
         if output:
-            reply = extract_hermes_reply(output)
-            if reply:
-                return reply
-            print("[Hermes] Could not find reply box in CLI output; "
-                  "using raw output")
+            # -Q should print only the reply; if box UI sneaks in, unwrap it
+            if BOX_CHARS & set(output):
+                reply = extract_hermes_reply(output)
+                if reply:
+                    return reply
             return output
         if result.stderr.strip():
             return result.stderr.strip()
