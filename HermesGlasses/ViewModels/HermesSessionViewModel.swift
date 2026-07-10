@@ -30,6 +30,21 @@ enum BridgeStatus: Equatable {
     case unreachable
 }
 
+/// Which brain answers queries
+enum AssistantBackend: String, CaseIterable {
+    /// WebSocket bridge on a server (Hermes or bridge-side Claude + edge-tts)
+    case bridge
+    /// Straight from the phone to the Claude API — no server needed
+    case claudeDirect
+
+    var label: String {
+        switch self {
+        case .bridge: return "Bridge (server)"
+        case .claudeDirect: return "Claude Direct"
+        }
+    }
+}
+
 /// Where voice is captured (and, for glasses, where TTS plays — HFP is
 /// bidirectional)
 enum MicSource: String, CaseIterable {
@@ -70,6 +85,14 @@ final class HermesSessionViewModel {
     var useDeviceTTS: Bool = UserDefaults.standard.bool(forKey: "use_device_tts") {
         didSet { UserDefaults.standard.set(useDeviceTTS, forKey: "use_device_tts") }
     }
+    /// Bridge server vs direct Claude API from the phone
+    var backend: AssistantBackend = AssistantBackend(
+        rawValue: UserDefaults.standard.string(forKey: "assistant_backend") ?? ""
+    ) ?? .bridge {
+        didSet { UserDefaults.standard.set(backend.rawValue, forKey: "assistant_backend") }
+    }
+    /// Whether a Claude API key is stored (drives Settings UI state)
+    var hasClaudeKey: Bool = ClaudeDirectClient.hasAPIKey
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -94,7 +117,9 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let cameraManager = HermesCameraManager()
     @ObservationIgnored private let speechRecognizer = HermesSpeechRecognizer()
     @ObservationIgnored private let speechSynthesizer = HermesSpeechSynthesizer()
+    @ObservationIgnored private let claudeClient = ClaudeDirectClient()
     @ObservationIgnored private var pendingPhoto: Data?
+    @ObservationIgnored private var lastDirectPhotoAt: Date?
 
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
@@ -229,8 +254,16 @@ final class HermesSessionViewModel {
         // Surface camera permission state early (non-interactive)
         Task { await ensureCameraPermission(interactive: false) }
 
-        // 2. Connect to Hermes first, with all callbacks wired up before
-        // any audio flows, so no chunks are dropped.
+        // 2. Connect the brain. Claude Direct needs no server at all —
+        // skip the bridge entirely.
+        if backend == .claudeDirect {
+            guard ClaudeDirectClient.hasAPIKey else {
+                show(ClaudeDirectError.missingKey.localizedDescription)
+                endSession()
+                return
+            }
+        } else {
+        // Bridge mode: connect with all callbacks wired up first
         let client = HermesAPIClient(endpoint: hermesEndpoint)
         apiClient = client
 
@@ -326,6 +359,7 @@ final class HermesSessionViewModel {
             endSession()
             return
         }
+        }  // end bridge-mode setup
 
         // 3. Start audio capture + on-device recognition.
         // Audio is transcribed ON the phone; only final text goes to the
@@ -411,16 +445,62 @@ final class HermesSessionViewModel {
         connectionState = .listening
     }
 
-    /// Send finalized text to Hermes and move the UI into processing
+    /// Send finalized text to the active brain and move the UI into processing
     func submitQuery(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, apiClient?.isConnected == true else { return }
-        liveTranscript = ""
-        lastTranscript = trimmed
-        connectionState = .processing
-        // Pause recognition so the mic doesn't transcribe Hermes's TTS
-        speechRecognizer.isSuspended = true
-        apiClient?.sendQuery(trimmed, bridgeTTS: !useDeviceTTS)
+        guard !trimmed.isEmpty else { return }
+        if backend == .claudeDirect {
+            liveTranscript = ""
+            lastTranscript = trimmed
+            connectionState = .processing
+            speechRecognizer.isSuspended = true
+            Task { await askClaudeDirect(trimmed) }
+        } else {
+            guard apiClient?.isConnected == true else { return }
+            liveTranscript = ""
+            lastTranscript = trimmed
+            connectionState = .processing
+            // Pause recognition so the mic doesn't transcribe Hermes's TTS
+            speechRecognizer.isSuspended = true
+            apiClient?.sendQuery(trimmed, bridgeTTS: !useDeviceTTS)
+        }
+    }
+
+    /// Claude Direct: photo decision + capture happen locally, then one
+    /// API call — no server round trips.
+    private func askClaudeDirect(_ text: String) async {
+        var photo: Data?
+        if VisualQueryDetector.shouldCapturePhoto(text, lastPhotoAt: lastDirectPhotoAt),
+           isGlassesConnected,
+           await ensureCameraPermission(interactive: false) {
+            photo = try? await cameraManager.capturePhoto()
+            if photo != nil {
+                lastDirectPhotoAt = Date()
+                pendingPhoto = photo
+            }
+        }
+
+        do {
+            let reply = try await claudeClient.ask(text, photoJPEG: photo)
+            lastResponse = reply
+            addTurn(userText: text, agentText: reply)
+            connectionState = .speaking
+            speechSynthesizer.speak(reply)
+            if audioManager.isUsingBluetoothInput {
+                // Glasses echo-cancel their own speaker — barge-in stays on
+                speechRecognizer.isSuspended = false
+            }
+        } catch {
+            show(error.localizedDescription)
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+        }
+    }
+
+    /// Store/replace the Claude API key (Keychain)
+    func setClaudeKey(_ key: String) {
+        ClaudeDirectClient.storeAPIKey(key)
+        hasClaudeKey = ClaudeDirectClient.hasAPIKey
     }
 
     /// "Send now" button — don't wait for the pause detection
@@ -429,9 +509,18 @@ final class HermesSessionViewModel {
     }
 
     /// Forget the conversation: bridge clears its same-day Hermes session,
-    /// the app clears its history on the session_reset confirmation
+    /// the app clears its history on the session_reset confirmation.
+    /// Claude Direct clears its on-device history immediately.
     func startNewConversation() {
-        apiClient?.sendNewSession()
+        if backend == .claudeDirect {
+            ClaudeDirectClient.clearHistory()
+            conversationHistory.removeAll()
+            lastTranscript = ""
+            lastResponse = ""
+            liveTranscript = ""
+        } else {
+            apiClient?.sendNewSession()
+        }
     }
 
     /// Cut Hermes off mid-reply (tap on the speaking indicator, or voice
@@ -614,10 +703,10 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Round trip through bridge → Hermes → response text (+TTS)
+    /// Round trip through the active brain → response text (+TTS)
     func testQuery() async {
         await runTest("Query") { [self] in
-            guard apiClient?.isConnected == true else {
+            guard backend == .claudeDirect || apiClient?.isConnected == true else {
                 throw TestFailure("Start a session first (needs bridge)")
             }
             submitQuery("Respond with exactly: OK")
@@ -642,7 +731,7 @@ final class HermesSessionViewModel {
     /// Full photo pipeline via a canned visual query
     func testVisualQuery() async {
         await runTest("Visual") { [self] in
-            guard apiClient?.isConnected == true else {
+            guard backend == .claudeDirect || apiClient?.isConnected == true else {
                 throw TestFailure("Start a session first (needs bridge)")
             }
             guard isGlassesConnected else {

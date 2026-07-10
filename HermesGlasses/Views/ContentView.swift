@@ -488,6 +488,7 @@ struct SettingsView: View {
     let hermesVM: HermesSessionViewModel
     let wearablesVM: WearablesViewModel
     @State private var endpoint: String = ""
+    @State private var claudeKey: String = ""
     @State private var showSavePreset: Bool = false
     @State private var presetName: String = ""
     @State private var presetsVersion: Int = 0  // bump to refresh list
@@ -536,6 +537,33 @@ struct SettingsView: View {
                         showSavePreset = true
                     }
                     .disabled(endpoint.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+
+                Section("Assistant") {
+                    Picker("Backend", selection: Binding(
+                        get: { hermesVM.backend },
+                        set: { hermesVM.backend = $0 }
+                    )) {
+                        ForEach(AssistantBackend.allCases, id: \.self) { b in
+                            Text(b.label).tag(b)
+                        }
+                    }
+                    if hermesVM.backend == .claudeDirect {
+                        SecureField("Claude API key (sk-ant-…)", text: $claudeKey)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .onSubmit {
+                                hermesVM.setClaudeKey(claudeKey)
+                                claudeKey = ""
+                            }
+                        LabeledContent(
+                            "Key status",
+                            value: hermesVM.hasClaudeKey ? "Saved in Keychain" : "Not set"
+                        )
+                        Text("Direct mode needs no server — works anywhere, uses the iPhone voice. Applies from the next session.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Voice") {
@@ -609,8 +637,11 @@ struct SettingsView: View {
                 endpoint = hermesVM.hermesEndpoint
             }
             .onDisappear {
-                // Swipe-dismiss must not silently discard the typed URL
+                // Swipe-dismiss must not silently discard typed values
                 hermesVM.setEndpoint(endpoint)
+                if !claudeKey.trimmingCharacters(in: .whitespaces).isEmpty {
+                    hermesVM.setClaudeKey(claudeKey)
+                }
             }
             .alert("Save preset", isPresented: $showSavePreset) {
                 TextField("Name (e.g. Maya remote)", text: $presetName)
