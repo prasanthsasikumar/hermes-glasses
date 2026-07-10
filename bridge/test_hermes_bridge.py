@@ -233,3 +233,47 @@ class TestShouldCapturePhoto(unittest.TestCase):
     def test_non_visual_never_captures(self):
         from hermes_bridge import should_capture_photo
         self.assertFalse(should_capture_photo("tell me a joke", 0.0, 1000.0))
+
+
+class TestClaudeBrain(unittest.TestCase):
+    def test_user_content_text_only(self):
+        from hermes_bridge import build_claude_user_content
+        content = build_claude_user_content("hello there", None)
+        self.assertEqual(content, [{"type": "text", "text": "hello there"}])
+
+    def test_user_content_with_photo(self):
+        from hermes_bridge import build_claude_user_content
+        content = build_claude_user_content("what is this", b"\xff\xd8jpegbytes")
+        self.assertEqual(content[0]["type"], "image")
+        self.assertEqual(content[0]["source"]["type"], "base64")
+        self.assertEqual(content[0]["source"]["media_type"], "image/jpeg")
+        self.assertEqual(content[1], {"type": "text", "text": "what is this"})
+
+    def test_history_trimmed_to_cap(self):
+        from hermes_bridge import trim_claude_history
+        history = [{"role": "user", "content": f"m{i}"} for i in range(100)]
+        trimmed = trim_claude_history(history, max_messages=40)
+        self.assertEqual(len(trimmed), 40)
+        self.assertEqual(trimmed[-1]["content"], "m99")
+
+    def test_claude_history_store_same_day(self):
+        import tempfile as tf
+
+        import hermes_bridge as hb
+        tmp = tf.NamedTemporaryFile(suffix=".json", delete=False)
+        tmp.close()
+        os_mod = __import__("os")
+        os_mod.unlink(tmp.name)
+        orig = hb.CLAUDE_HISTORY_FILE
+        hb.CLAUDE_HISTORY_FILE = tmp.name
+        try:
+            hb.store_claude_history([{"role": "user", "content": "hi"}])
+            self.assertEqual(len(hb.load_claude_history()), 1)
+            hb.clear_claude_history()
+            self.assertEqual(hb.load_claude_history(), [])
+        finally:
+            try:
+                os_mod.unlink(tmp.name)
+            except OSError:
+                pass
+            hb.CLAUDE_HISTORY_FILE = orig

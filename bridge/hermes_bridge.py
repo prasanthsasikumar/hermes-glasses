@@ -51,6 +51,14 @@ AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
 # to fall back to server TTS for clients that can't speak locally.
 BRIDGE_TTS = os.environ.get("HERMES_BRIDGE_TTS", "") == "1"
 
+# Which brain answers queries:
+#   "hermes" (default) — spawn the hermes CLI per query (agent with tools;
+#                        slower: pays agent boot every question)
+#   "claude"           — call the Claude API directly (fast conversational
+#                        answers + vision; needs ANTHROPIC_API_KEY)
+BRAIN = os.environ.get("HERMES_BRIDGE_BRAIN", "hermes")
+CLAUDE_MODEL = os.environ.get("HERMES_BRIDGE_MODEL", "claude-opus-4-8")
+
 # Utterances containing any of these ask about something the user sees;
 # the bridge then requests a photo from the glasses. Phrases, not bare
 # words: "picture" alone would fire on "why did you take a picture?"
@@ -154,6 +162,116 @@ def extract_session_id(stderr_text: str) -> str | None:
     import re as _re
     match = _re.search(r"session_id:\s*(\S+)", stderr_text)
     return match.group(1) if match else None
+
+
+# ── Claude brain (direct API, BRAIN="claude") ──────────────────────────────
+CLAUDE_HISTORY_FILE = os.path.expanduser("~/.hermes_glasses_claude_history.json")
+CLAUDE_MAX_HISTORY = 40  # messages kept (20 turns)
+
+CLAUDE_SYSTEM = (
+    "You are a voice assistant running on the user's smart glasses. Your "
+    "answers are spoken aloud: keep them to 1-3 conversational sentences "
+    "unless the user asks for detail. The user may reference things they "
+    "see; photos from the glasses camera may be attached to queries. Be "
+    "direct, natural, and helpful."
+)
+
+
+def load_claude_history() -> list:
+    """Same-day conversation history for the Claude brain."""
+    try:
+        with open(CLAUDE_HISTORY_FILE) as f:
+            data = json.load(f)
+        if data.get("date") == _today():
+            return data.get("messages", [])
+    except (OSError, ValueError):
+        pass
+    return []
+
+
+def store_claude_history(messages: list):
+    try:
+        with open(CLAUDE_HISTORY_FILE, "w") as f:
+            json.dump({"date": _today(), "messages": messages}, f)
+    except OSError as e:
+        print(f"[Bridge] Could not persist Claude history: {e}")
+
+
+def clear_claude_history():
+    try:
+        os.unlink(CLAUDE_HISTORY_FILE)
+    except OSError:
+        pass
+
+
+def trim_claude_history(messages: list, max_messages: int = CLAUDE_MAX_HISTORY) -> list:
+    return messages[-max_messages:] if len(messages) > max_messages else messages
+
+
+def build_claude_user_content(text: str, photo: bytes | None) -> list:
+    """User content blocks: optional glasses photo first, then the words."""
+    content = []
+    if photo:
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": base64.b64encode(photo).decode(),
+            },
+        })
+    content.append({"type": "text", "text": text})
+    return content
+
+
+def ask_claude(text: str, photo: bytes | None = None) -> str | None:
+    """Answer via the Claude API with same-day conversation memory.
+
+    Fast path: no process spawn, no agent boot — typically 2-4s for a
+    spoken-length reply. Photos go in as native image blocks.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        return "The Claude brain needs the anthropic package: pip install anthropic"
+
+    history = load_claude_history()
+    user_message = {"role": "user", "content": build_claude_user_content(text, photo)}
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=1024,
+            # Stable prefix cached; history rides behind it
+            system=[{
+                "type": "text",
+                "text": CLAUDE_SYSTEM,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=trim_claude_history(history + [user_message]),
+        )
+        reply = next(
+            (b.text for b in response.content if b.type == "text"), None
+        )
+        if reply:
+            # Persist text-only user turn (images would bloat the file and
+            # re-bill on every later request)
+            history.append({"role": "user", "content": text})
+            history.append({"role": "assistant", "content": reply})
+            store_claude_history(trim_claude_history(history))
+        return reply
+    except anthropic.AuthenticationError:
+        return ("The Claude API key is missing or invalid. Set "
+                "ANTHROPIC_API_KEY for the bridge.")
+    except anthropic.APIStatusError as e:
+        print(f"[Claude] API error {e.status_code}: {e.message}")
+        return "Sorry, the Claude API returned an error."
+    except anthropic.APIConnectionError:
+        return "Sorry, I couldn't reach the Claude API."
+    except Exception as e:
+        print(f"[Claude] Error: {e}")
+        return f"Error: {e}"
 
 # ── Hermes Agent ────────────────────────────────────────────────────────────
 
@@ -361,7 +479,7 @@ async def process_query(websocket, text: str, conn_state: dict | None = None,
         conn_state = {"last_photo_at": 0.0}
 
     # ── Capture a photo for visual/deictic queries ──
-    image_path = None
+    photo = None
     query_text = text
     if should_capture_photo(text, conn_state.get("last_photo_at", 0.0),
                             time.monotonic()):
@@ -369,10 +487,6 @@ async def process_query(websocket, text: str, conn_state: dict | None = None,
         await websocket.send(json.dumps({"type": "capture_photo"}))
         photo = await await_photo(websocket)
         if photo:
-            img_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-            img_tmp.write(photo)
-            img_tmp.close()
-            image_path = img_tmp.name
             conn_state["last_photo_at"] = time.monotonic()
             print(f"[Bridge] Photo received: {len(photo)} bytes")
         else:
@@ -380,28 +494,39 @@ async def process_query(websocket, text: str, conn_state: dict | None = None,
             query_text = ("(No photo could be captured from the glasses.) "
                           + text)
 
-    # ── Ask Hermes (with same-day conversation memory) ──
-    resume = load_session()
-    if not resume:
-        # Fresh conversation: teach Hermes it is a glasses voice assistant
-        query_text = VOICE_PERSONA + query_text
-    print(f"[Bridge] Asking Hermes... (session: {resume or 'new'})")
-    try:
-        response, session_id = await asyncio.to_thread(
-            ask_hermes, query_text, image_path, resume
-        )
-        if resume and not response:
-            # Stored session may have been pruned — retry fresh once
-            print("[Bridge] Resume failed — retrying with a fresh session")
-            clear_session()
+    if BRAIN == "claude":
+        # ── Ask Claude directly (fast path) ──
+        print(f"[Bridge] Asking Claude ({CLAUDE_MODEL})...")
+        response = await asyncio.to_thread(ask_claude, query_text, photo)
+    else:
+        # ── Ask Hermes (with same-day conversation memory) ──
+        image_path = None
+        if photo:
+            img_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+            img_tmp.write(photo)
+            img_tmp.close()
+            image_path = img_tmp.name
+        resume = load_session()
+        if not resume:
+            # Fresh conversation: teach Hermes it is a glasses voice assistant
+            query_text = VOICE_PERSONA + query_text
+        print(f"[Bridge] Asking Hermes... (session: {resume or 'new'})")
+        try:
             response, session_id = await asyncio.to_thread(
-                ask_hermes, VOICE_PERSONA + text, image_path, None
+                ask_hermes, query_text, image_path, resume
             )
-        if session_id:
-            store_session(session_id)
-    finally:
-        if image_path:
-            os.unlink(image_path)
+            if resume and not response:
+                # Stored session may have been pruned — retry fresh once
+                print("[Bridge] Resume failed — retrying with a fresh session")
+                clear_session()
+                response, session_id = await asyncio.to_thread(
+                    ask_hermes, VOICE_PERSONA + text, image_path, None
+                )
+            if session_id:
+                store_session(session_id)
+        finally:
+            if image_path:
+                os.unlink(image_path)
     response_text = response or "I'm not sure what to say."
 
     print(f"[Bridge] Hermes: {response_text[:100]}...")
@@ -484,6 +609,7 @@ async def handle_connection(websocket):
             elif msg_type == "new_session":
                 # Forget the conversation; next query starts fresh
                 clear_session()
+                clear_claude_history()
                 conn_state["last_photo_at"] = 0.0
                 print("[Bridge] Conversation reset by app")
                 await websocket.send(json.dumps({"type": "session_reset"}))
@@ -522,6 +648,7 @@ async def main():
 ║                                                          ║
 ║  Listening on ws://{HOST}:{PORT}/voice                       ║
 ║  STT: on the phone — the app sends text queries          ║
+║  Brain: {BRAIN} {f"({CLAUDE_MODEL})" if BRAIN == "claude" else "(CLI agent)":<30}  ║
 ║                                                          ║
 ║  Connect your glasses app to:                            ║
 ║  ws://{local_ip()}:{PORT}/voice                             ║
