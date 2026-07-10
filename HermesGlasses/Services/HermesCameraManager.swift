@@ -36,49 +36,82 @@ enum HermesCameraError: LocalizedError {
 
 final class HermesCameraManager: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "camera")
-    private let captureLock = OSAllocatedUnfairLock(initialState: false)
 
-    private var deviceSession: DeviceSession?
-    private var stream: MWDATCamera.Stream?
+    /// All mutable state lives behind one lock so `configure()`/`reset()`
+    /// are safe against an in-flight `capturePhoto()`.
+    private struct State {
+        var deviceSession: DeviceSession?
+        var stream: MWDATCamera.Stream?
+        var captureInFlight = false
+    }
+
+    private let stateLock = OSAllocatedUnfairLock(uncheckedState: State())
 
     func configure(session: DeviceSession) {
-        if let existing = stream {
-            existing.stop()
-            stream = nil
+        let streamToStop: MWDATCamera.Stream? = stateLock.withLockUnchecked { state in
+            // If a capture is in flight, don't stop its stream out from
+            // under it — just drop the stored reference; the in-flight
+            // capture holds its own local reference and stops it via defer.
+            let stale = state.captureInFlight ? nil : state.stream
+            state.stream = nil
+            state.deviceSession = session
+            return stale
         }
-        deviceSession = session
+        streamToStop?.stop()
     }
 
     func reset() {
-        stream?.stop()
-        stream = nil
-        deviceSession = nil
+        let streamToStop: MWDATCamera.Stream? = stateLock.withLockUnchecked { state in
+            let stale = state.captureInFlight ? nil : state.stream
+            state.stream = nil
+            state.deviceSession = nil
+            return stale
+        }
+        streamToStop?.stop()
     }
 
     /// Capture a single JPEG from the glasses camera.
     func capturePhoto() async throws -> Data {
-        let alreadyInFlight = captureLock.withLock { inFlight -> Bool in
-            if inFlight { return true }
-            inFlight = true
-            return false
+        enum Entry {
+            case busy
+            case noSession
+            case proceed(DeviceSession, MWDATCamera.Stream?)
         }
-        guard !alreadyInFlight else {
-            throw HermesCameraError.captureInProgress
-        }
-        defer { captureLock.withLock { $0 = false } }
 
-        guard let session = deviceSession else {
-            throw HermesCameraError.noSession
+        let entry: Entry = stateLock.withLockUnchecked { state in
+            if state.captureInFlight { return .busy }
+            guard let session = state.deviceSession else { return .noSession }
+            state.captureInFlight = true
+            return .proceed(session, state.stream)
         }
+
+        let session: DeviceSession
+        let existing: MWDATCamera.Stream?
+        switch entry {
+        case .busy:
+            throw HermesCameraError.captureInProgress
+        case .noSession:
+            throw HermesCameraError.noSession
+        case .proceed(let s, let st):
+            session = s
+            existing = st
+        }
+        defer { stateLock.withLockUnchecked { $0.captureInFlight = false } }
 
         let stream: MWDATCamera.Stream
-        if let existing = self.stream {
+        if let existing {
             stream = existing
         } else {
             guard let created = try session.addStream() else {
                 throw HermesCameraError.streamUnavailable
             }
-            self.stream = created
+            stateLock.withLockUnchecked { state in
+                // Only keep the stream for reuse if the session hasn't been
+                // swapped by configure()/reset() in the meantime.
+                if state.deviceSession === session {
+                    state.stream = created
+                }
+            }
             stream = created
         }
 
