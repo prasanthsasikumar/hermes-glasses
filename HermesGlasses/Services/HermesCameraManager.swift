@@ -16,6 +16,7 @@ enum HermesCameraError: LocalizedError {
     case streamUnavailable
     case captureFailed
     case timeout
+    case captureInProgress
 
     var errorDescription: String? {
         switch self {
@@ -27,17 +28,24 @@ enum HermesCameraError: LocalizedError {
             return "The glasses camera did not accept the capture request."
         case .timeout:
             return "Timed out waiting for the glasses camera."
+        case .captureInProgress:
+            return "A photo capture is already in progress."
         }
     }
 }
 
 final class HermesCameraManager: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "camera")
+    private let captureLock = OSAllocatedUnfairLock(initialState: false)
 
     private var deviceSession: DeviceSession?
     private var stream: MWDATCamera.Stream?
 
     func configure(session: DeviceSession) {
+        if let existing = stream {
+            existing.stop()
+            stream = nil
+        }
         deviceSession = session
     }
 
@@ -49,6 +57,16 @@ final class HermesCameraManager: @unchecked Sendable {
 
     /// Capture a single JPEG from the glasses camera.
     func capturePhoto() async throws -> Data {
+        let alreadyInFlight = captureLock.withLock { inFlight -> Bool in
+            if inFlight { return true }
+            inFlight = true
+            return false
+        }
+        guard !alreadyInFlight else {
+            throw HermesCameraError.captureInProgress
+        }
+        defer { captureLock.withLock { $0 = false } }
+
         guard let session = deviceSession else {
             throw HermesCameraError.noSession
         }
@@ -64,12 +82,16 @@ final class HermesCameraManager: @unchecked Sendable {
             stream = created
         }
 
+        // The stream must run only while a capture is in flight. Register
+        // the stop before starting it so every exit path — including a
+        // start-timeout — guarantees the stream is torn down.
+        defer { stream.stop() }
+
         if stream.state != .streaming {
             stream.start()
             try await waitForStreaming(stream, timeout: 6.0)
         }
 
-        defer { stream.stop() }
         logger.info("Camera streaming — capturing photo")
         return try await awaitPhotoData(stream, timeout: 8.0)
     }
@@ -82,37 +104,45 @@ final class HermesCameraManager: @unchecked Sendable {
     ) async throws {
         let done = OSAllocatedUnfairLock(initialState: false)
         var token: AnyListenerToken?
+        var timeoutTask: Task<Void, Never>?
 
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            token = stream.statePublisher.listen { state in
-                if state == .streaming {
+        do {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                token = stream.statePublisher.listen { state in
+                    if state == .streaming {
+                        done.withLock { finished in
+                            guard !finished else { return }
+                            finished = true
+                            cont.resume()
+                        }
+                    }
+                }
+
+                // Already streaming before the listener attached?
+                if stream.state == .streaming {
                     done.withLock { finished in
                         guard !finished else { return }
                         finished = true
                         cont.resume()
                     }
                 }
-            }
 
-            // Already streaming before the listener attached?
-            if stream.state == .streaming {
-                done.withLock { finished in
-                    guard !finished else { return }
-                    finished = true
-                    cont.resume()
+                timeoutTask = Task {
+                    try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    done.withLock { finished in
+                        guard !finished else { return }
+                        finished = true
+                        cont.resume(throwing: HermesCameraError.timeout)
+                    }
                 }
             }
-
-            Task {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                done.withLock { finished in
-                    guard !finished else { return }
-                    finished = true
-                    cont.resume(throwing: HermesCameraError.timeout)
-                }
-            }
+        } catch {
+            timeoutTask?.cancel()
+            if let token { await token.cancel() }
+            throw error
         }
 
+        timeoutTask?.cancel()
         if let token { await token.cancel() }
     }
 
@@ -122,34 +152,43 @@ final class HermesCameraManager: @unchecked Sendable {
     ) async throws -> Data {
         let done = OSAllocatedUnfairLock(initialState: false)
         var token: AnyListenerToken?
+        var timeoutTask: Task<Void, Never>?
 
-        let data = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
-            token = stream.photoDataPublisher.listen { photo in
-                done.withLock { finished in
-                    guard !finished else { return }
-                    finished = true
-                    cont.resume(returning: photo.data)
+        let data: Data
+        do {
+            data = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
+                token = stream.photoDataPublisher.listen { photo in
+                    done.withLock { finished in
+                        guard !finished else { return }
+                        finished = true
+                        cont.resume(returning: photo.data)
+                    }
+                }
+
+                if !stream.capturePhoto(format: .jpeg) {
+                    done.withLock { finished in
+                        guard !finished else { return }
+                        finished = true
+                        cont.resume(throwing: HermesCameraError.captureFailed)
+                    }
+                }
+
+                timeoutTask = Task {
+                    try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    done.withLock { finished in
+                        guard !finished else { return }
+                        finished = true
+                        cont.resume(throwing: HermesCameraError.timeout)
+                    }
                 }
             }
-
-            if !stream.capturePhoto(format: .jpeg) {
-                done.withLock { finished in
-                    guard !finished else { return }
-                    finished = true
-                    cont.resume(throwing: HermesCameraError.captureFailed)
-                }
-            }
-
-            Task {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                done.withLock { finished in
-                    guard !finished else { return }
-                    finished = true
-                    cont.resume(throwing: HermesCameraError.timeout)
-                }
-            }
+        } catch {
+            timeoutTask?.cancel()
+            if let token { await token.cancel() }
+            throw error
         }
 
+        timeoutTask?.cancel()
         if let token { await token.cancel() }
         logger.info("Photo captured: \(data.count) bytes")
         return data
