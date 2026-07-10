@@ -660,15 +660,16 @@ def local_ip() -> str:
 
 async def main():
     print(f"""
-╔══════════════════════════════════════════════╗
-║       Hermes Glasses Bridge Server           ║
-║                                              ║
-║  Listening on ws://{HOST}:{PORT}/voice           ║
-║  STT backend: {STT_BACKEND} (legacy audio path)      ║
-║                                              ║
-║  Connect your glasses app to:                ║
-║  ws://{local_ip()}:{PORT}/voice                 ║
-╚══════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════╗
+║              Hermes Glasses Bridge Server                ║
+║                                                          ║
+║  Listening on ws://{HOST}:{PORT}/voice                       ║
+║  STT: on the phone (app sends text queries)              ║
+║       (raw-audio fallback: {STT_BACKEND} — unused by the app)  ║
+║                                                          ║
+║  Connect your glasses app to:                            ║
+║  ws://{local_ip()}:{PORT}/voice                             ║
+╚══════════════════════════════════════════════════════════╝
 """)
     # Glasses photos arrive as a single large base64-encoded JSON text frame
     # (a 1-3 MB raw JPEG becomes an even bigger base64 string), so raise
