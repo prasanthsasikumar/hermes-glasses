@@ -534,10 +534,13 @@ final class HermesSessionViewModel {
     /// audio route (glasses in glasses mode). No bridge or Hermes involved.
     func testSound() async {
         await runTest("Sound") { [self] in
-            guard connectionState != .disconnected else {
-                throw TestFailure("Start a session first")
+            if connectionState == .disconnected {
+                // No session: playback-only mode (phone speaker or whatever
+                // route iOS picks)
+                try audioManager.preparePlaybackOnly()
+            } else {
+                connectionState = .speaking
             }
-            connectionState = .speaking
             await audioManager.playResponse(HermesAudioManager.makeTestTone())
         }
     }

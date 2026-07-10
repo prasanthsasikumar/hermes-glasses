@@ -269,7 +269,14 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             self?.finishPlayback(generation)
         }
-        player.play()
+        // play() on a stopped engine raises NSException — if a config
+        // change stopped it since the check above, let the route-change
+        // handler (or the watchdog) pick this playback up instead.
+        if audioEngine.isRunning {
+            player.play()
+        } else {
+            logger.warning("Engine stopped before play — deferring to route-change replay")
+        }
 
         // Watchdog: opening the Bluetooth HFP audio link mid-playback fires
         // a config change that flushes the buffer — the completion then
@@ -279,6 +286,14 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             try? await Task.sleep(nanoseconds: UInt64((duration + 3.0) * 1_000_000_000))
             self?.finishPlayback(generation)
         }
+    }
+
+    /// Configure a playback-only audio session so the Sound test works
+    /// without a capture session running
+    func preparePlaybackOnly() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .default)
+        try session.setActive(true)
     }
 
     /// 1.5 s 440 Hz sine as PCM16 mono 24 kHz — same format as bridge TTS,
@@ -344,17 +359,24 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
             // A config change during playback (e.g. the HFP audio link
             // opening) flushed the scheduled TTS — replay it once so the
-            // response is actually heard on the new route.
+            // response is actually heard on the new route. NEVER call
+            // play() unless the engine is verifiably running: that raises
+            // NSException (SIGABRT).
             if self.isPlaying, !self.didReplayAfterRouteChange,
                let buffer = self.playbackBuffer, let player = self.playerNode {
                 self.didReplayAfterRouteChange = true
-                self.logger.info("Route change during playback — replaying response")
                 let generation = self.playbackGeneration
-                player.stop()
-                player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                    self?.finishPlayback(generation)
+                if self.audioEngine.isRunning {
+                    self.logger.info("Route change during playback — replaying response")
+                    player.stop()
+                    player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                        self?.finishPlayback(generation)
+                    }
+                    player.play()
+                } else {
+                    self.logger.warning("Engine not running after route change — abandoning playback")
+                    self.finishPlayback(generation)
                 }
-                player.play()
             }
 
             self.onRouteChanged?()
