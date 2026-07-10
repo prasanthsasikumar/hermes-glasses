@@ -13,6 +13,7 @@ Protocol:
 
 import array
 import asyncio
+import base64
 import json
 import math
 import os
@@ -240,6 +241,41 @@ def pcm_to_wav(pcm_data: bytes, sample_rate: int = 16000) -> str:
 
 # ── WebSocket Handler ──────────────────────────────────────────────────────
 
+async def await_photo(websocket, timeout: float = 10.0) -> bytes | None:
+    """Wait for the app to answer a capture_photo request.
+
+    Discards mic-audio (binary) frames that arrive meanwhile. Returns the
+    decoded JPEG bytes, or None on photo_error or timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print("[Bridge] Photo wait timed out")
+            return None
+        try:
+            message = await asyncio.wait_for(websocket.recv(), timeout=remaining)
+        except asyncio.TimeoutError:
+            print("[Bridge] Photo wait timed out")
+            return None
+        if isinstance(message, bytes):
+            continue  # mic audio while waiting — drop it
+        data = json.loads(message)
+        msg_type = data.get("type")
+        if msg_type == "photo":
+            try:
+                return base64.b64decode(data.get("data", ""))
+            except Exception as e:
+                print(f"[Bridge] Bad photo payload: {e}")
+                return None
+        if msg_type == "photo_error":
+            print(f"[Bridge] Photo error from app: {data.get('message')}")
+            return None
+        if msg_type == "debug":
+            print(f"[App] {data.get('msg')}")
+        # any other message type: keep waiting
+
+
 async def process_utterance(websocket, pcm: bytes, sample_rate: int):
     """Transcribe an utterance, ask Hermes, and stream the TTS reply."""
     wav_path = pcm_to_wav(pcm, sample_rate)
@@ -269,9 +305,29 @@ async def process_utterance(websocket, pcm: bytes, sample_rate: int):
         "text": transcript,
     }))
 
+    # ── Step 1.5: capture a photo for visual queries ──
+    image_path = None
+    query_text = transcript
+    if is_visual_query(transcript):
+        print("[Bridge] Visual query — requesting photo from glasses")
+        await websocket.send(json.dumps({"type": "capture_photo"}))
+        photo = await await_photo(websocket)
+        if photo:
+            img_tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+            img_tmp.write(photo)
+            img_tmp.close()
+            image_path = img_tmp.name
+            print(f"[Bridge] Photo received: {len(photo)} bytes")
+        else:
+            print("[Bridge] No photo — answering text-only")
+            query_text = ("(No photo could be captured from the glasses.) "
+                          + transcript)
+
     # ── Step 2: Ask Hermes ──
     print("[Bridge] Asking Hermes...")
-    response = await asyncio.to_thread(ask_hermes, transcript)
+    response = await asyncio.to_thread(ask_hermes, query_text, image_path)
+    if image_path:
+        os.unlink(image_path)
     response_text = response or "I'm not sure what to say."
 
     print(f"[Bridge] Hermes: {response_text[:100]}...")
