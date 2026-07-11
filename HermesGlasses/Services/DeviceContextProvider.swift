@@ -100,6 +100,7 @@ final class DeviceContextProvider: NSObject {
 
     func stop() {
         activityManager.stopActivityUpdates()
+        activityPhrase = nil
         geocoder.cancelGeocode()
     }
 
@@ -128,12 +129,16 @@ final class DeviceContextProvider: NSObject {
         // Weather older than 60 min is stale enough to mislead — omit
         let weatherFresh = weatherAt.map { Date().timeIntervalSince($0) < 3600 } ?? false
 
+        // Same for the location fix: after a relocation the old fix would
+        // be asserted confidently — better to say nothing until GPS lands
+        let fixFresh = lastFixAt.map { Date().timeIntervalSince($0) < 3600 } ?? false
+
         let inputs = DeviceContextInputs(
             date: Date(),
             timeZone: TimeZone.current,
-            areaName: areaName,
-            latitude: lastFix?.coordinate.latitude,
-            longitude: lastFix?.coordinate.longitude,
+            areaName: fixFresh ? areaName : nil,
+            latitude: fixFresh ? lastFix?.coordinate.latitude : nil,
+            longitude: fixFresh ? lastFix?.coordinate.longitude : nil,
             includeCoordinates: includeCoordinates,
             activity: activityPhrase,
             connectivity: connectivity,
@@ -181,13 +186,16 @@ final class DeviceContextProvider: NSObject {
     // MARK: - Weather (Open-Meteo, no key)
 
     private func refreshWeatherIfStale() {
-        guard let fix = lastFix, connectivity != .offline else { return }
+        guard let fix = lastFix, connectivity != .offline,
+              let lastFixAt, Date().timeIntervalSince(lastFixAt) < 3600 else { return }
         if let weatherAt, Date().timeIntervalSince(weatherAt) < 900 { return }
         guard !weatherFetchInFlight else { return }
         weatherFetchInFlight = true
 
-        let lat = fix.coordinate.latitude
-        let lon = fix.coordinate.longitude
+        // %.5f: raw Double interpolation renders tiny values as "3e-05",
+        // which the API may misparse
+        let lat = String(format: "%.5f", fix.coordinate.latitude)
+        let lon = String(format: "%.5f", fix.coordinate.longitude)
         let url = URL(string:
             "https://api.open-meteo.com/v1/forecast?latitude=\(lat)&longitude=\(lon)&current_weather=true"
         )!

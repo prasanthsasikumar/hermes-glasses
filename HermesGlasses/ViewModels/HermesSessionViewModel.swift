@@ -136,6 +136,8 @@ final class HermesSessionViewModel {
             UserDefaults.standard.set(contextEnabled, forKey: DeviceContextProvider.enabledKey)
             if contextEnabled, connectionState != .disconnected {
                 contextProvider.start()
+            } else if !contextEnabled {
+                contextProvider.stop()
             }
         }
     }
