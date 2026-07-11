@@ -46,6 +46,12 @@ photo via the DAT camera API.
   `HermesAudioManager.looksLikeGlasses`), so the lens keeps the HUD while
   mic + TTS live in the ears. Falls back to the iPhone mic (with a notice)
   when no non-glasses HFP device is present.
+- **Device context:** every query carries a context line (time, location,
+  motion, connectivity, battery, weather). Claude Direct gets it as a
+  SECOND, uncached system block (persona block stays first + cached);
+  bridge mode gets it as a "[Context: …]" prefix on the query text — the
+  bridges need no changes. History stores raw user text only. Keys:
+  `context_enabled` / `context_precise_location` (both default true).
 
 ## Build & run
 

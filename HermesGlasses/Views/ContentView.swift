@@ -770,6 +770,27 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Share my context", isOn: Binding(
+                        get: { hermesVM.contextEnabled },
+                        set: { hermesVM.contextEnabled = $0 }
+                    ))
+                    Toggle("Include precise coordinates", isOn: Binding(
+                        get: { hermesVM.contextPreciseLocation },
+                        set: { hermesVM.contextPreciseLocation = $0 }
+                    ))
+                    .disabled(!hermesVM.contextEnabled)
+                    if hermesVM.contextEnabled {
+                        Text(hermesVM.contextPreview ?? "Gathering…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Context")
+                } footer: {
+                    Text("Attached to every question so the assistant knows your time, place, and status. Weather is fetched from open-meteo.com using your coordinates. The line above is exactly what gets sent.")
+                }
+
+                Section {
                     LabeledContent("Registration", value: registrationText)
                     LabeledContent(
                         "Devices seen by SDK",
