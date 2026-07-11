@@ -1,142 +1,141 @@
 //
 // ContentView.swift
 //
-// Main view for Hermes Glasses. Shows device connection status,
-// Hermes conversation, and controls for starting/stopping sessions.
+// Main view for Hermes Glasses. Chat-first session screen per the
+// "Hermes Glasses UI" design: header with status chips, message
+// bubbles, live transcription bubble, waveform bottom bar.
 //
 
 import SwiftUI
+
+// MARK: - Theme
+
+enum HermesTheme {
+    /// Terracotta accent from the design (#C4622D)
+    static let accent = Color(red: 196 / 255, green: 98 / 255, blue: 45 / 255)
+
+    /// Neutral chip/bubble fill that adapts to light/dark
+    static let chipFill = Color(uiColor: .tertiarySystemFill)
+
+    /// Assistant bubble fill (≈ #E9E9EB light / #26262A dark)
+    static let assistantBubble = Color(uiColor: .systemGray5)
+}
 
 struct ContentView: View {
     let wearablesVM: WearablesViewModel
     let hermesVM: HermesSessionViewModel
 
     @State private var showSettings: Bool = false
+    @AppStorage("show_test_panel") private var showTestPanel: Bool = true
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Connection status banner
-                connectionBanner
-
-                // Main conversation area
-                conversationArea
-
-                // Testing panel — every subsystem as a button
+        VStack(spacing: 0) {
+            header
+            conversationArea
+            if showTestPanel {
                 testPanel
-
-                // Control bar
-                controlBar
             }
-            .navigationTitle("Hermes Glasses")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        hermesVM.startNewConversation()
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                    }
-                    .disabled(hermesVM.connectionState == .disconnected)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView(hermesVM: hermesVM, wearablesVM: wearablesVM)
-            }
-            .task {
-                await hermesVM.checkBridge()
-            }
+            bottomBar
+        }
+        .background(Color(.systemBackground))
+        .tint(HermesTheme.accent)
+        .sheet(isPresented: $showSettings) {
+            SettingsView(hermesVM: hermesVM, wearablesVM: wearablesVM)
+        }
+        .task {
+            await hermesVM.checkBridge()
         }
     }
 
-    // MARK: - Connection Banner
+    // MARK: - Header (title + status chips)
 
     @ViewBuilder
-    private var connectionBanner: some View {
-        HStack(spacing: 12) {
-            // Status indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 12, height: 12)
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text(assistantName)
+                .font(.system(size: 20, weight: .bold))
+                .kerning(-0.4)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(statusTitle)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+            Spacer(minLength: 4)
 
-                Text(statusSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            // Glasses connection
+            statusChip("Glasses", dot: glassesDotColor)
 
-            Spacer()
-
-            // Mic source — shows the ACTUAL route; tap to toggle
-            if hermesVM.connectionState != .disconnected {
-                let audio = hermesVM.audio
+            // Bridge reachability (or Claude key status in direct mode)
+            if hermesVM.backend == .claudeDirect {
+                statusChip("Claude", dot: hermesVM.hasClaudeKey ? .green : .red)
+            } else {
                 Button {
-                    Task { await hermesVM.toggleMicSource() }
+                    Task { await hermesVM.checkBridge() }
                 } label: {
-                    Label(
-                        audio.isUsingBluetoothInput ? "Glasses Mic" : "iPhone Mic",
-                        systemImage: audio.isUsingBluetoothInput ? "eyeglasses" : "iphone.gen3"
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(audio.isUsingBluetoothInput ? .green : .orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        (audio.isUsingBluetoothInput ? Color.green : Color.orange)
-                            .opacity(0.15),
-                        in: Capsule()
-                    )
+                    statusChip("Bridge", dot: bridgeDotColor)
                 }
                 .buttonStyle(.plain)
             }
 
-            // Glasses connection state
-            if wearablesVM.registrationState == .registered {
-                Label("Connected", systemImage: "eyeglasses")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.green.opacity(0.15), in: Capsule())
+            // Mic source toggle — shows the ACTUAL route
+            if hermesVM.connectionState != .disconnected {
+                iconCircle(
+                    hermesVM.audio.isUsingBluetoothInput
+                        ? "eyeglasses" : "iphone.gen3",
+                    tint: hermesVM.audio.isUsingBluetoothInput
+                        ? HermesTheme.accent : .secondary
+                ) {
+                    Task { await hermesVM.toggleMicSource() }
+                }
             }
 
-            // Bridge reachability — checked on launch, tap to re-check
-            Button {
-                Task { await hermesVM.checkBridge() }
-            } label: {
-                Label(bridgeLabel, systemImage: "server.rack")
-                    .font(.caption)
-                    .foregroundStyle(bridgeColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(bridgeColor.opacity(0.15), in: Capsule())
+            // New conversation
+            iconCircle("square.and.pencil", tint: .secondary) {
+                hermesVM.startNewConversation()
             }
-            .buttonStyle(.plain)
+            .disabled(hermesVM.connectionState == .disconnected)
+            .opacity(hermesVM.connectionState == .disconnected ? 0.4 : 1)
+
+            // Settings
+            iconCircle("gearshape", tint: .secondary) {
+                showSettings = true
+            }
         }
-        .padding()
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
-    private var bridgeLabel: String {
-        switch hermesVM.bridgeStatus {
-        case .unknown: return "Bridge ?"
-        case .checking: return "Bridge …"
-        case .reachable: return "Bridge ✓"
-        case .unreachable: return "Bridge ✗"
+    private func statusChip(_ label: String, dot: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(dot)
+                .frame(width: 7, height: 7)
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(HermesTheme.chipFill, in: Capsule())
     }
 
-    private var bridgeColor: Color {
+    private func iconCircle(
+        _ systemName: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(HermesTheme.chipFill, in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var glassesDotColor: Color {
+        wearablesVM.registrationState == .registered ? .green : .red
+    }
+
+    private var bridgeDotColor: Color {
         switch hermesVM.bridgeStatus {
         case .reachable: return .green
         case .unreachable: return .red
@@ -148,78 +147,30 @@ struct ContentView: View {
 
     @ViewBuilder
     private var conversationArea: some View {
-        if hermesVM.conversationHistory.isEmpty && hermesVM.connectionState == .disconnected {
-            // Empty state
-            VStack(spacing: 16) {
-                Image(systemName: "eyeglasses")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
-
-                Text("Ready to talk to \(assistantName)")
-                    .font(.title3)
-                    .fontWeight(.medium)
-
-                Text("Connect your Meta Ray-Ban glasses\nand start a voice conversation.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
-                if wearablesVM.registrationState != .registered {
-                    Button("Connect Glasses") {
-                        wearablesVM.connectGlasses()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-            .frame(maxHeight: .infinity)
+        if hermesVM.conversationHistory.isEmpty
+            && hermesVM.connectionState == .disconnected {
+            emptyState
         } else {
-            // Conversation history
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(hermesVM.conversationHistory) { turn in
                             TurnBubble(turn: turn)
                         }
 
-                        // Submitted query awaiting Hermes's answer
+                        // Submitted query awaiting the answer
                         if !hermesVM.lastTranscript.isEmpty,
                            hermesVM.connectionState == .processing {
-                            HStack {
-                                Spacer()
-                                Text(hermesVM.lastTranscript)
-                                    .padding(12)
-                                    .background(.blue.opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .frame(maxWidth: 280, alignment: .trailing)
-                            }
+                            UserBubble(text: hermesVM.lastTranscript)
                         }
 
                         // LIVE transcription — words appear as you speak
                         if !hermesVM.liveTranscript.isEmpty {
-                            HStack(alignment: .bottom) {
-                                Spacer()
-                                Text(hermesVM.liveTranscript)
-                                    .italic()
-                                    .foregroundStyle(.secondary)
-                                    .padding(12)
-                                    .background(.blue.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .frame(maxWidth: 280, alignment: .trailing)
-
-                                Button {
-                                    hermesVM.sendNow()
-                                } label: {
-                                    Image(systemName: "arrow.up.circle.fill")
-                                        .font(.title2)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                            liveTranscriptBubble
                         }
 
                         // Live status indicator
-                        if case .listening = hermesVM.connectionState {
-                            listeningIndicator
-                        } else if case .processing = hermesVM.connectionState {
+                        if case .processing = hermesVM.connectionState {
                             processingIndicator
                         } else if case .speaking = hermesVM.connectionState {
                             speakingIndicator
@@ -230,103 +181,247 @@ struct ContentView: View {
                             .frame(height: 1)
                             .id("bottom")
                     }
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
                 .onChange(of: hermesVM.conversationHistory.count) { _, _ in
                     withAnimation {
                         proxy.scrollTo("bottom", anchor: .bottom)
                     }
                 }
+                .onChange(of: hermesVM.liveTranscript) { _, _ in
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
             }
         }
     }
 
-    // MARK: - Turn Bubble
+    private var liveTranscriptBubble: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            Spacer(minLength: 60)
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(hermesVM.liveTranscript)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(HermesTheme.chipFill, in: userBubbleShape)
+                    .overlay(
+                        userBubbleShape
+                            .strokeBorder(
+                                Color.secondary.opacity(0.35),
+                                style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                            )
+                    )
+
+                Text("Transcribing on device…")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Button {
+                hermesVM.sendNow()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(HermesTheme.accent)
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 20)
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            RoundedRectangle(cornerRadius: 20)
+                .fill(HermesTheme.chipFill)
+                .frame(width: 220, height: 130)
+                .overlay {
+                    Image(systemName: "eyeglasses")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                }
+
+            VStack(spacing: 8) {
+                Text(wearablesVM.registrationState == .registered
+                    ? "Ready to talk to \(assistantName)"
+                    : "Connect your glasses")
+                    .font(.system(size: 28, weight: .bold))
+                    .kerning(-0.5)
+
+                Text("\(assistantName) talks to you through your Meta Ray-Ban glasses — mic, speaker, and camera.")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
+            }
+
+            if wearablesVM.registrationState != .registered {
+                Button {
+                    wearablesVM.connectGlasses()
+                } label: {
+                    Text("Connect Glasses")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(HermesTheme.accent, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+
+                Text("You'll finish registration in the Meta AI app")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Bubbles
+
+    private var userBubbleShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 20, bottomLeadingRadius: 20,
+            bottomTrailingRadius: 6, topTrailingRadius: 20
+        )
+    }
+
+    struct UserBubble: View {
+        let text: String
+
+        var body: some View {
+            HStack {
+                Spacer(minLength: 60)
+                Text(text)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        HermesTheme.accent,
+                        in: UnevenRoundedRectangle(
+                            topLeadingRadius: 20, bottomLeadingRadius: 20,
+                            bottomTrailingRadius: 6, topTrailingRadius: 20
+                        )
+                    )
+            }
+        }
+    }
+
+    struct AssistantBubble: View {
+        let text: String
+
+        var body: some View {
+            HStack {
+                Text(text)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        HermesTheme.assistantBubble,
+                        in: UnevenRoundedRectangle(
+                            topLeadingRadius: 20, bottomLeadingRadius: 6,
+                            bottomTrailingRadius: 20, topTrailingRadius: 20
+                        )
+                    )
+                Spacer(minLength: 48)
+            }
+        }
+    }
 
     struct TurnBubble: View {
         let turn: ConversationTurn
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 // Photo the glasses captured for this turn
-                if let photoData = turn.photo, let image = UIImage(data: photoData) {
+                if let photoData = turn.photo,
+                   let image = UIImage(data: photoData) {
                     HStack {
                         Spacer()
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: 200, maxHeight: 150)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        PhotoCard(image: image)
                     }
                 }
 
-                // User message
-                HStack {
-                    Spacer()
-                    Text(turn.userText)
-                        .padding(12)
-                        .background(.blue.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .frame(maxWidth: 280, alignment: .trailing)
-                }
-
-                // Agent response
-                HStack {
-                    Text(turn.agentText)
-                        .padding(12)
-                        .background(.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .frame(maxWidth: 280, alignment: .leading)
-
-                    Spacer()
-                }
+                UserBubble(text: turn.userText)
+                AssistantBubble(text: turn.agentText)
             }
+        }
+    }
+
+    /// Captured glasses photo with a "Ray-Ban camera" caption bar
+    struct PhotoCard: View {
+        let image: UIImage
+
+        var body: some View {
+            VStack(spacing: 0) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 200, height: 130)
+                    .clipped()
+
+                HStack(spacing: 5) {
+                    Image(systemName: "camera")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Ray-Ban camera")
+                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(.secondarySystemGroupedBackground))
+            }
+            .frame(width: 200)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
         }
     }
 
     // MARK: - Indicators
 
-    private var listeningIndicator: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.8)
-
-            Text("Listening...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal)
-    }
-
     private var processingIndicator: some View {
         HStack(spacing: 8) {
             ProgressView()
-
-            Text("Thinking...")
-                .font(.caption)
+                .scaleEffect(0.8)
+            Text("Thinking…")
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 4)
     }
 
     private var speakingIndicator: some View {
         Button {
             hermesVM.interruptSpeech()
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "waveform")
+            HStack(spacing: 6) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 11))
                     .symbolEffect(.variableColor.iterative)
-
-                Text("\(assistantName) is speaking — tap to interrupt")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+                Text(speakingLabel)
+                    .font(.system(size: 11, weight: .semibold))
                 Image(systemName: "stop.circle")
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
             }
+            .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .padding(.horizontal)
+        .padding(.horizontal, 4)
+    }
+
+    private var speakingLabel: String {
+        hermesVM.audio.isUsingBluetoothInput
+            ? "\(assistantName) speaking through glasses — tap to stop"
+            : "\(assistantName) is speaking — tap to stop"
     }
 
     // MARK: - Test Panel
@@ -336,9 +431,8 @@ struct ContentView: View {
         VStack(spacing: 8) {
             HStack {
                 Text("TESTING")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
                 Spacer()
                 // Live mic level meter
                 HStack(spacing: 4) {
@@ -367,7 +461,7 @@ struct ContentView: View {
                     .lineLimit(2)
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
     }
@@ -397,93 +491,120 @@ struct ContentView: View {
         .disabled(hermesVM.testRunning.contains(name))
     }
 
-    // MARK: - Control Bar
+    // MARK: - Bottom Bar (waveform + End / Start)
 
     @ViewBuilder
-    private var controlBar: some View {
-        VStack(spacing: 12) {
-            // Hermes endpoint info
-            if hermesVM.connectionState != .disconnected {
-                HStack {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.caption)
-                    Text(hermesVM.hermesEndpoint)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
+    private var bottomBar: some View {
+        VStack(spacing: 0) {
+            Divider()
 
-            // Main action button
-            Button {
-                Task {
-                    if hermesVM.connectionState == .disconnected {
-                        await hermesVM.startSession()
-                    } else {
-                        hermesVM.endSession()
-                    }
+            if hermesVM.connectionState == .disconnected {
+                // Big accent start button
+                Button {
+                    Task { await hermesVM.startSession() }
+                } label: {
+                    Text("Start Session")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            wearablesVM.registrationState == .registered
+                                ? HermesTheme.accent
+                                : Color(.systemGray3),
+                            in: Capsule()
+                        )
                 }
-            } label: {
-                Label(
-                    hermesVM.connectionState == .disconnected
-                        ? "Start Hermes Session"
-                        : "End Session",
-                    systemImage: hermesVM.connectionState == .disconnected
-                        ? "mic.fill"
-                        : "stop.fill"
-                )
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .disabled(wearablesVM.registrationState != .registered)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+            } else {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        WaveformView(
+                            level: hermesVM.micLevel,
+                            accent: HermesTheme.accent
+                        )
+                        Text(bottomStatusLabel)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(isErrorState ? .red : .secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        hermesVM.endSession()
+                    } label: {
+                        Text("End")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 18)
+                            .frame(height: 40)
+                            .background(.red.opacity(0.13), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(hermesVM.connectionState == .disconnected ? .blue : .red)
-            .disabled(
-                wearablesVM.registrationState != .registered
-                && hermesVM.connectionState == .disconnected
-            )
         }
-        .padding()
         .background(.ultraThinMaterial)
     }
 
-    // MARK: - Helpers
+    private var isErrorState: Bool {
+        if case .error = hermesVM.connectionState { return true }
+        return false
+    }
 
-    private var statusColor: Color {
+    private var bottomStatusLabel: String {
         switch hermesVM.connectionState {
-        case .disconnected: return .gray
-        case .connecting: return .orange
-        case .listening: return .green
-        case .recording: return .red
-        case .processing: return .yellow
-        case .speaking: return .blue
-        case .error: return .red
+        case .disconnected: return ""
+        case .connecting: return "Connecting…"
+        case .listening: return "Listening"
+        case .recording: return "Listening"
+        case .processing: return "Thinking…"
+        case .speaking: return "\(assistantName) speaking"
+        case .error(let msg): return msg
         }
     }
+
+    // MARK: - Helpers
 
     /// Who the user is talking to, per the selected backend
     private var assistantName: String {
         hermesVM.backend == .claudeDirect ? "Claude" : "Hermes"
     }
+}
 
-    private var statusTitle: String {
-        switch hermesVM.connectionState {
-        case .disconnected: return "Disconnected"
-        case .connecting: return "Connecting..."
-        case .listening: return "Listening"
-        case .recording: return "Recording"
-        case .processing: return "Processing"
-        case .speaking: return "\(assistantName) Speaking"
-        case .error(let msg): return "Error: \(msg)"
+// MARK: - Waveform
+
+/// Mic-level waveform: bars with a sine envelope, per the design
+struct WaveformView: View {
+    let level: Float
+    let accent: Color
+
+    private let barCount = 30
+
+    var body: some View {
+        HStack(spacing: 3.5) {
+            ForEach(0..<barCount, id: \.self) { i in
+                let env = sin(Double(i) / Double(barCount - 1) * .pi)
+                let wobble = 0.35 + 0.65 * abs(sin(Double(i) * 2.7 + 1.3))
+                Capsule()
+                    .fill(accent.opacity(0.45 + 0.55 * env))
+                    .frame(
+                        width: 3,
+                        height: max(3, 24 * amplitude * env * wobble)
+                    )
+            }
         }
+        .frame(height: 28, alignment: .center)
+        .animation(.linear(duration: 0.12), value: level)
     }
 
-    private var statusSubtitle: String {
-        switch wearablesVM.registrationState {
-        case .notRegistered: return "Glasses not connected"
-        case .registering: return "Pairing with glasses..."
-        case .registered: return "Glasses connected"
-        case .unavailable: return "Registration unavailable"
-        }
+    private var amplitude: Double {
+        min(1.0, Double(level) * 10)
     }
 }
 
@@ -497,54 +618,13 @@ struct SettingsView: View {
     @State private var showSavePreset: Bool = false
     @State private var presetName: String = ""
     @State private var presetsVersion: Int = 0  // bump to refresh list
+    @AppStorage("show_test_panel") private var showTestPanel: Bool = true
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Hermes Agent Endpoint") {
-                    // Saved presets — tap to select
-                    ForEach(hermesVM.endpointPresets, id: \.name) { preset in
-                        Button {
-                            endpoint = preset.url
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(preset.name)
-                                        .foregroundStyle(.primary)
-                                    Text(preset.url)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer()
-                                if endpoint == preset.url {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                        .swipeActions {
-                            Button("Delete", role: .destructive) {
-                                hermesVM.deletePreset(name: preset.name)
-                                presetsVersion += 1
-                            }
-                        }
-                    }
-                    .id(presetsVersion)
-
-                    TextField("WebSocket URL", text: $endpoint)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-
-                    Button("Save current URL as preset…") {
-                        presetName = ""
-                        showSavePreset = true
-                    }
-                    .disabled(endpoint.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-
-                Section("Assistant") {
+                Section {
                     Picker("Backend", selection: Binding(
                         get: { hermesVM.backend },
                         set: { hermesVM.backend = $0 }
@@ -573,23 +653,74 @@ struct SettingsView: View {
                             "Key status",
                             value: hermesVM.hasClaudeKey ? "Saved in Keychain" : "Not set"
                         )
+                    }
+                } header: {
+                    Text("Assistant")
+                } footer: {
+                    if hermesVM.backend == .claudeDirect {
                         Text("Direct mode needs no server — works anywhere, uses the iPhone voice. Applies from the next session.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
 
-                Section("Voice") {
+                Section {
+                    // Saved presets — tap to select
+                    ForEach(hermesVM.endpointPresets, id: \.name) { preset in
+                        Button {
+                            endpoint = preset.url
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.name)
+                                        .foregroundStyle(.primary)
+                                    Text(preset.url)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                if endpoint == preset.url {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(HermesTheme.accent)
+                                }
+                            }
+                        }
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                hermesVM.deletePreset(name: preset.name)
+                                presetsVersion += 1
+                            }
+                        }
+                    }
+                    .id(presetsVersion)
+
+                    TextField("WebSocket URL", text: $endpoint)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .font(.system(size: 15, design: .monospaced))
+
+                    Button("Save current URL as preset…") {
+                        presetName = ""
+                        showSavePreset = true
+                    }
+                    .disabled(endpoint.trimmingCharacters(in: .whitespaces).isEmpty)
+                } header: {
+                    Text("Connection")
+                } footer: {
+                    Text("Bridge endpoint used in Bridge mode. Tap a preset to select it.")
+                }
+
+                Section {
                     Toggle("iPhone voice (faster, more robotic)", isOn: Binding(
                         get: { hermesVM.useDeviceTTS },
                         set: { hermesVM.useDeviceTTS = $0 }
                     ))
+                } header: {
+                    Text("Voice")
+                } footer: {
                     Text("Off = natural voice generated on the bridge (adds 1–3 s per reply). Applies from the next question.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
-                Section("Microphone") {
+                Section {
                     Picker("Voice input", selection: Binding(
                         get: { hermesVM.micSource },
                         set: { newValue in
@@ -602,12 +733,13 @@ struct SettingsView: View {
                             Text(source.label).tag(source)
                         }
                     }
-                    Text("Glasses mode uses Bluetooth hands-free: Hermes's voice also plays through the glasses, at call quality.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Microphone")
+                } footer: {
+                    Text("Glasses mode uses Bluetooth hands-free: replies also play through the glasses, at call quality. Audio never leaves your phone for speech-to-text.")
                 }
 
-                Section("Glasses Diagnostics") {
+                Section {
                     LabeledContent("Registration", value: registrationText)
                     LabeledContent(
                         "Devices seen by SDK",
@@ -617,20 +749,28 @@ struct SettingsView: View {
                         "Camera permission",
                         value: cameraPermissionText
                     )
-                    Text("0 devices with \"Registered\" means the glasses aren't reachable over Bluetooth right now, or the pairing is stale.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
                     Button("Re-pair Glasses", role: .destructive) {
                         Task { await wearablesVM.repairGlasses() }
                     }
+                } header: {
+                    Text("Glasses")
+                } footer: {
+                    Text("0 devices with \"Registered\" means the glasses aren't reachable over Bluetooth right now, or the pairing is stale. Camera permission is granted on first photo, via the Meta AI app.")
+                }
+
+                Section {
+                    Toggle("Test panel", isOn: $showTestPanel)
+                } header: {
+                    Text("Developer")
+                } footer: {
+                    Text("Shows the subsystem test buttons and mic meter on the main screen.")
                 }
 
                 Section("About") {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Hermes Glasses")
                             .font(.headline)
-                        Text("Talk to Hermes AI from your Meta Ray-Ban glasses.")
+                        Text("Talk to your AI from your Meta Ray-Ban glasses.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -667,6 +807,7 @@ struct SettingsView: View {
                 Text("Saves the current URL so you can switch with one tap.")
             }
         }
+        .tint(HermesTheme.accent)
     }
 
     private var registrationText: String {
