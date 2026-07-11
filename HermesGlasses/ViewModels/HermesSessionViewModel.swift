@@ -94,7 +94,20 @@ final class HermesSessionViewModel {
             if !displayHUDEnabled {
                 displayManager.stop()
             } else if let session = deviceSession {
-                displayManager.start(session: session)
+                if audioManager.isUsingBluetoothInput {
+                    // HUD and the HFP mic are mutually exclusive (the
+                    // glasses' call screen covers the lens). HUD wins:
+                    // hop back to the iPhone mic, which re-attaches the
+                    // display when the route settles.
+                    Task { @MainActor [weak self] in
+                        guard let self, self.micSource == .glasses else { return }
+                        await self.toggleMicSource()
+                        self.show("Switched to the iPhone mic — the lens HUD can't show while the glasses' hands-free mic is active.")
+                    }
+                } else {
+                    displayManager.stop()
+                    displayManager.start(session: session)
+                }
             }
         }
     }
@@ -305,12 +318,9 @@ final class HermesSessionViewModel {
             self.startNewConversation()
             self.displayManager.showNewConversationFlash()
         }
-        if displayHUDEnabled {
-            // stop() first: a standalone Display test may still hold an
-            // attachment to its temporary session
-            displayManager.stop()
-            displayManager.start(session: session)
-        }
+        // NOTE: the display attaches AFTER audio setup (step 3 below) —
+        // whether the lens is free depends on the actual mic route: the
+        // HFP glasses mic brings up the glasses' call screen over the HUD.
 
         // 2. Connect the brain. Claude Direct needs no server at all —
         // skip the bridge entirely.
@@ -514,6 +524,15 @@ final class HermesSessionViewModel {
             return
         }
 
+        // Attach the lens HUD only when the mic route leaves the lens
+        // free — on the HFP route the glasses show their call screen
+        if displayHUDEnabled && !audioManager.isUsingBluetoothInput {
+            // stop() first: a standalone Display test may still hold an
+            // attachment to its temporary session
+            displayManager.stop()
+            displayManager.start(session: session)
+        }
+
         // Bridge connected, mic live, recognizer running
         connectionState = .listening
     }
@@ -683,6 +702,16 @@ final class HermesSessionViewModel {
             speechRecognizer.restartCycle()
             if target == .glasses && !glassesActive {
                 show("Glasses mic not available — using iPhone mic")
+            }
+            // HUD ⇄ HFP mic are mutually exclusive: the glasses show
+            // their call screen while hands-free audio is active
+            if displayHUDEnabled, let session = deviceSession {
+                if audioManager.isUsingBluetoothInput {
+                    displayManager.stop()
+                    show("Lens HUD paused — the glasses show their call screen while the hands-free mic is on. Switch back to the iPhone mic to see the HUD.")
+                } else if displayManager.status == .off {
+                    displayManager.start(session: session)
+                }
             }
         } catch {
             show("Mic switch failed: \(error.localizedDescription)")
