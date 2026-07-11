@@ -22,6 +22,8 @@
 		AAAA00000000000000000013 /* HermesDisplayLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000116 /* HermesDisplayLogic.swift */; };
 		AAAA00000000000000000014 /* HermesDisplayScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000117 /* HermesDisplayScreens.swift */; };
 		AAAA00000000000000000015 /* HermesDisplayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000118 /* HermesDisplayManager.swift */; };
+		AAAA00000000000000000016 /* DeviceContextFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000119 /* DeviceContextFormatter.swift */; };
+		AAAA00000000000000000017 /* DeviceContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000120 /* DeviceContextProvider.swift */; };
 		AAAA00000000000000000801 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000701 /* MWDATCore */; };
 		AAAA00000000000000000802 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000702 /* MWDATCamera */; };
 		AAAA00000000000000000803 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000703 /* MWDATMockDevice */; };
@@ -47,6 +49,8 @@
 		AAAA00000000000000000116 /* HermesDisplayLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesDisplayLogic.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000117 /* HermesDisplayScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesDisplayScreens.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000118 /* HermesDisplayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesDisplayManager.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000119 /* DeviceContextFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContextFormatter.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000120 /* DeviceContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContextProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +120,8 @@
 				AAAA00000000000000000116 /* HermesDisplayLogic.swift */,
 				AAAA00000000000000000117 /* HermesDisplayScreens.swift */,
 				AAAA00000000000000000118 /* HermesDisplayManager.swift */,
+				AAAA00000000000000000119 /* DeviceContextFormatter.swift */,
+				AAAA00000000000000000120 /* DeviceContextProvider.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -220,6 +226,8 @@
 				AAAA00000000000000000013 /* HermesDisplayLogic.swift in Sources */,
 				AAAA00000000000000000014 /* HermesDisplayScreens.swift in Sources */,
 				AAAA00000000000000000015 /* HermesDisplayManager.swift in Sources */,
+				AAAA00000000000000000016 /* DeviceContextFormatter.swift in Sources */,
+				AAAA00000000000000000017 /* DeviceContextProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

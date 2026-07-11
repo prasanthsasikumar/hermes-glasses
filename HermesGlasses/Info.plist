@@ -100,6 +100,12 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Hermes Glasses transcribes your speech on this device so your words appear instantly as you talk.</string>
 
+	<!-- Personal context attached to queries (time/place/weather) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Hermes Glasses shares your approximate location with the assistant so it can answer questions about where you are, nearby places, and the weather.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Hermes Glasses tells the assistant whether you're walking, driving, or still, so answers fit what you're doing.</string>
+
 	<!-- DAT SDK configuration -->
 	<key>MWDAT</key>
 	<dict>
