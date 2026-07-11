@@ -45,16 +45,26 @@ enum AssistantBackend: String, CaseIterable {
     }
 }
 
-/// Where voice is captured (and, for glasses, where TTS plays — HFP is
+/// Where voice is captured (and, on Bluetooth, where TTS plays — HFP is
 /// bidirectional)
 enum MicSource: String, CaseIterable {
     case phone
     case glasses
+    case headset
 
     var label: String {
         switch self {
         case .phone: return "iPhone Mic"
-        case .glasses: return "Glasses Mic"
+        case .glasses: return "Glasses Mic (call screen)"
+        case .headset: return "Headset Mic (AirPods etc.)"
+        }
+    }
+
+    var captureRoute: CaptureRoute {
+        switch self {
+        case .phone: return .phoneMic
+        case .glasses: return .glassesMic
+        case .headset: return .headsetMic
         }
     }
 }
@@ -94,14 +104,14 @@ final class HermesSessionViewModel {
             if !displayHUDEnabled {
                 displayManager.stop()
             } else if let session = deviceSession {
-                if audioManager.isUsingBluetoothInput {
-                    // HUD and the HFP mic are mutually exclusive (the
-                    // glasses' call screen covers the lens). HUD wins:
-                    // hop back to the iPhone mic, which re-attaches the
+                if lensBlockedByCallScreen {
+                    // HUD and the glasses' HFP mic are mutually exclusive
+                    // (their call screen covers the lens). HUD wins: hop
+                    // back to the iPhone mic, which re-attaches the
                     // display when the route settles.
                     Task { @MainActor [weak self] in
                         guard let self, self.micSource == .glasses else { return }
-                        await self.toggleMicSource()
+                        await self.setMicSource(.phone)
                         self.show("Switched to the iPhone mic — the lens HUD can't show while the glasses' hands-free mic is active.")
                     }
                 } else {
@@ -509,11 +519,14 @@ final class HermesSessionViewModel {
         }
 
         do {
-            let glassesActive = try await audioManager.startCapture(
-                useGlassesMic: micSource == .glasses
+            let bluetoothActive = try await audioManager.startCapture(
+                route: micSource.captureRoute
             )
-            if micSource == .glasses && !glassesActive {
+            if micSource == .glasses && !bluetoothActive {
                 show("Glasses mic not available — using iPhone mic")
+            }
+            if micSource == .headset && !bluetoothActive {
+                show("No headset mic found — using iPhone mic. Connect AirPods or another Bluetooth headset first.")
             }
             if speechOK {
                 try speechRecognizer.start()
@@ -525,8 +538,9 @@ final class HermesSessionViewModel {
         }
 
         // Attach the lens HUD only when the mic route leaves the lens
-        // free — on the HFP route the glasses show their call screen
-        if displayHUDEnabled && !audioManager.isUsingBluetoothInput {
+        // free — the GLASSES' hands-free link brings up their call screen
+        // (a headset's hands-free link does not)
+        if displayHUDEnabled && !lensBlockedByCallScreen {
             // stop() first: a standalone Display test may still hold an
             // attachment to its temporary session
             displayManager.stop()
@@ -684,11 +698,24 @@ final class HermesSessionViewModel {
         return normalize(lastResponse).contains(heard)
     }
 
-    /// Flip between iPhone and glasses mic. Persists the preference and,
-    /// when a session is live, reconfigures capture and restarts the
-    /// recognizer (new route = new buffer format).
+    /// True when the glasses' call screen owns the lens: their hands-free
+    /// link is the active mic route. A headset's hands-free link does NOT
+    /// block the lens — that's the whole point of headset mode.
+    var lensBlockedByCallScreen: Bool {
+        micSource == .glasses && audioManager.isUsingBluetoothInput
+    }
+
+    /// Banner chip: cycle iPhone → Glasses → Headset → iPhone.
     func toggleMicSource() async {
-        let target: MicSource = micSource == .phone ? .glasses : .phone
+        let all = MicSource.allCases
+        let index = all.firstIndex(of: micSource) ?? 0
+        await setMicSource(all[(index + 1) % all.count])
+    }
+
+    /// Select a mic source. Persists the preference and, when a session is
+    /// live, reconfigures capture and restarts the recognizer (new route =
+    /// new buffer format).
+    func setMicSource(_ target: MicSource) async {
         micSource = target
         UserDefaults.standard.set(target.rawValue, forKey: "mic_source")
 
@@ -696,19 +723,23 @@ final class HermesSessionViewModel {
 
         audioManager.stopCapture()
         do {
-            let glassesActive = try await audioManager.startCapture(
-                useGlassesMic: target == .glasses
+            let bluetoothActive = try await audioManager.startCapture(
+                route: target.captureRoute
             )
             speechRecognizer.restartCycle()
-            if target == .glasses && !glassesActive {
+            if target == .glasses && !bluetoothActive {
                 show("Glasses mic not available — using iPhone mic")
             }
-            // HUD ⇄ HFP mic are mutually exclusive: the glasses show
-            // their call screen while hands-free audio is active
+            if target == .headset && !bluetoothActive {
+                show("No headset mic found — using iPhone mic. Connect AirPods or another Bluetooth headset first.")
+            }
+            // HUD ⇄ GLASSES hands-free mic are mutually exclusive: the
+            // glasses show their call screen while their hands-free link
+            // is active. Headset mode leaves the lens free.
             if displayHUDEnabled, let session = deviceSession {
-                if audioManager.isUsingBluetoothInput {
+                if lensBlockedByCallScreen {
                     displayManager.stop()
-                    show("Lens HUD paused — the glasses show their call screen while the hands-free mic is on. Switch back to the iPhone mic to see the HUD.")
+                    show("Lens HUD paused — the glasses show their call screen while their hands-free mic is on. The iPhone or a headset mic keeps the HUD visible.")
                 } else if displayManager.status == .off {
                     displayManager.start(session: session)
                 }

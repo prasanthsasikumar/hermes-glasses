@@ -73,11 +73,10 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            // Mic source toggle — shows the ACTUAL route
+            // Mic source — tap cycles iPhone → Glasses → Headset
             if hermesVM.connectionState != .disconnected {
                 iconCircle(
-                    hermesVM.audio.isUsingBluetoothInput
-                        ? "eyeglasses" : "iphone.gen3",
+                    micIconName,
                     tint: hermesVM.audio.isUsingBluetoothInput
                         ? HermesTheme.accent : .secondary
                 ) {
@@ -129,6 +128,14 @@ struct ContentView: View {
                 .background(HermesTheme.chipFill, in: Circle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var micIconName: String {
+        switch hermesVM.micSource {
+        case .phone: return "iphone.gen3"
+        case .glasses: return "eyeglasses"
+        case .headset: return "headphones"
+        }
     }
 
     private var glassesDotColor: Color {
@@ -419,9 +426,11 @@ struct ContentView: View {
     }
 
     private var speakingLabel: String {
-        hermesVM.audio.isUsingBluetoothInput
-            ? "\(assistantName) speaking through glasses — tap to stop"
-            : "\(assistantName) is speaking — tap to stop"
+        if hermesVM.audio.isUsingBluetoothInput {
+            let device = hermesVM.micSource == .headset ? "headset" : "glasses"
+            return "\(assistantName) speaking through \(device) — tap to stop"
+        }
+        return "\(assistantName) is speaking — tap to stop"
     }
 
     // MARK: - Test Panel
@@ -730,7 +739,7 @@ struct SettingsView: View {
                         get: { hermesVM.micSource },
                         set: { newValue in
                             if newValue != hermesVM.micSource {
-                                Task { await hermesVM.toggleMicSource() }
+                                Task { await hermesVM.setMicSource(newValue) }
                             }
                         }
                     )) {
@@ -741,7 +750,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Microphone")
                 } footer: {
-                    Text("Glasses mode uses Bluetooth hands-free: replies also play through the glasses, at call quality. On Display glasses this shows a CALL SCREEN on the lens and hides the HUD — use the iPhone mic to keep the lens display. Audio never leaves your phone for speech-to-text.")
+                    Text("Glasses mode shows a CALL SCREEN on the lens and hides the HUD. Headset mode (AirPods etc.) is the pocket setup: talk and listen through the earbuds while the lens keeps the HUD. Audio never leaves your phone for speech-to-text.")
                 }
 
                 Section {
@@ -757,7 +766,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Glasses Display")
                 } footer: {
-                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it — handy in meetings. Note: the glasses microphone's call screen covers the HUD; pick the iPhone mic to see it.")
+                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it — handy in meetings. Note: the glasses microphone's call screen covers the HUD; the iPhone or a headset mic keeps it visible.")
                 }
 
                 Section {
@@ -854,8 +863,8 @@ struct SettingsView: View {
         case .off: return hermesVM.displayHUDEnabled ? "Off (no session)" : "Disabled"
         case .connecting: return "Connecting…"
         case .connected:
-            // HFP mic = the glasses' own call screen covers the HUD
-            return hermesVM.audio.isUsingBluetoothInput
+            // Glasses HFP mic = their own call screen covers the HUD
+            return hermesVM.lensBlockedByCallScreen
                 ? "Connected — hidden by call screen (glasses mic)"
                 : "Connected"
         case .unavailable(let reason): return "Unavailable — \(reason)"

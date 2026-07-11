@@ -9,6 +9,18 @@ import AVFoundation
 import Foundation
 import os
 
+/// Where voice capture (and, on Bluetooth, playback) is routed
+enum CaptureRoute {
+    /// iPhone built-in mic; playback on the phone speaker
+    case phoneMic
+    /// Glasses over Bluetooth HFP — bidirectional, but on Display glasses
+    /// the firmware shows its CALL SCREEN, covering the lens HUD
+    case glassesMic
+    /// Earbuds/headset over Bluetooth HFP — mic + voice in the ears while
+    /// the glasses' lens stays free for the HUD
+    case headsetMic
+}
+
 /// Manages audio capture and playback for the Hermes Glasses app
 final class HermesAudioManager: NSObject, @unchecked Sendable {
     // MARK: - Callbacks
@@ -86,13 +98,31 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Start capturing audio — uses iPhone mic by default (reliable).
-    /// Set useGlassesMic=true to try routing through glasses Bluetooth.
-    /// Start capturing. Returns true when the glasses (Bluetooth HFP) route
-    /// is actually active — false means the iPhone mic is in use (either by
-    /// choice or as fallback when the glasses route never appeared).
+    /// Heuristic: does this Bluetooth port belong to the glasses (vs
+    /// earbuds/headset)? Used to keep headset mode off the glasses' HFP —
+    /// their call screen would cover the lens HUD.
+    private static let glassesNameMarkers = ["ray-ban", "rayban", "oakley", "meta", "glasses"]
+
+    private static func looksLikeGlasses(_ port: AVAudioSessionPortDescription) -> Bool {
+        let name = port.portName.lowercased()
+        return glassesNameMarkers.contains { name.contains($0) }
+    }
+
+    /// True when the ACTIVE input is the glasses' hands-free link — the
+    /// state in which Display glasses show their call screen over the HUD
+    var isUsingGlassesInput: Bool {
+        AVAudioSession.sharedInstance().currentRoute.inputs.contains {
+            ($0.portType == .bluetoothHFP || $0.portType == .bluetoothA2DP)
+                && Self.looksLikeGlasses($0)
+        }
+    }
+
+    /// Start capturing on the requested route. Returns true when the
+    /// requested Bluetooth route is actually active — false means the
+    /// iPhone mic is in use (by choice, or as fallback when the Bluetooth
+    /// route never appeared / no matching device was found).
     @discardableResult
-    func startCapture(useGlassesMic: Bool = false) async throws -> Bool {
+    func startCapture(route: CaptureRoute = .phoneMic) async throws -> Bool {
         guard await requestMicrophonePermission() else {
             logger.error("Microphone permission denied")
             throw HermesAudioError.microphonePermissionDenied
@@ -100,33 +130,48 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
         let session = AVAudioSession.sharedInstance()
 
-        if useGlassesMic {
+        var wantBluetooth = false
+        if route != .phoneMic {
             // Mode .default, NOT .voiceChat — its DSP gates speech to the
             // noise floor. HFP is bidirectional: TTS also moves to the
-            // glasses speakers while this mode is active (by design).
+            // chosen device's speakers while this mode is active (by design).
             try session.setCategory(
                 .playAndRecord,
                 mode: .default,
                 options: [.allowBluetoothHFP]
             )
 
-            if let btInput = session.availableInputs?.first(where: {
-                $0.portType == .bluetoothHFP
-            }) {
-                try session.setPreferredInput(btInput)
+            let hfpInputs = (session.availableInputs ?? [])
+                .filter { $0.portType == .bluetoothHFP }
+            let target: AVAudioSessionPortDescription?
+            switch route {
+            case .glassesMic:
+                target = hfpInputs.first(where: Self.looksLikeGlasses)
+                    ?? hfpInputs.first
+            case .headsetMic:
+                // NEVER fall back to the glasses here — that would put the
+                // call screen over the HUD the user chose this mode to keep
+                target = hfpInputs.first { !Self.looksLikeGlasses($0) }
+            case .phoneMic:
+                target = nil
             }
 
-            try session.setActive(true)
+            if let target {
+                logger.info("Preferring Bluetooth input: \(target.portName, privacy: .public)")
+                try session.setPreferredInput(target)
+                try session.setActive(true)
+                wantBluetooth = true
 
-            // Wait up to 3s for the Bluetooth route, without blocking the thread
-            for _ in 0..<30 where !isUsingBluetoothInput {
-                try await Task.sleep(nanoseconds: 100_000_000)
+                // Wait up to 3s for the Bluetooth route, without blocking the thread
+                for _ in 0..<30 where !isUsingBluetoothInput {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
             }
 
-            if !isUsingBluetoothInput {
-                // Glasses route never materialized — fall back to the
-                // iPhone mic so the session still works.
-                logger.warning("HFP route unavailable — falling back to iPhone mic")
+            if !wantBluetooth || !isUsingBluetoothInput {
+                // Requested device absent or route never materialized —
+                // fall back to the iPhone mic so the session still works.
+                logger.warning("Bluetooth route unavailable for \(String(describing: route), privacy: .public) — falling back to iPhone mic")
                 try? session.setPreferredInput(nil)
                 try session.setCategory(
                     .playAndRecord,

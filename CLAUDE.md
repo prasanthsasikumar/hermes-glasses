@@ -41,6 +41,11 @@ photo via the DAT camera API.
   link makes the glasses firmware show its CALL SCREEN on the lens, which
   covers all DAT display content. iPhone mic = HUD visible; glasses mic =
   call screen. Firmware behavior — cannot be overridden from the app.
+- **Headset mode is the pocket setup:** `MicSource.headset` routes HFP to
+  earbuds (never to the glasses — port chosen by name heuristic in
+  `HermesAudioManager.looksLikeGlasses`), so the lens keeps the HUD while
+  mic + TTS live in the ears. Falls back to the iPhone mic (with a notice)
+  when no non-glasses HFP device is present.
 
 ## Build & run
 
