@@ -10,6 +10,21 @@
 import Foundation
 import os
 
+/// Claude models selectable for direct mode
+enum ClaudeModel: String, CaseIterable {
+    case opus = "claude-opus-4-8"
+    case sonnet = "claude-sonnet-5"
+    case haiku = "claude-haiku-4-5"
+
+    var label: String {
+        switch self {
+        case .opus: return "Opus 4.8 — smartest"
+        case .sonnet: return "Sonnet 5 — balanced"
+        case .haiku: return "Haiku 4.5 — fastest"
+        }
+    }
+}
+
 enum ClaudeDirectError: LocalizedError {
     case missingKey
     case apiError(String)
@@ -27,7 +42,11 @@ enum ClaudeDirectError: LocalizedError {
 final class ClaudeDirectClient: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "claude")
 
-    static let model = "claude-opus-4-8"
+    /// User-selectable model (Settings → Assistant → Model)
+    static var model: String {
+        UserDefaults.standard.string(forKey: "claude_direct_model") ?? ClaudeModel.opus.rawValue
+    }
+
     private static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let maxHistoryMessages = 40
     private static let historyKey = "claude_direct_history"

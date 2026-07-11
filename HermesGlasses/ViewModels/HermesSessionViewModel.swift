@@ -93,6 +93,12 @@ final class HermesSessionViewModel {
     }
     /// Whether a Claude API key is stored (drives Settings UI state)
     var hasClaudeKey: Bool = ClaudeDirectClient.hasAPIKey
+    /// Model used in Claude Direct mode; applies from the next question
+    var claudeModel: ClaudeModel = ClaudeModel(
+        rawValue: UserDefaults.standard.string(forKey: "claude_direct_model") ?? ""
+    ) ?? .opus {
+        didSet { UserDefaults.standard.set(claudeModel.rawValue, forKey: "claude_direct_model") }
+    }
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []

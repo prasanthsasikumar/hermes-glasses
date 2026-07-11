@@ -549,6 +549,14 @@ struct SettingsView: View {
                         }
                     }
                     if hermesVM.backend == .claudeDirect {
+                        Picker("Model", selection: Binding(
+                            get: { hermesVM.claudeModel },
+                            set: { hermesVM.claudeModel = $0 }
+                        )) {
+                            ForEach(ClaudeModel.allCases, id: \.self) { m in
+                                Text(m.label).tag(m)
+                            }
+                        }
                         SecureField("Claude API key (sk-ant-…)", text: $claudeKey)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
