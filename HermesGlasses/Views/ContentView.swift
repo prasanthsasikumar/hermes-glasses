@@ -155,7 +155,7 @@ struct ContentView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(.secondary)
 
-                Text("Ready to talk to Hermes")
+                Text("Ready to talk to \(assistantName)")
                     .font(.title3)
                     .fontWeight(.medium)
 
@@ -317,7 +317,7 @@ struct ContentView: View {
                 Image(systemName: "waveform")
                     .symbolEffect(.variableColor.iterative)
 
-                Text("Hermes is speaking — tap to interrupt")
+                Text("\(assistantName) is speaking — tap to interrupt")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -460,6 +460,11 @@ struct ContentView: View {
         }
     }
 
+    /// Who the user is talking to, per the selected backend
+    private var assistantName: String {
+        hermesVM.backend == .claudeDirect ? "Claude" : "Hermes"
+    }
+
     private var statusTitle: String {
         switch hermesVM.connectionState {
         case .disconnected: return "Disconnected"
@@ -467,7 +472,7 @@ struct ContentView: View {
         case .listening: return "Listening"
         case .recording: return "Recording"
         case .processing: return "Processing"
-        case .speaking: return "Hermes Speaking"
+        case .speaking: return "\(assistantName) Speaking"
         case .error(let msg): return "Error: \(msg)"
         }
     }
