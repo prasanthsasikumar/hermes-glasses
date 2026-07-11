@@ -36,6 +36,11 @@ photo via the DAT camera API.
   `addDisplay()` to the SAME DeviceSession as the camera. Every display
   call is best-effort — errors are logged, never surfaced. Settings keys:
   `display_hud_enabled` (default true), `display_silent_mode`.
+- **Glasses mic and the HUD are mutually exclusive.** The glasses mic is
+  Bluetooth HFP (the DAT SDK has no audio capability); an active HFP/SCO
+  link makes the glasses firmware show its CALL SCREEN on the lens, which
+  covers all DAT display content. iPhone mic = HUD visible; glasses mic =
+  call screen. Firmware behavior — cannot be overridden from the app.
 
 ## Build & run
 

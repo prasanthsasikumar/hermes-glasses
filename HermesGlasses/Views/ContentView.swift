@@ -741,7 +741,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Microphone")
                 } footer: {
-                    Text("Glasses mode uses Bluetooth hands-free: replies also play through the glasses, at call quality. Audio never leaves your phone for speech-to-text.")
+                    Text("Glasses mode uses Bluetooth hands-free: replies also play through the glasses, at call quality. On Display glasses this shows a CALL SCREEN on the lens and hides the HUD — use the iPhone mic to keep the lens display. Audio never leaves your phone for speech-to-text.")
                 }
 
                 Section {
@@ -757,7 +757,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Glasses Display")
                 } footer: {
-                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it — handy in meetings.")
+                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it — handy in meetings. Note: the glasses microphone's call screen covers the HUD; pick the iPhone mic to see it.")
                 }
 
                 Section {
@@ -853,7 +853,11 @@ struct SettingsView: View {
         switch hermesVM.displayStatus {
         case .off: return hermesVM.displayHUDEnabled ? "Off (no session)" : "Disabled"
         case .connecting: return "Connecting…"
-        case .connected: return "Connected"
+        case .connected:
+            // HFP mic = the glasses' own call screen covers the HUD
+            return hermesVM.audio.isUsingBluetoothInput
+                ? "Connected — hidden by call screen (glasses mic)"
+                : "Connected"
         case .unavailable(let reason): return "Unavailable — \(reason)"
         }
     }
