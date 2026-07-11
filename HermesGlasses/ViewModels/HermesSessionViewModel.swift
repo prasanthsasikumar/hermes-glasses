@@ -129,6 +129,29 @@ final class HermesSessionViewModel {
             UserDefaults.standard.set(displaySilentMode, forKey: "display_silent_mode")
         }
     }
+    /// Attach time/location/status context to every query
+    var contextEnabled: Bool =
+        (UserDefaults.standard.object(forKey: DeviceContextProvider.enabledKey) as? Bool) ?? true {
+        didSet {
+            UserDefaults.standard.set(contextEnabled, forKey: DeviceContextProvider.enabledKey)
+            if contextEnabled, connectionState != .disconnected {
+                contextProvider.start()
+            }
+        }
+    }
+    /// Include exact coordinates (vs area name only)
+    var contextPreciseLocation: Bool =
+        (UserDefaults.standard.object(forKey: DeviceContextProvider.preciseKey) as? Bool) ?? true {
+        didSet {
+            UserDefaults.standard.set(
+                contextPreciseLocation, forKey: DeviceContextProvider.preciseKey
+            )
+        }
+    }
+    /// Live context line for the Settings preview
+    var contextPreview: String? {
+        contextProvider.contextLine()
+    }
     /// Mirror of the display manager's status for SwiftUI
     var displayStatus: DisplayHUDStatus = .off
     /// Bridge server vs direct Claude API from the phone
@@ -171,6 +194,7 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let speechSynthesizer = HermesSpeechSynthesizer()
     @ObservationIgnored private let claudeClient = ClaudeDirectClient()
     @ObservationIgnored private let displayManager = HermesDisplayManager()
+    @ObservationIgnored private let contextProvider = DeviceContextProvider()
     @ObservationIgnored private var pendingPhoto: Data?
     @ObservationIgnored private var lastDirectPhotoAt: Date?
 
@@ -306,6 +330,10 @@ final class HermesSessionViewModel {
         }
         // Surface camera permission state early (non-interactive)
         Task { await ensureCameraPermission(interactive: false) }
+
+        // Personal context (time/location/motion/battery/weather) —
+        // requests location permission on first use
+        contextProvider.start()
 
         // Display HUD (Ray-Ban Display glasses) — best-effort, shares the
         // same device session as the camera
@@ -555,13 +583,14 @@ final class HermesSessionViewModel {
     func submitQuery(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let context = contextProvider.contextLine()
         if backend == .claudeDirect {
             liveTranscript = ""
             lastTranscript = trimmed
             connectionState = .processing
             displayManager.showThinking(query: trimmed)
             speechRecognizer.isSuspended = true
-            Task { await askClaudeDirect(trimmed) }
+            Task { await askClaudeDirect(trimmed, context: context) }
         } else {
             guard apiClient?.isConnected == true else { return }
             liveTranscript = ""
@@ -570,8 +599,9 @@ final class HermesSessionViewModel {
             displayManager.showThinking(query: trimmed)
             // Pause recognition so the mic doesn't transcribe Hermes's TTS
             speechRecognizer.isSuspended = true
+            let outgoing = context.map { "[Context: \($0)]\n\n\(trimmed)" } ?? trimmed
             apiClient?.sendQuery(
-                trimmed,
+                outgoing,
                 bridgeTTS: !useDeviceTTS && !displaySilentActive
             )
         }
@@ -579,7 +609,7 @@ final class HermesSessionViewModel {
 
     /// Claude Direct: photo decision + capture happen locally, then one
     /// API call — no server round trips.
-    private func askClaudeDirect(_ text: String) async {
+    private func askClaudeDirect(_ text: String, context: String? = nil) async {
         var photo: Data?
         if VisualQueryDetector.shouldCapturePhoto(text, lastPhotoAt: lastDirectPhotoAt),
            isGlassesConnected,
@@ -593,7 +623,7 @@ final class HermesSessionViewModel {
         }
 
         do {
-            let reply = try await claudeClient.ask(text, photoJPEG: photo)
+            let reply = try await claudeClient.ask(text, photoJPEG: photo, contextLine: context)
             lastResponse = reply
             addTurn(userText: text, agentText: reply)
             presentReply(reply)
@@ -757,6 +787,7 @@ final class HermesSessionViewModel {
         speechRecognizer.stop()
         displayManager.stop()
         displayStatus = .off
+        contextProvider.stop()
         liveTranscript = ""
         micLevel = 0
         audioManager.stopCapture()

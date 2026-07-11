@@ -135,7 +135,7 @@ final class ClaudeDirectClient: @unchecked Sendable {
     // MARK: - Ask
 
     /// Send a query (with optional glasses photo) and return the reply text.
-    func ask(_ text: String, photoJPEG: Data?) async throws -> String {
+    func ask(_ text: String, photoJPEG: Data?, contextLine: String? = nil) async throws -> String {
         guard let apiKey = Self.loadAPIKey() else {
             throw ClaudeDirectError.missingKey
         }
@@ -159,14 +159,23 @@ final class ClaudeDirectClient: @unchecked Sendable {
         userContent.append(["type": "text", "text": text])
         messages.append(["role": "user", "content": userContent])
 
+        // Persona block stays FIRST and cached (stable prefix); the
+        // context block is per-query and never cached.
+        var system: [[String: Any]] = [[
+            "type": "text",
+            "text": Self.systemPrompt,
+            "cache_control": ["type": "ephemeral"],
+        ]]
+        if let contextLine {
+            system.append([
+                "type": "text",
+                "text": "Current user context: \(contextLine)",
+            ])
+        }
         let body: [String: Any] = [
             "model": Self.model,
             "max_tokens": 1024,
-            "system": [[
-                "type": "text",
-                "text": Self.systemPrompt,
-                "cache_control": ["type": "ephemeral"],
-            ]],
+            "system": system,
             "messages": messages,
         ]
 
