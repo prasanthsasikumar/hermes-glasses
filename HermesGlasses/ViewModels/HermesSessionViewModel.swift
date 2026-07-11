@@ -610,6 +610,8 @@ final class HermesSessionViewModel {
     private func presentReply(_ text: String) {
         let shown = HermesDisplayLogic.truncateReply(text)
         if displaySilentActive {
+            // Trade-off: if the BLE send itself fails after this point, the
+            // reply is neither spoken nor shown (best-effort display).
             displayManager.showReply(
                 text: shown,
                 speaking: false,

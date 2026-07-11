@@ -43,6 +43,10 @@ final class HermesDisplayManager {
     private var stateContinuation: AsyncStream<DisplayState>.Continuation?
     /// Latest view queued while the capability is still attaching
     private var pendingView: FlexBox?
+    /// Serialized send pipeline: newest queued view wins, one send in
+    /// flight at a time (BLE sends can complete out of order otherwise)
+    private var queuedView: FlexBox?
+    private var sendTask: Task<Void, Never>?
     private var dwellTask: Task<Void, Never>?
     private var throttle = DisplaySendThrottle()
     private var lastReplyText: String = ""
@@ -115,6 +119,7 @@ final class HermesDisplayManager {
         stateTask?.cancel()
         stateTask = nil
         display = nil
+        queuedView = nil
     }
 
     // MARK: - Screens
@@ -208,13 +213,20 @@ final class HermesDisplayManager {
     }
 
     private func transmit(_ view: FlexBox) {
-        guard let display else { return }
-        Task {
-            do {
-                try await display.send(view)
-            } catch {
-                self.debug("Display send failed: \(error.localizedDescription)")
+        guard display != nil else { return }
+        queuedView = view
+        guard sendTask == nil else { return }  // drain loop already running
+        sendTask = Task { [weak self] in
+            while let self, let next = self.queuedView {
+                self.queuedView = nil
+                guard let display = self.display else { break }
+                do {
+                    try await display.send(next)
+                } catch {
+                    self.debug("Display send failed: \(error.localizedDescription)")
+                }
             }
+            self?.sendTask = nil
         }
     }
 
