@@ -85,6 +85,29 @@ final class HermesSessionViewModel {
     var useDeviceTTS: Bool = UserDefaults.standard.bool(forKey: "use_device_tts") {
         didSet { UserDefaults.standard.set(useDeviceTTS, forKey: "use_device_tts") }
     }
+    /// Glasses display HUD (Ray-Ban Display): live transcript, replies,
+    /// status on the lens. Default on; harmless on non-display glasses.
+    var displayHUDEnabled: Bool =
+        (UserDefaults.standard.object(forKey: "display_hud_enabled") as? Bool) ?? true {
+        didSet {
+            UserDefaults.standard.set(displayHUDEnabled, forKey: "display_hud_enabled")
+            if !displayHUDEnabled {
+                displayManager.stop()
+            } else if let session = deviceSession {
+                displayManager.start(session: session)
+            }
+        }
+    }
+    /// Silent mode: when the display is attached, show the reply as text
+    /// instead of speaking it. No effect while the display is unavailable.
+    var displaySilentMode: Bool =
+        UserDefaults.standard.bool(forKey: "display_silent_mode") {
+        didSet {
+            UserDefaults.standard.set(displaySilentMode, forKey: "display_silent_mode")
+        }
+    }
+    /// Mirror of the display manager's status for SwiftUI
+    var displayStatus: DisplayHUDStatus = .off
     /// Bridge server vs direct Claude API from the phone
     var backend: AssistantBackend = AssistantBackend(
         rawValue: UserDefaults.standard.string(forKey: "assistant_backend") ?? ""
@@ -124,6 +147,7 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let speechRecognizer = HermesSpeechRecognizer()
     @ObservationIgnored private let speechSynthesizer = HermesSpeechSynthesizer()
     @ObservationIgnored private let claudeClient = ClaudeDirectClient()
+    @ObservationIgnored private let displayManager = HermesDisplayManager()
     @ObservationIgnored private var pendingPhoto: Data?
     @ObservationIgnored private var lastDirectPhotoAt: Date?
 
@@ -260,6 +284,31 @@ final class HermesSessionViewModel {
         // Surface camera permission state early (non-interactive)
         Task { await ensureCameraPermission(interactive: false) }
 
+        // Display HUD (Ray-Ban Display glasses) — best-effort, shares the
+        // same device session as the camera
+        displayManager.onDebug = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.apiClient?.sendDebug(message)
+            }
+        }
+        displayManager.onStatusChanged = { [weak self] newStatus in
+            self?.displayStatus = newStatus
+        }
+        displayManager.onStop = { [weak self] in
+            self?.interruptSpeech()
+        }
+        displayManager.onRepeat = { [weak self] in
+            self?.repeatLastReply()
+        }
+        displayManager.onNewChat = { [weak self] in
+            guard let self else { return }
+            self.startNewConversation()
+            self.displayManager.showNewConversationFlash()
+        }
+        if displayHUDEnabled {
+            displayManager.start(session: session)
+        }
+
         // 2. Connect the brain. Claude Direct needs no server at all —
         // skip the bridge entirely.
         if backend == .claudeDirect {
@@ -290,13 +339,15 @@ final class HermesSessionViewModel {
                 // On-device TTS: speak immediately unless the bridge is
                 // about to stream its own audio (legacy flag)
                 if !bridgeWillSendAudio {
-                    self.connectionState = .speaking
-                    self.speechSynthesizer.speak(text)
-                    if self.audioManager.isUsingBluetoothInput {
-                        // Glasses echo-cancel their own speaker: voice
-                        // barge-in stays available while Hermes talks
-                        self.speechRecognizer.isSuspended = false
-                    }
+                    self.presentReply(text)
+                } else {
+                    // Bridge will stream its own TTS — show the card now,
+                    // Stop button active while it plays
+                    self.displayManager.showReply(
+                        text: HermesDisplayLogic.truncateReply(text),
+                        speaking: true,
+                        dwellSeconds: nil
+                    )
                 }
             }
         }
@@ -335,6 +386,7 @@ final class HermesSessionViewModel {
                 self.lastTranscript = ""
                 self.lastResponse = ""
                 self.liveTranscript = ""
+                self.displayManager.showNewConversationFlash()
             }
         }
         client.onCapturePhotoRequested = { [weak self] in
@@ -350,6 +402,7 @@ final class HermesSessionViewModel {
                     return
                 }
                 do {
+                    self.displayManager.showPhotoCaptured()
                     let photo = try await self.cameraManager.capturePhoto()
                     self.pendingPhoto = photo
                     self.apiClient?.sendPhoto(photo)
@@ -384,6 +437,7 @@ final class HermesSessionViewModel {
         audioManager.onPlaybackComplete = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.displayManager.replySpeakingFinished()
                 if case .speaking = self.connectionState {
                     self.connectionState = .listening
                 }
@@ -399,6 +453,7 @@ final class HermesSessionViewModel {
         speechSynthesizer.onFinished = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.displayManager.replySpeakingFinished()
                 if case .speaking = self.connectionState {
                     self.connectionState = .listening
                 }
@@ -414,11 +469,13 @@ final class HermesSessionViewModel {
                 // are hearing Hermes's own voice
                 guard !self.isEchoOfResponse(text) else { return }
                 self.liveTranscript = text
+                self.displayManager.showListening(partial: text)
                 if text.split(separator: " ").count >= 2 {
                     self.interruptSpeech()
                 }
             } else {
                 self.liveTranscript = text
+                self.displayManager.showListening(partial: text)
             }
         }
         speechRecognizer.onFinal = { [weak self] text in
@@ -459,6 +516,7 @@ final class HermesSessionViewModel {
             liveTranscript = ""
             lastTranscript = trimmed
             connectionState = .processing
+            displayManager.showThinking(query: trimmed)
             speechRecognizer.isSuspended = true
             Task { await askClaudeDirect(trimmed) }
         } else {
@@ -466,9 +524,13 @@ final class HermesSessionViewModel {
             liveTranscript = ""
             lastTranscript = trimmed
             connectionState = .processing
+            displayManager.showThinking(query: trimmed)
             // Pause recognition so the mic doesn't transcribe Hermes's TTS
             speechRecognizer.isSuspended = true
-            apiClient?.sendQuery(trimmed, bridgeTTS: !useDeviceTTS)
+            apiClient?.sendQuery(
+                trimmed,
+                bridgeTTS: !useDeviceTTS && !displaySilentActive
+            )
         }
     }
 
@@ -479,6 +541,7 @@ final class HermesSessionViewModel {
         if VisualQueryDetector.shouldCapturePhoto(text, lastPhotoAt: lastDirectPhotoAt),
            isGlassesConnected,
            await ensureCameraPermission(interactive: false) {
+            displayManager.showPhotoCaptured()
             photo = try? await cameraManager.capturePhoto()
             if photo != nil {
                 lastDirectPhotoAt = Date()
@@ -490,16 +553,12 @@ final class HermesSessionViewModel {
             let reply = try await claudeClient.ask(text, photoJPEG: photo)
             lastResponse = reply
             addTurn(userText: text, agentText: reply)
-            connectionState = .speaking
-            speechSynthesizer.speak(reply)
-            if audioManager.isUsingBluetoothInput {
-                // Glasses echo-cancel their own speaker — barge-in stays on
-                speechRecognizer.isSuspended = false
-            }
+            presentReply(reply)
         } catch {
             show(error.localizedDescription)
             connectionState = .listening
             speechRecognizer.isSuspended = false
+            displayManager.clear()
         }
     }
 
@@ -524,6 +583,7 @@ final class HermesSessionViewModel {
             lastTranscript = ""
             lastResponse = ""
             liveTranscript = ""
+            displayManager.showNewConversationFlash()
         } else {
             apiClient?.sendNewSession()
         }
@@ -539,6 +599,43 @@ final class HermesSessionViewModel {
         } else {
             audioManager.stopPlayback()
         }
+    }
+
+    /// Silent mode is only honored while the lens can actually show text.
+    private var displaySilentActive: Bool {
+        displaySilentMode && displayStatus == .connected
+    }
+
+    /// Single reply path for both brains: lens card + (unless silent) TTS.
+    private func presentReply(_ text: String) {
+        let shown = HermesDisplayLogic.truncateReply(text)
+        if displaySilentActive {
+            displayManager.showReply(
+                text: shown,
+                speaking: false,
+                dwellSeconds: HermesDisplayLogic.readingDwellSeconds(
+                    charCount: shown.count
+                )
+            )
+            // Nothing spoken → nothing to echo; listen again immediately
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+        } else {
+            connectionState = .speaking
+            displayManager.showReply(text: shown, speaking: true, dwellSeconds: nil)
+            speechSynthesizer.speak(text)
+            if audioManager.isUsingBluetoothInput {
+                // Glasses echo-cancel their own speaker — barge-in stays on
+                speechRecognizer.isSuspended = false
+            }
+        }
+    }
+
+    /// On-lens Repeat button: re-speak (or re-show, in silent mode).
+    func repeatLastReply() {
+        guard !lastResponse.isEmpty else { return }
+        if case .speaking = connectionState { return }
+        presentReply(lastResponse)
     }
 
     /// True when a partial heard during .speaking is (part of) Hermes's own
@@ -586,6 +683,8 @@ final class HermesSessionViewModel {
         sessionObserverTask = nil
         speechSynthesizer.stop()
         speechRecognizer.stop()
+        displayManager.stop()
+        displayStatus = .off
         liveTranscript = ""
         micLevel = 0
         audioManager.stopCapture()
@@ -744,6 +843,24 @@ final class HermesSessionViewModel {
                 throw TestFailure("Glasses not connected")
             }
             submitQuery("What am I looking at? Answer in one short sentence.")
+        }
+    }
+
+    /// Attach (if needed) and push a static screen to the lens
+    func testDisplay() async {
+        await runTest("Display") { [self] in
+            guard let session = deviceSession else {
+                throw TestFailure("Start a session first (needs glasses)")
+            }
+            if displayManager.status != .connected {
+                displayManager.stop()
+                displayManager.start(session: session)
+            }
+            // Attach is async — wait up to 5 s for the capability
+            for _ in 0..<50 where displayManager.status != .connected {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            try await displayManager.sendTest()
         }
     }
 
