@@ -89,6 +89,12 @@ DEICTIC_STOP_NOUNS = {
     "session", "app", "voice", "sound", "response", "reply", "much",
     "long", "short", "many", "far", "fast", "slow", "bit", "lot", "kind",
     "sort", "type",
+    # Auxiliary/copular verbs: "this is a test", "that was fun" are not
+    # about anything visible
+    "is", "was", "are", "were", "be", "being", "been", "isn", "wasn",
+    "will", "would", "can", "could", "should", "might", "may", "must",
+    "does", "did", "done", "has", "had", "have", "gets", "got", "goes",
+    "went", "seems", "means", "works", "sounds", "feels", "happened",
 }
 
 

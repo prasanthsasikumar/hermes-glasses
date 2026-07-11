@@ -38,6 +38,10 @@ class TestIsVisualQuery(unittest.TestCase):
         # ...but meta/degree deictics never capture
         self.assertFalse(should_capture_photo("do you always talk this much", 0.0, 1000.0))
         self.assertFalse(should_capture_photo("keep it short like this answer", 0.0, 1000.0))
+        # auxiliary verbs after this/that must not trigger
+        self.assertFalse(should_capture_photo("hi this is a test", 0.0, 1000.0))
+        self.assertFalse(should_capture_photo("that was great", 0.0, 1000.0))
+        self.assertFalse(should_capture_photo("this should work now", 0.0, 1000.0))
 
 
 class FakeWebSocket:

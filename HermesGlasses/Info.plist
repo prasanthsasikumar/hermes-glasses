@@ -87,6 +87,15 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Hermes Glasses connects to the Hermes bridge running on your Mac over the local network.</string>
 
+	<!-- The bridge protocol is cleartext WebSocket (ws://). ATS blocks
+	     cleartext to PUBLIC hosts by default (local network was exempt),
+	     which silently broke every remote-bridge connection. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+
 	<!-- On-device live transcription -->
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Hermes Glasses transcribes your speech on this device so your words appear instantly as you talk.</string>
