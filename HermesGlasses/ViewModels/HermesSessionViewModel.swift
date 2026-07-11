@@ -306,6 +306,9 @@ final class HermesSessionViewModel {
             self.displayManager.showNewConversationFlash()
         }
         if displayHUDEnabled {
+            // stop() first: a standalone Display test may still hold an
+            // attachment to its temporary session
+            displayManager.stop()
             displayManager.start(session: session)
         }
 
@@ -475,7 +478,14 @@ final class HermesSessionViewModel {
                 }
             } else {
                 self.liveTranscript = text
-                self.displayManager.showListening(partial: text)
+                // A late partial can trail the finalized utterance — don't
+                // let it overwrite the Thinking screen on the lens
+                switch self.connectionState {
+                case .listening, .recording:
+                    self.displayManager.showListening(partial: text)
+                default:
+                    break
+                }
             }
         }
         speechRecognizer.onFinal = { [weak self] text in
@@ -848,21 +858,55 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Attach (if needed) and push a static screen to the lens
+    /// Attach (if needed) and push a static screen to the lens. Works
+    /// without a Hermes session: spins up a temporary device session just
+    /// for the test and tears it down after a few seconds.
     func testDisplay() async {
         await runTest("Display") { [self] in
-            guard let session = deviceSession else {
-                throw TestFailure("Start a session first (needs glasses)")
+            if let session = deviceSession {
+                if displayManager.status != .connected {
+                    displayManager.stop()
+                    displayManager.start(session: session)
+                }
+                // Attach is async — wait up to 5 s for the capability
+                for _ in 0..<50 where displayManager.status != .connected {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+                try await displayManager.sendTest()
+                return
             }
-            if displayManager.status != .connected {
+
+            // No session: temporary one, display only
+            let session = try wearables.createSession(deviceSelector: deviceSelector)
+            do {
+                try session.start()
+                for _ in 0..<50 where session.state != .started {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+                guard session.state == .started else {
+                    throw TestFailure("Glasses didn't respond (check they're awake and connected in Meta AI)")
+                }
                 displayManager.stop()
                 displayManager.start(session: session)
+                for _ in 0..<50 where displayManager.status != .connected {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+                try await displayManager.sendTest()
+            } catch {
+                displayManager.stop()
+                session.stop()
+                throw error
             }
-            // Attach is async — wait up to 5 s for the capability
-            for _ in 0..<50 where displayManager.status != .connected {
-                try await Task.sleep(nanoseconds: 100_000_000)
+            // Leave the test screen up briefly, then tear down — unless a
+            // real session started meanwhile (it re-attaches the display
+            // to its own session in startSession)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                if let self, self.deviceSession == nil {
+                    self.displayManager.stop()
+                }
+                session.stop()
             }
-            try await displayManager.sendTest()
         }
     }
 

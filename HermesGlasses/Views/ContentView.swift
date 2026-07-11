@@ -444,7 +444,10 @@ struct ContentView: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
+                spacing: 8
+            ) {
                 testButton("Bridge") { await hermesVM.testBridge() }
                 testButton("Sound") { await hermesVM.testSound() }
                 testButton("Photo") { await hermesVM.testPhoto() }
@@ -484,6 +487,7 @@ struct ContentView: View {
                 }
                 Text(name)
                     .font(.caption)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
