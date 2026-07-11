@@ -100,11 +100,12 @@ final class HermesDisplayManager {
         pendingView = nil
         lastReplyText = ""
         status = .off
-        if let display {
-            display.stop()  // .stopped arrives on the stream → cleanup()
-        } else {
-            cleanup()
-        }
+        display?.stop()
+        // Tear down synchronously — waiting for the async .stopped event
+        // leaves `display` non-nil, and a quick start() would then bail on
+        // its guard and never re-attach. cleanup() is idempotent, so the
+        // late .stopped event (stream already finished) is harmless.
+        cleanup()
     }
 
     private func cleanup() {
