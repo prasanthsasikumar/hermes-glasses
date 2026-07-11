@@ -32,6 +32,10 @@ photo via the DAT camera API.
 - **WebSocket frames:** binary from app = mic audio (legacy). Photos travel
   ONLY as base64 JSON. The bridge runs `websockets.serve(..., max_size=16MiB)`
   because a base64 JPEG exceeds the 1 MiB default.
+- **Display HUD (Ray-Ban Display):** `HermesDisplayManager` attaches
+  `addDisplay()` to the SAME DeviceSession as the camera. Every display
+  call is best-effort — errors are logged, never surfaced. Settings keys:
+  `display_hud_enabled` (default true), `display_silent_mode`.
 
 ## Build & run
 

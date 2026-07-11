@@ -450,6 +450,7 @@ struct ContentView: View {
                 testButton("Photo") { await hermesVM.testPhoto() }
                 testButton("Query") { await hermesVM.testQuery() }
                 testButton("Visual") { await hermesVM.testVisualQuery() }
+                testButton("Display") { await hermesVM.testDisplay() }
             }
 
             // Most recent failure message, if any
@@ -740,6 +741,22 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Show HUD on glasses", isOn: Binding(
+                        get: { hermesVM.displayHUDEnabled },
+                        set: { hermesVM.displayHUDEnabled = $0 }
+                    ))
+                    Toggle("Silent mode (read, don't speak)", isOn: Binding(
+                        get: { hermesVM.displaySilentMode },
+                        set: { hermesVM.displaySilentMode = $0 }
+                    ))
+                    .disabled(!hermesVM.displayHUDEnabled)
+                } header: {
+                    Text("Glasses Display")
+                } footer: {
+                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it — handy in meetings.")
+                }
+
+                Section {
                     LabeledContent("Registration", value: registrationText)
                     LabeledContent(
                         "Devices seen by SDK",
@@ -749,6 +766,7 @@ struct SettingsView: View {
                         "Camera permission",
                         value: cameraPermissionText
                     )
+                    LabeledContent("Display", value: displayStatusText)
                     Button("Re-pair Glasses", role: .destructive) {
                         Task { await wearablesVM.repairGlasses() }
                     }
@@ -824,6 +842,15 @@ struct SettingsView: View {
         case .some(true): return "Granted"
         case .some(false): return "Denied — tap Photo test to grant"
         case .none: return "Unknown (start a session)"
+        }
+    }
+
+    private var displayStatusText: String {
+        switch hermesVM.displayStatus {
+        case .off: return hermesVM.displayHUDEnabled ? "Off (no session)" : "Disabled"
+        case .connecting: return "Connecting…"
+        case .connected: return "Connected"
+        case .unavailable(let reason): return "Unavailable — \(reason)"
         }
     }
 }
