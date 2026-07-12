@@ -140,7 +140,7 @@ Key status: Saved in Keychain / Not set
 
 ## Workstream B — Public-readiness cleanup
 
-- **Hardcoded LAN IP:** replace the three `ws://192.168.1.16:8765/voice`
+- **Hardcoded LAN IP:** replace the three `ws://<personal-lan-ip>:8765/voice`
   defaults in `HermesSessionViewModel` with an empty preset set (no default
   preset) or a neutral `ws://YOUR-MAC-IP:8765/voice` placeholder, so the repo
   ships no personal network address.
