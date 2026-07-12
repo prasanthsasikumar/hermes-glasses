@@ -241,6 +241,9 @@ class TestShouldCapturePhoto(unittest.TestCase):
         self.assertFalse(should_capture_photo("tell me a joke", 0.0, 1000.0))
 
 
+# Tests for the retained legacy SDK helper (ask_claude / build_claude_user_content
+# / trim_claude_history) — not on the live request path, which now goes through
+# ask_provider()/build_provider_request(); kept for reference.
 class TestClaudeBrain(unittest.TestCase):
     def test_user_content_text_only(self):
         from hermes_bridge import build_claude_user_content
@@ -294,6 +297,15 @@ class ProviderRequestTests(unittest.TestCase):
         self.assertEqual(headers["x-api-key"], "sk-ant")
         self.assertEqual(body["model"], "claude-opus-4-8")
 
+    def test_anthropic_request_has_persona_system_prompt(self):
+        from hermes_bridge import CLAUDE_SYSTEM
+        _, _, body = build_provider_request(
+            "anthropic", "claude-opus-4-8", "https://api.anthropic.com",
+            "sk-ant", "hello", None)
+        self.assertIsInstance(body["system"], str)
+        self.assertTrue(body["system"])
+        self.assertEqual(body["system"], CLAUDE_SYSTEM)
+
     def test_openai_request_shape_with_image(self):
         url, headers, body = build_provider_request(
             "openai", "gpt-4o", "https://api.openai.com", "sk-oai", "look", "QUJD")
@@ -302,11 +314,26 @@ class ProviderRequestTests(unittest.TestCase):
         content = body["messages"][-1]["content"]
         self.assertTrue(any(p.get("type") == "image_url" for p in content))
 
+    def test_openai_request_has_persona_system_message_first(self):
+        from hermes_bridge import CLAUDE_SYSTEM
+        _, _, body = build_provider_request(
+            "openai", "gpt-4o", "https://api.openai.com", "sk-oai", "look", None)
+        self.assertEqual(body["messages"][0],
+                          {"role": "system", "content": CLAUDE_SYSTEM})
+
     def test_gemini_request_shape(self):
         url, headers, body = build_provider_request(
             "gemini", "gemini-2.5-flash",
             "https://generativelanguage.googleapis.com", "g-key", "hi", None)
         self.assertIn(":generateContent?key=g-key", url)
+
+    def test_gemini_request_has_persona_system_instruction(self):
+        _, _, body = build_provider_request(
+            "gemini", "gemini-2.5-flash",
+            "https://generativelanguage.googleapis.com", "g-key", "hi", None)
+        text = body["systemInstruction"]["parts"][0]["text"]
+        self.assertIsInstance(text, str)
+        self.assertTrue(text)
 
     def test_parse_replies(self):
         self.assertEqual(

@@ -82,8 +82,15 @@ def _canon_brain(brain):
     return "anthropic" if brain == "claude" else brain
 
 
-def build_provider_request(brain, model, base_url, api_key, prompt, image_b64):
-    """Return (url, headers, body_dict) for a one-shot chat+vision request."""
+def build_provider_request(brain, model, base_url, api_key, prompt, image_b64,
+                            system=None):
+    """Return (url, headers, body_dict) for a one-shot chat+vision request.
+
+    `system` defaults to CLAUDE_SYSTEM (the voice persona: 1-3 spoken
+    sentences) so provider-brain answers stay voice-optimized, same as the
+    legacy ask_claude() path.
+    """
+    system = system if system is not None else CLAUDE_SYSTEM
     brain = _canon_brain(brain)
     headers = {"Content-Type": "application/json"}
     if brain == "anthropic":
@@ -94,7 +101,7 @@ def build_provider_request(brain, model, base_url, api_key, prompt, image_b64):
         content.append({"type": "text", "text": prompt})
         headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
-        body = {"model": model, "max_tokens": 1024,
+        body = {"model": model, "max_tokens": 1024, "system": system,
                 "messages": [{"role": "user", "content": content}]}
         return base_url + "/v1/messages", headers, body
     if brain == "openai":
@@ -107,14 +114,16 @@ def build_provider_request(brain, model, base_url, api_key, prompt, image_b64):
         if api_key:
             headers["Authorization"] = "Bearer " + api_key
         body = {"model": model, "max_tokens": 1024,
-                "messages": [{"role": "user", "content": content}]}
+                "messages": [{"role": "system", "content": system},
+                             {"role": "user", "content": content}]}
         return base_url + "/v1/chat/completions", headers, body
     if brain == "gemini":
         parts = []
         if image_b64:
             parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_b64}})
         parts.append({"text": prompt})
-        body = {"contents": [{"role": "user", "parts": parts}]}
+        body = {"contents": [{"role": "user", "parts": parts}],
+                "systemInstruction": {"parts": [{"text": system}]}}
         url = "%s/v1beta/models/%s:generateContent?key=%s" % (base_url, model, api_key)
         return url, headers, body
     raise ValueError("unknown brain: %s" % brain)
@@ -344,6 +353,9 @@ def build_claude_user_content(text: str, photo: bytes | None) -> list:
     return content
 
 
+# Retained legacy SDK helper — no longer on the request path (provider
+# brains now go through ask_provider()/build_provider_request()); kept for
+# reference and its tested same-day history helpers.
 def ask_claude(text: str, photo: bytes | None = None) -> str | None:
     """Answer via the Claude API with same-day conversation memory.
 

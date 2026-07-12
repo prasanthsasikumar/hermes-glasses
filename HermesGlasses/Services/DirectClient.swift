@@ -26,12 +26,20 @@ final class DirectClient: @unchecked Sendable {
     }
 
     static func baseURL(for provider: AIProvider) -> String {
+        let resolved: String
         if provider.allowsCustomBaseURL,
            let custom = UserDefaults.standard.string(forKey: "direct_base_url_\(provider.id)"),
            !custom.isEmpty {
-            return custom
+            resolved = custom
+        } else {
+            resolved = provider.defaultBaseURL
         }
-        return provider.defaultBaseURL
+        // Trim a trailing "/" so "http://localhost:11434/" doesn't produce
+        // a doubled slash when a path is appended (…//v1/...).
+        if resolved.hasSuffix("/") {
+            return String(resolved.dropLast())
+        }
+        return resolved
     }
 
     // MARK: - Keychain (per-provider API key)
