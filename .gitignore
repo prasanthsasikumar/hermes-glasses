@@ -18,8 +18,9 @@ bridge/__pycache__/
 *.pyc
 nohup.out
 
-# Superpowers scratch
+# Superpowers scratch (personal paths / device UDIDs — keep local only)
 .superpowers/
+docs/superpowers/plans/
 
 # Xcode user state (any depth)
 **/xcuserdata/

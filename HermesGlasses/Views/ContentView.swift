@@ -62,8 +62,9 @@ struct ContentView: View {
             statusChip("Glasses", dot: glassesDotColor)
 
             // Bridge reachability (or Claude key status in direct mode)
-            if hermesVM.backend == .claudeDirect {
-                statusChip("Claude", dot: hermesVM.hasClaudeKey ? .green : .red)
+            if hermesVM.backend == .direct {
+                statusChip(hermesVM.directProvider.displayName,
+                           dot: (!hermesVM.directProvider.requiresKey || hermesVM.hasDirectKey) ? .green : .red)
             } else {
                 Button {
                     Task { await hermesVM.checkBridge() }
@@ -587,7 +588,7 @@ struct ContentView: View {
 
     /// Who the user is talking to, per the selected backend
     private var assistantName: String {
-        hermesVM.backend == .claudeDirect ? "Claude" : "Hermes"
+        hermesVM.backend == .direct ? hermesVM.directProvider.displayName : "Hermes"
     }
 }
 
@@ -640,39 +641,53 @@ struct SettingsView: View {
             Form {
                 Section {
                     Picker("Backend", selection: Binding(
-                        get: { hermesVM.backend },
-                        set: { hermesVM.backend = $0 }
-                    )) {
-                        ForEach(AssistantBackend.allCases, id: \.self) { b in
-                            Text(b.label).tag(b)
-                        }
+                        get: { hermesVM.backend }, set: { hermesVM.backend = $0 })) {
+                        ForEach(AssistantBackend.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
-                    if hermesVM.backend == .claudeDirect {
-                        Picker("Model", selection: Binding(
-                            get: { hermesVM.claudeModel },
-                            set: { hermesVM.claudeModel = $0 }
-                        )) {
-                            ForEach(ClaudeModel.allCases, id: \.self) { m in
-                                Text(m.label).tag(m)
+                    if hermesVM.backend == .direct {
+                        Picker("Provider", selection: Binding(
+                            get: { hermesVM.directProviderID },
+                            set: { hermesVM.directProviderID = $0 })) {
+                            ForEach(AIProviderRegistry.all, id: \.id) { p in
+                                Text(p.displayName).tag(p.id)
                             }
                         }
-                        SecureField("Claude API key (sk-ant-…)", text: $claudeKey)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                            .onSubmit {
-                                hermesVM.setClaudeKey(claudeKey)
-                                claudeKey = ""
+                        if hermesVM.directProvider.allowsCustomBaseURL {
+                            TextField("Base URL", text: Binding(
+                                get: { hermesVM.directBaseURL },
+                                set: { hermesVM.directBaseURL = $0 }))
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.URL)
+                        }
+                        Picker("Model", selection: Binding(
+                            get: { hermesVM.directModel },
+                            set: { hermesVM.directModel = $0 })) {
+                            ForEach(hermesVM.directProvider.curatedModels, id: \.id) { m in
+                                Text(m.label).tag(m.id)
                             }
-                        LabeledContent(
-                            "Key status",
-                            value: hermesVM.hasClaudeKey ? "Saved in Keychain" : "Not set"
-                        )
+                            // Allow a stored custom model to remain selectable
+                            if !hermesVM.directProvider.curatedModels.contains(where: { $0.id == hermesVM.directModel }) {
+                                Text(hermesVM.directModel).tag(hermesVM.directModel)
+                            }
+                        }
+                        if hermesVM.directProvider.requiresKey {
+                            SecureField("\(hermesVM.directProvider.displayName) API key", text: $claudeKey)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .onSubmit {
+                                    hermesVM.setProviderKey(claudeKey)
+                                    claudeKey = ""
+                                }
+                            LabeledContent("Key status",
+                                value: hermesVM.hasDirectKey ? "Saved in Keychain" : "Not set")
+                        }
                     }
                 } header: {
                     Text("Assistant")
                 } footer: {
-                    if hermesVM.backend == .claudeDirect {
-                        Text("Direct mode needs no server — works anywhere, uses the iPhone voice. Applies from the next session.")
+                    if hermesVM.backend == .direct {
+                        Text("Direct mode needs no server — the phone calls \(hermesVM.directProvider.displayName) with your key. Applies from the next session.")
                     }
                 }
 
@@ -845,7 +860,7 @@ struct SettingsView: View {
                 // Swipe-dismiss must not silently discard typed values
                 hermesVM.setEndpoint(endpoint)
                 if !claudeKey.trimmingCharacters(in: .whitespaces).isEmpty {
-                    hermesVM.setClaudeKey(claudeKey)
+                    hermesVM.setProviderKey(claudeKey)
                 }
             }
             .alert("Save preset", isPresented: $showSavePreset) {
