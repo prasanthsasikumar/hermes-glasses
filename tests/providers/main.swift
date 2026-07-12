@@ -124,5 +124,33 @@ do {
     catch { expect(true, "openai error throws") }
 }
 
+// ── GeminiProvider ──────────────────────────────────────────────────────
+do {
+    let p = GeminiProvider()
+    expectEqual(p.id, "gemini", "gemini id")
+    let req = AIRequest(systemPrompt: "SYS", contextLine: "ctx",
+        history: [Turn(role: "assistant", text: "earlier")], userText: "hello",
+        imageJPEG: Data([0xFF, 0xD8]), model: "gemini-2.5-flash",
+        baseURL: p.defaultBaseURL, apiKey: "g-key")
+    let ur = try! p.buildRequest(req)
+    expectEqual(ur.url!.absoluteString,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=g-key",
+        "gemini url with key query")
+    let body = bodyJSON(ur)
+    let sys = (body["systemInstruction"] as? [String: Any])?["parts"] as? [[String: Any]] ?? []
+    expect((sys.first?["text"] as? String)?.contains("Current user context: ctx") ?? false,
+           "gemini system instruction has context")
+    let contents = body["contents"] as? [[String: Any]] ?? []
+    expectEqual(contents.first?["role"] as? String, "model", "gemini maps assistant→model")
+    let lastParts = contents.last?["parts"] as? [[String: Any]] ?? []
+    expect(lastParts.contains { ($0["inline_data"] as? [String: Any]) != nil }, "gemini inline_data present")
+
+    let ok = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"yo\"}]}}]}".data(using: .utf8)!
+    expectEqual(try! p.parseReply(ok, status: 200), "yo", "gemini parse success")
+    let err = "{\"error\":{\"message\":\"bad\"}}".data(using: .utf8)!
+    do { _ = try p.parseReply(err, status: 400); expect(false, "gemini error throws") }
+    catch { expect(true, "gemini error throws") }
+}
+
 if failures > 0 { print("\(failures) test(s) FAILED"); exit(1) }
 print("All provider tests passed")
