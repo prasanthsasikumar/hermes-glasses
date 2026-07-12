@@ -40,5 +40,45 @@ let t = Turn(role: "user", text: "hi")
 let td = try! JSONEncoder().encode(t)
 expectEqual(try! JSONDecoder().decode(Turn.self, from: td), t, "Turn codable round-trip")
 
+// ── AnthropicProvider ───────────────────────────────────────────────────
+do {
+    let p = AnthropicProvider()
+    expectEqual(p.id, "anthropic", "anthropic id")
+    expect(p.requiresKey, "anthropic requires key")
+    expect(!p.allowsCustomBaseURL, "anthropic no custom base url")
+
+    let req = AIRequest(
+        systemPrompt: "SYS", contextLine: "ctx", history: [Turn(role: "user", text: "prev")],
+        userText: "hello", imageJPEG: Data([0xFF, 0xD8]), model: "claude-opus-4-8",
+        baseURL: p.defaultBaseURL, apiKey: "sk-ant-xyz")
+    let ur = try! p.buildRequest(req)
+    expectEqual(ur.url!.absoluteString, "https://api.anthropic.com/v1/messages", "anthropic url")
+    expectEqual(ur.value(forHTTPHeaderField: "x-api-key"), "sk-ant-xyz", "anthropic x-api-key")
+    expectEqual(ur.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01", "anthropic version header")
+    let body = bodyJSON(ur)
+    expectEqual(body["model"] as? String, "claude-opus-4-8", "anthropic model in body")
+    let sys = body["system"] as? [[String: Any]] ?? []
+    expectEqual(sys.count, 2, "anthropic system has persona + context blocks")
+    expect((sys.first?["cache_control"] as? [String: Any]) != nil, "anthropic persona block cached")
+    let msgs = body["messages"] as? [[String: Any]] ?? []
+    expectEqual(msgs.count, 2, "anthropic history + new user msg")
+    let last = msgs.last?["content"] as? [[String: Any]] ?? []
+    expect(last.contains { $0["type"] as? String == "image" }, "anthropic image block present")
+
+    // parse success
+    let ok = "{\"content\":[{\"type\":\"text\",\"text\":\"hi there\"}]}".data(using: .utf8)!
+    expectEqual(try! p.parseReply(ok, status: 200), "hi there", "anthropic parse success")
+    // parse 401
+    let err = "{\"error\":{\"message\":\"bad key\"}}".data(using: .utf8)!
+    do { _ = try p.parseReply(err, status: 401); expect(false, "anthropic 401 throws") }
+    catch { expect(true, "anthropic 401 throws") }
+
+    // missing key
+    let noKey = AIRequest(systemPrompt: "S", contextLine: nil, history: [], userText: "x",
+                          imageJPEG: nil, model: "m", baseURL: p.defaultBaseURL, apiKey: nil)
+    do { _ = try p.buildRequest(noKey); expect(false, "anthropic missing key throws") }
+    catch { expect(true, "anthropic missing key throws") }
+}
+
 if failures > 0 { print("\(failures) test(s) FAILED"); exit(1) }
 print("All provider tests passed")
