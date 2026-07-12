@@ -80,5 +80,49 @@ do {
     catch { expect(true, "anthropic missing key throws") }
 }
 
+// ── OpenAICompatibleProvider ────────────────────────────────────────────
+do {
+    let p = OpenAICompatibleProvider.openAI
+    expectEqual(p.id, "openai", "openai id")
+    expect(p.allowsCustomBaseURL, "openai allows custom base url")
+    let o = OpenAICompatibleProvider.ollama
+    expectEqual(o.id, "ollama", "ollama id")
+    expect(!o.requiresKey, "ollama needs no key")
+
+    // Text-only request → string content, Bearer header
+    let req = AIRequest(systemPrompt: "SYS", contextLine: "ctx",
+        history: [Turn(role: "assistant", text: "earlier")], userText: "hello",
+        imageJPEG: nil, model: "gpt-4o", baseURL: p.defaultBaseURL, apiKey: "sk-oai")
+    let ur = try! p.buildRequest(req)
+    expectEqual(ur.url!.absoluteString, "https://api.openai.com/v1/chat/completions", "openai url")
+    expectEqual(ur.value(forHTTPHeaderField: "Authorization"), "Bearer sk-oai", "openai bearer header")
+    let msgs = bodyJSON(ur)["messages"] as? [[String: Any]] ?? []
+    expectEqual(msgs.first?["role"] as? String, "system", "openai first msg is system")
+    expect((msgs.first?["content"] as? String)?.contains("Current user context: ctx") ?? false,
+           "openai context folded into system")
+    expect(msgs.last?["content"] is String, "openai text-only content is a string")
+
+    // Image request → array content with image_url data URI
+    let vreq = AIRequest(systemPrompt: "S", contextLine: nil, history: [], userText: "look",
+        imageJPEG: Data([0xFF, 0xD8]), model: "gpt-4o", baseURL: p.defaultBaseURL, apiKey: "k")
+    let vmsgs = bodyJSON(try! p.buildRequest(vreq))["messages"] as? [[String: Any]] ?? []
+    let vcontent = vmsgs.last?["content"] as? [[String: Any]] ?? []
+    expect(vcontent.contains { $0["type"] as? String == "image_url" }, "openai image_url present")
+
+    // Ollama: no key → no Authorization header, still builds
+    let oreq = AIRequest(systemPrompt: "S", contextLine: nil, history: [], userText: "hi",
+        imageJPEG: nil, model: "llama3.2", baseURL: o.defaultBaseURL, apiKey: nil)
+    let our = try! o.buildRequest(oreq)
+    expectEqual(our.url!.absoluteString, "http://localhost:11434/v1/chat/completions", "ollama url")
+    expect(our.value(forHTTPHeaderField: "Authorization") == nil, "ollama no auth header")
+
+    // parse
+    let ok = "{\"choices\":[{\"message\":{\"content\":\"hey\"}}]}".data(using: .utf8)!
+    expectEqual(try! p.parseReply(ok, status: 200), "hey", "openai parse success")
+    let err = "{\"error\":{\"message\":\"nope\"}}".data(using: .utf8)!
+    do { _ = try p.parseReply(err, status: 400); expect(false, "openai error throws") }
+    catch { expect(true, "openai error throws") }
+}
+
 if failures > 0 { print("\(failures) test(s) FAILED"); exit(1) }
 print("All provider tests passed")
