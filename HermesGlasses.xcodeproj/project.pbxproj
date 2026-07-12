@@ -18,12 +18,16 @@
 		AAAA00000000000000000009 /* HermesCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000112 /* HermesCameraManager.swift */; };
 		AAAA00000000000000000010 /* HermesSpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000113 /* HermesSpeechRecognizer.swift */; };
 		AAAA00000000000000000011 /* HermesSpeechSynthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000114 /* HermesSpeechSynthesizer.swift */; };
-		AAAA00000000000000000012 /* ClaudeDirectClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000115 /* ClaudeDirectClient.swift */; };
+		AAAA00000000000000000012 /* DirectClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000115 /* DirectClient.swift */; };
 		AAAA00000000000000000013 /* HermesDisplayLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000116 /* HermesDisplayLogic.swift */; };
 		AAAA00000000000000000014 /* HermesDisplayScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000117 /* HermesDisplayScreens.swift */; };
 		AAAA00000000000000000015 /* HermesDisplayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000118 /* HermesDisplayManager.swift */; };
 		AAAA00000000000000000016 /* DeviceContextFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000119 /* DeviceContextFormatter.swift */; };
 		AAAA00000000000000000017 /* DeviceContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000120 /* DeviceContextProvider.swift */; };
+		AAAA00000000000000000018 /* AIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000121 /* AIProvider.swift */; };
+		AAAA00000000000000000019 /* AnthropicProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000122 /* AnthropicProvider.swift */; };
+		AAAA00000000000000000020 /* OpenAICompatibleProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000123 /* OpenAICompatibleProvider.swift */; };
+		AAAA00000000000000000021 /* GeminiProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000124 /* GeminiProvider.swift */; };
 		AAAA00000000000000000801 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000701 /* MWDATCore */; };
 		AAAA00000000000000000802 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000702 /* MWDATCamera */; };
 		AAAA00000000000000000803 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000703 /* MWDATMockDevice */; };
@@ -45,12 +49,16 @@
 		AAAA00000000000000000112 /* HermesCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesCameraManager.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000113 /* HermesSpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesSpeechRecognizer.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000114 /* HermesSpeechSynthesizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesSpeechSynthesizer.swift; sourceTree = "<group>"; };
-		AAAA00000000000000000115 /* ClaudeDirectClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDirectClient.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000115 /* DirectClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectClient.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000116 /* HermesDisplayLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesDisplayLogic.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000117 /* HermesDisplayScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesDisplayScreens.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000118 /* HermesDisplayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesDisplayManager.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000119 /* DeviceContextFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContextFormatter.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000120 /* DeviceContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContextProvider.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000121 /* AIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers/AIProvider.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000122 /* AnthropicProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers/AnthropicProvider.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000123 /* OpenAICompatibleProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers/OpenAICompatibleProvider.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000124 /* GeminiProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers/GeminiProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,12 +124,16 @@
 				AAAA00000000000000000112 /* HermesCameraManager.swift */,
 				AAAA00000000000000000113 /* HermesSpeechRecognizer.swift */,
 				AAAA00000000000000000114 /* HermesSpeechSynthesizer.swift */,
-				AAAA00000000000000000115 /* ClaudeDirectClient.swift */,
+				AAAA00000000000000000115 /* DirectClient.swift */,
 				AAAA00000000000000000116 /* HermesDisplayLogic.swift */,
 				AAAA00000000000000000117 /* HermesDisplayScreens.swift */,
 				AAAA00000000000000000118 /* HermesDisplayManager.swift */,
 				AAAA00000000000000000119 /* DeviceContextFormatter.swift */,
 				AAAA00000000000000000120 /* DeviceContextProvider.swift */,
+				AAAA00000000000000000121 /* AIProvider.swift */,
+				AAAA00000000000000000122 /* AnthropicProvider.swift */,
+				AAAA00000000000000000123 /* OpenAICompatibleProvider.swift */,
+				AAAA00000000000000000124 /* GeminiProvider.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -222,12 +234,16 @@
 				AAAA00000000000000000009 /* HermesCameraManager.swift in Sources */,
 				AAAA00000000000000000010 /* HermesSpeechRecognizer.swift in Sources */,
 				AAAA00000000000000000011 /* HermesSpeechSynthesizer.swift in Sources */,
-				AAAA00000000000000000012 /* ClaudeDirectClient.swift in Sources */,
+				AAAA00000000000000000012 /* DirectClient.swift in Sources */,
 				AAAA00000000000000000013 /* HermesDisplayLogic.swift in Sources */,
 				AAAA00000000000000000014 /* HermesDisplayScreens.swift in Sources */,
 				AAAA00000000000000000015 /* HermesDisplayManager.swift in Sources */,
 				AAAA00000000000000000016 /* DeviceContextFormatter.swift in Sources */,
 				AAAA00000000000000000017 /* DeviceContextProvider.swift in Sources */,
+				AAAA00000000000000000018 /* AIProvider.swift in Sources */,
+				AAAA00000000000000000019 /* AnthropicProvider.swift in Sources */,
+				AAAA00000000000000000020 /* OpenAICompatibleProvider.swift in Sources */,
+				AAAA00000000000000000021 /* GeminiProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
