@@ -24,6 +24,8 @@ import sys
 import tempfile
 import time
 import wave
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qs, urlparse
 
 try:
@@ -56,8 +58,118 @@ BRIDGE_TTS = os.environ.get("HERMES_BRIDGE_TTS", "") == "1"
 #                        slower: pays agent boot every question)
 #   "claude"           — call the Claude API directly (fast conversational
 #                        answers + vision; needs ANTHROPIC_API_KEY)
+#   "anthropic" / "openai" / "gemini" — call the provider's HTTP API
+#                        directly (fast conversational answers + vision;
+#                        needs the matching *_API_KEY). "claude" is kept as
+#                        an alias for "anthropic" (back-compat).
 BRAIN = os.environ.get("HERMES_BRIDGE_BRAIN", "hermes")
 CLAUDE_MODEL = os.environ.get("HERMES_BRIDGE_MODEL", "claude-opus-4-8")
+
+# ── Provider brains (direct API, BRAIN="anthropic"|"openai"|"gemini") ──────
+BASE_URLS = {
+    "anthropic": "https://api.anthropic.com",
+    "openai": "https://api.openai.com",
+    "gemini": "https://generativelanguage.googleapis.com",
+}
+PROVIDER_API_KEY_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
+
+def _canon_brain(brain):
+    return "anthropic" if brain == "claude" else brain
+
+
+def build_provider_request(brain, model, base_url, api_key, prompt, image_b64):
+    """Return (url, headers, body_dict) for a one-shot chat+vision request."""
+    brain = _canon_brain(brain)
+    headers = {"Content-Type": "application/json"}
+    if brain == "anthropic":
+        content = []
+        if image_b64:
+            content.append({"type": "image", "source": {
+                "type": "base64", "media_type": "image/jpeg", "data": image_b64}})
+        content.append({"type": "text", "text": prompt})
+        headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+        body = {"model": model, "max_tokens": 1024,
+                "messages": [{"role": "user", "content": content}]}
+        return base_url + "/v1/messages", headers, body
+    if brain == "openai":
+        if image_b64:
+            content = [{"type": "text", "text": prompt},
+                       {"type": "image_url", "image_url": {
+                           "url": "data:image/jpeg;base64," + image_b64}}]
+        else:
+            content = prompt
+        if api_key:
+            headers["Authorization"] = "Bearer " + api_key
+        body = {"model": model, "max_tokens": 1024,
+                "messages": [{"role": "user", "content": content}]}
+        return base_url + "/v1/chat/completions", headers, body
+    if brain == "gemini":
+        parts = []
+        if image_b64:
+            parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_b64}})
+        parts.append({"text": prompt})
+        body = {"contents": [{"role": "user", "parts": parts}]}
+        url = "%s/v1beta/models/%s:generateContent?key=%s" % (base_url, model, api_key)
+        return url, headers, body
+    raise ValueError("unknown brain: %s" % brain)
+
+
+def parse_provider_reply(brain, status, body_bytes):
+    brain = _canon_brain(brain)
+    data = json.loads(body_bytes.decode("utf-8"))
+    if status != 200:
+        raise RuntimeError(data.get("error", {}).get("message", "API error %s" % status))
+    if brain == "anthropic":
+        return next(b["text"] for b in data["content"] if b.get("type") == "text")
+    if brain == "openai":
+        return data["choices"][0]["message"]["content"]
+    if brain == "gemini":
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    raise ValueError("unknown brain: %s" % brain)
+
+
+def ask_provider(brain: str, text: str, photo: bytes | None = None) -> str:
+    """Answer via a direct provider HTTP API (anthropic/openai/gemini).
+
+    Stdlib-only (urllib), stateless single-turn request built with
+    build_provider_request() and parsed with parse_provider_reply(). Unlike
+    the legacy SDK-based ask_claude() below, this path carries no cross-turn
+    history — each query is answered independently.
+    """
+    brain = _canon_brain(brain)
+    base_url = os.environ.get("HERMES_BRIDGE_BASE_URL", BASE_URLS[brain])
+    key_env = PROVIDER_API_KEY_ENV[brain]
+    api_key = os.environ.get(key_env, "")
+    if not api_key:
+        return f"The {brain} brain needs an API key. Set {key_env} for the bridge."
+
+    image_b64 = base64.b64encode(photo).decode() if photo else None
+    url, headers, body = build_provider_request(
+        brain, CLAUDE_MODEL, base_url, api_key, text, image_b64)
+
+    request = urllib.request.Request(
+        url, data=json.dumps(body).encode(), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as resp:
+            status, body_bytes = resp.status, resp.read()
+    except urllib.error.HTTPError as e:
+        status, body_bytes = e.code, e.read()
+    except urllib.error.URLError as e:
+        print(f"[{brain}] Connection error: {e}")
+        return f"Sorry, I couldn't reach the {brain} API."
+
+    try:
+        return parse_provider_reply(brain, status, body_bytes)
+    except Exception as e:
+        print(f"[{brain}] API error ({status}): {e}")
+        return f"Sorry, the {brain} API returned an error."
+
 
 # Utterances containing any of these ask about something the user sees;
 # the bridge then requests a photo from the glasses. Phrases, not bare
@@ -170,7 +282,9 @@ def extract_session_id(stderr_text: str) -> str | None:
     return match.group(1) if match else None
 
 
-# ── Claude brain (direct API, BRAIN="claude") ──────────────────────────────
+# ── Legacy Claude SDK brain (unused by the request path below, which now
+# routes anthropic/openai/gemini through ask_provider(); kept for its
+# tested same-day history helpers) ──────────────────────────────────────────
 CLAUDE_HISTORY_FILE = os.path.expanduser("~/.hermes_glasses_claude_history.json")
 CLAUDE_MAX_HISTORY = 40  # messages kept (20 turns)
 
@@ -500,10 +614,11 @@ async def process_query(websocket, text: str, conn_state: dict | None = None,
             query_text = ("(No photo could be captured from the glasses.) "
                           + text)
 
-    if BRAIN == "claude":
-        # ── Ask Claude directly (fast path) ──
-        print(f"[Bridge] Asking Claude ({CLAUDE_MODEL})...")
-        response = await asyncio.to_thread(ask_claude, query_text, photo)
+    canon_brain = _canon_brain(BRAIN)
+    if canon_brain in ("anthropic", "openai", "gemini"):
+        # ── Ask the provider API directly (fast path) ──
+        print(f"[Bridge] Asking {canon_brain} ({CLAUDE_MODEL})...")
+        response = await asyncio.to_thread(ask_provider, canon_brain, query_text, photo)
     else:
         # ── Ask Hermes (with same-day conversation memory) ──
         image_path = None
@@ -654,7 +769,7 @@ async def main():
 ║                                                          ║
 ║  Listening on ws://{HOST}:{PORT}/voice                       ║
 ║  STT: on the phone — the app sends text queries          ║
-║  Brain: {BRAIN} {f"({CLAUDE_MODEL})" if BRAIN == "claude" else "(CLI agent)":<30}  ║
+║  Brain: {BRAIN} {f"({CLAUDE_MODEL})" if _canon_brain(BRAIN) in ("anthropic", "openai", "gemini") else "(CLI agent)":<30}  ║
 ║                                                          ║
 ║  Connect your glasses app to:                            ║
 ║  ws://{local_ip()}:{PORT}/voice                             ║
