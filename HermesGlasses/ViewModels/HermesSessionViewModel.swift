@@ -32,15 +32,15 @@ enum BridgeStatus: Equatable {
 
 /// Which brain answers queries
 enum AssistantBackend: String, CaseIterable {
-    /// WebSocket bridge on a server (Hermes or bridge-side Claude + edge-tts)
+    /// Straight from the phone to the selected AI provider — no server
+    case direct
+    /// WebSocket bridge on a server (Hermes agent or bridge-side provider)
     case bridge
-    /// Straight from the phone to the Claude API — no server needed
-    case claudeDirect
 
     var label: String {
         switch self {
+        case .direct: return "Direct (your API)"
         case .bridge: return "Bridge (server)"
-        case .claudeDirect: return "Claude Direct"
         }
     }
 }
@@ -156,20 +156,43 @@ final class HermesSessionViewModel {
     }
     /// Mirror of the display manager's status for SwiftUI
     var displayStatus: DisplayHUDStatus = .off
-    /// Bridge server vs direct Claude API from the phone
-    var backend: AssistantBackend = AssistantBackend(
-        rawValue: UserDefaults.standard.string(forKey: "assistant_backend") ?? ""
-    ) ?? .bridge {
+    /// Bridge server vs direct AI provider from the phone
+    var backend: AssistantBackend = {
+        let raw = UserDefaults.standard.string(forKey: "assistant_backend") ?? ""
+        // Migrate the old "claudeDirect" raw value to "direct".
+        if raw == "claudeDirect" { return .direct }
+        return AssistantBackend(rawValue: raw) ?? .bridge
+    }() {
         didSet { UserDefaults.standard.set(backend.rawValue, forKey: "assistant_backend") }
     }
-    /// Whether a Claude API key is stored (drives Settings UI state)
-    var hasClaudeKey: Bool = ClaudeDirectClient.hasAPIKey
-    /// Model used in Claude Direct mode; applies from the next question
-    var claudeModel: ClaudeModel = ClaudeModel(
-        rawValue: UserDefaults.standard.string(forKey: "claude_direct_model") ?? ""
-    ) ?? .opus {
-        didSet { UserDefaults.standard.set(claudeModel.rawValue, forKey: "claude_direct_model") }
+    /// Selected direct-mode provider id (drives Settings + status chip)
+    var directProviderID: String = UserDefaults.standard.string(forKey: "direct_provider_id") ?? "anthropic" {
+        didSet {
+            UserDefaults.standard.set(directProviderID, forKey: "direct_provider_id")
+            reloadDirectProviderState()
+        }
     }
+    /// Model id for the current provider; applies from the next question
+    var directModel: String = "" {
+        didSet { UserDefaults.standard.set(directModel, forKey: "direct_model_\(directProviderID)") }
+    }
+    /// Custom base URL for providers that allow one (OpenAI-compatible / Ollama)
+    var directBaseURL: String = "" {
+        didSet { UserDefaults.standard.set(directBaseURL, forKey: "direct_base_url_\(directProviderID)") }
+    }
+    /// Whether the current provider has a key stored (drives Settings UI state)
+    var hasDirectKey: Bool = false
+
+    /// Reload model / base URL / key status when the provider changes.
+    func reloadDirectProviderState() {
+        let provider = DirectClient.provider
+        directModel = DirectClient.model(for: provider)
+        directBaseURL = provider.allowsCustomBaseURL ? DirectClient.baseURL(for: provider) : ""
+        hasDirectKey = DirectClient.hasKey(for: provider.id)
+    }
+
+    /// The current direct-mode provider (for labels + capability checks)
+    var directProvider: AIProvider { DirectClient.provider }
     var lastTranscript: String = ""
     var lastResponse: String = ""
     var conversationHistory: [ConversationTurn] = []
@@ -194,7 +217,7 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let cameraManager = HermesCameraManager()
     @ObservationIgnored private let speechRecognizer = HermesSpeechRecognizer()
     @ObservationIgnored private let speechSynthesizer = HermesSpeechSynthesizer()
-    @ObservationIgnored private let claudeClient = ClaudeDirectClient()
+    @ObservationIgnored private let directClient = DirectClient()
     @ObservationIgnored private let displayManager = HermesDisplayManager()
     @ObservationIgnored private let contextProvider = DeviceContextProvider()
     @ObservationIgnored private var pendingPhoto: Data?
@@ -206,6 +229,7 @@ final class HermesSessionViewModel {
     init(wearables: WearablesInterface) {
         self.wearables = wearables
         self.deviceSelector = AutoDeviceSelector(wearables: wearables)
+        reloadDirectProviderState()
     }
 
     deinit {
@@ -362,11 +386,11 @@ final class HermesSessionViewModel {
         // whether the lens is free depends on the actual mic route: the
         // HFP glasses mic brings up the glasses' call screen over the HUD.
 
-        // 2. Connect the brain. Claude Direct needs no server at all —
+        // 2. Connect the brain. Direct mode needs no server at all —
         // skip the bridge entirely.
-        if backend == .claudeDirect {
-            guard ClaudeDirectClient.hasAPIKey else {
-                show(ClaudeDirectError.missingKey.localizedDescription)
+        if backend == .direct {
+            guard !directProvider.requiresKey || DirectClient.hasKey(for: directProvider.id) else {
+                show("No API key set for \(directProvider.displayName). Add one in Settings.")
                 endSession()
                 return
             }
@@ -586,13 +610,13 @@ final class HermesSessionViewModel {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let context = contextProvider.contextLine()
-        if backend == .claudeDirect {
+        if backend == .direct {
             liveTranscript = ""
             lastTranscript = trimmed
             connectionState = .processing
             displayManager.showThinking(query: trimmed)
             speechRecognizer.isSuspended = true
-            Task { await askClaudeDirect(trimmed, context: context) }
+            Task { await askDirect(trimmed, context: context) }
         } else {
             guard apiClient?.isConnected == true else { return }
             liveTranscript = ""
@@ -609,9 +633,9 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Claude Direct: photo decision + capture happen locally, then one
+    /// Direct mode: photo decision + capture happen locally, then one
     /// API call — no server round trips.
-    private func askClaudeDirect(_ text: String, context: String? = nil) async {
+    private func askDirect(_ text: String, context: String? = nil) async {
         var photo: Data?
         if VisualQueryDetector.shouldCapturePhoto(text, lastPhotoAt: lastDirectPhotoAt),
            isGlassesConnected,
@@ -625,7 +649,7 @@ final class HermesSessionViewModel {
         }
 
         do {
-            let reply = try await claudeClient.ask(text, photoJPEG: photo, contextLine: context)
+            let reply = try await directClient.ask(text, photoJPEG: photo, contextLine: context)
             lastResponse = reply
             addTurn(userText: text, agentText: reply)
             presentReply(reply)
@@ -637,10 +661,10 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Store/replace the Claude API key (Keychain)
-    func setClaudeKey(_ key: String) {
-        ClaudeDirectClient.storeAPIKey(key)
-        hasClaudeKey = ClaudeDirectClient.hasAPIKey
+    /// Store/replace the API key for the current provider (Keychain)
+    func setProviderKey(_ key: String) {
+        DirectClient.storeKey(key, for: directProviderID)
+        hasDirectKey = DirectClient.hasKey(for: directProviderID)
     }
 
     /// "Send now" button — don't wait for the pause detection
@@ -650,10 +674,10 @@ final class HermesSessionViewModel {
 
     /// Forget the conversation: bridge clears its same-day Hermes session,
     /// the app clears its history on the session_reset confirmation.
-    /// Claude Direct clears its on-device history immediately.
+    /// Direct mode clears its on-device history immediately.
     func startNewConversation() {
-        if backend == .claudeDirect {
-            ClaudeDirectClient.clearHistory()
+        if backend == .direct {
+            DirectClient.clearHistory()
             conversationHistory.removeAll()
             lastTranscript = ""
             lastResponse = ""
@@ -815,7 +839,7 @@ final class HermesSessionViewModel {
     var endpointPresets: [(name: String, url: String)] {
         let dict = UserDefaults.standard
             .dictionary(forKey: "endpoint_presets") as? [String: String]
-            ?? ["Mac (local)": "ws://192.168.1.16:8765/voice"]
+            ?? [:]
         return dict.sorted { $0.key < $1.key }
             .map { (name: $0.key, url: $0.value) }
     }
@@ -826,7 +850,7 @@ final class HermesSessionViewModel {
         guard !trimmedName.isEmpty, !trimmedURL.isEmpty else { return }
         var dict = UserDefaults.standard
             .dictionary(forKey: "endpoint_presets") as? [String: String]
-            ?? ["Mac (local)": "ws://192.168.1.16:8765/voice"]
+            ?? [:]
         dict[trimmedName] = trimmedURL
         UserDefaults.standard.set(dict, forKey: "endpoint_presets")
     }
@@ -916,7 +940,7 @@ final class HermesSessionViewModel {
     /// Round trip through the active brain → response text (+TTS)
     func testQuery() async {
         await runTest("Query") { [self] in
-            guard backend == .claudeDirect || apiClient?.isConnected == true else {
+            guard backend == .direct || apiClient?.isConnected == true else {
                 throw TestFailure("Start a session first (needs bridge)")
             }
             submitQuery("Respond with exactly: OK")
@@ -941,7 +965,7 @@ final class HermesSessionViewModel {
     /// Full photo pipeline via a canned visual query
     func testVisualQuery() async {
         await runTest("Visual") { [self] in
-            guard backend == .claudeDirect || apiClient?.isConnected == true else {
+            guard backend == .direct || apiClient?.isConnected == true else {
                 throw TestFailure("Start a session first (needs bridge)")
             }
             guard isGlassesConnected else {
