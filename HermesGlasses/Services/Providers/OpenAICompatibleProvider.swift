@@ -48,7 +48,10 @@ struct OpenAICompatibleProvider: AIProvider {
         }
 
         let body: [String: Any] = ["model": req.model, "max_tokens": 1024, "messages": messages]
-        var request = URLRequest(url: URL(string: req.baseURL + "/v1/chat/completions")!)
+        guard let url = URL(string: req.baseURL + "/v1/chat/completions") else {
+            throw AIProviderError.invalidURL(req.baseURL + "/v1/chat/completions")
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let key = req.apiKey, !key.isEmpty {

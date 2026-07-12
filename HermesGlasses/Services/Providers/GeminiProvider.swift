@@ -37,7 +37,10 @@ struct GeminiProvider: AIProvider {
             "contents": contents,
         ]
         let urlString = "\(req.baseURL)/v1beta/models/\(req.model):generateContent?key=\(key)"
-        var request = URLRequest(url: URL(string: urlString)!)
+        guard let url = URL(string: urlString) else {
+            throw AIProviderError.invalidURL(urlString)
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 60

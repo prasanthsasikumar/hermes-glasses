@@ -35,12 +35,14 @@ enum AIProviderError: LocalizedError, Equatable {
     case missingKey
     case http(status: Int, message: String)
     case badResponse(String)
+    case invalidURL(String)
 
     var errorDescription: String? {
         switch self {
         case .missingKey: return "No API key set for this provider. Add one in Settings."
         case .http(_, let message): return message
         case .badResponse(let message): return message
+        case .invalidURL(let url): return "Invalid API base URL: \(url)"
         }
     }
 }

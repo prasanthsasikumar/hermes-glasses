@@ -45,7 +45,10 @@ struct AnthropicProvider: AIProvider {
         let body: [String: Any] = [
             "model": req.model, "max_tokens": 1024, "system": system, "messages": messages,
         ]
-        var request = URLRequest(url: URL(string: req.baseURL + "/v1/messages")!)
+        guard let url = URL(string: req.baseURL + "/v1/messages") else {
+            throw AIProviderError.invalidURL(req.baseURL + "/v1/messages")
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "x-api-key")

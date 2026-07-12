@@ -122,6 +122,12 @@ do {
     let err = "{\"error\":{\"message\":\"nope\"}}".data(using: .utf8)!
     do { _ = try p.parseReply(err, status: 400); expect(false, "openai error throws") }
     catch { expect(true, "openai error throws") }
+
+    // Malformed base URL (user-editable field) → catchable error, not a trap
+    let badReq = AIRequest(systemPrompt: "S", contextLine: nil, history: [], userText: "hi",
+        imageJPEG: nil, model: "gpt-4o", baseURL: "ht tp://bad url", apiKey: "k")
+    do { _ = try p.buildRequest(badReq); expect(false, "openai malformed base URL throws") }
+    catch { expect(true, "openai malformed base URL throws") }
 }
 
 // ── GeminiProvider ──────────────────────────────────────────────────────
