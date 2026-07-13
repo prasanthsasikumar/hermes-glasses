@@ -13,6 +13,9 @@ build/
 # Hermes
 *.hermes/
 
+# Secrets — real Meta DAT credentials (copy Config/Secrets.example.xcconfig)
+Config/Secrets.xcconfig
+
 # Python
 bridge/__pycache__/
 *.pyc

@@ -112,7 +112,11 @@
 		<key>AppLinkURLScheme</key>
 		<string>hermesglasses://</string>
 		<key>MetaAppID</key>
-		<string>0</string>
+		<string>$(META_APP_ID)</string>
+		<key>ClientToken</key>
+		<string>$(CLIENT_TOKEN)</string>
+		<key>TeamID</key>
+		<string>$(DEVELOPMENT_TEAM)</string>
 		<key>Analytics</key>
 		<dict>
 			<key>OptOut</key>

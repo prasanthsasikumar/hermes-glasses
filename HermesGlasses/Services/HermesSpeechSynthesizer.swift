@@ -19,7 +19,7 @@ final class HermesSpeechSynthesizer: NSObject, @unchecked Sendable {
 
     // MARK: - Private
 
-    private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "tts")
+    private let logger = Logger(subsystem: "com.flowsxr.hermesglasses", category: "tts")
     private let synthesizer = AVSpeechSynthesizer()
     private let voice: AVSpeechSynthesisVoice?
 

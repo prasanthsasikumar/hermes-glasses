@@ -44,6 +44,7 @@
 		AAAA00000000000000000107 /* HermesAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesAPIClient.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AAAA00000000000000000109 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AAAA0000000000000000012A /* Hermes.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Hermes.xcconfig; sourceTree = SOURCE_ROOT; };
 		AAAA00000000000000000110 /* HermesGlasses.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HermesGlasses.entitlements; sourceTree = "<group>"; };
 		AAAA00000000000000000111 /* Hermes Glasses.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Hermes Glasses.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAAA00000000000000000112 /* HermesCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesCameraManager.swift; sourceTree = "<group>"; };
@@ -252,6 +253,7 @@
 /* Begin XCBuildConfiguration section */
 		AAAA00000000000000000502 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AAAA0000000000000000012A /* Hermes.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = HermesGlasses/HermesGlasses.entitlements;
@@ -268,7 +270,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.flowsxr.hermes-glasses";
+				PRODUCT_BUNDLE_IDENTIFIER = com.flowsxr.hermesglasses;
 				PRODUCT_NAME = "Hermes Glasses";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -278,6 +280,7 @@
 		};
 		AAAA00000000000000000503 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AAAA0000000000000000012A /* Hermes.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = HermesGlasses/HermesGlasses.entitlements;
@@ -294,7 +297,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.flowsxr.hermes-glasses";
+				PRODUCT_BUNDLE_IDENTIFIER = com.flowsxr.hermesglasses;
 				PRODUCT_NAME = "Hermes Glasses";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_EMIT_LOC_STRINGS = YES;

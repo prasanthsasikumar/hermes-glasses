@@ -79,10 +79,15 @@ addition to the default `hermes` (agentic CLI with tools + memory).
 
 - iPhone with iOS 17+, Xcode 16+
 - Meta Ray-Ban glasses paired with the Meta AI app
-- A **Meta developer App ID** for the glasses SDK — set it as `MetaAppID`
-  (and your `AppLinkURLScheme`) in `HermesGlasses/Info.plist`; the committed
-  `0` is a placeholder. See the
-  [Meta Wearables DAT setup](https://github.com/facebook/meta-wearables-dat-ios).
+- A **Meta App ID + Client Token** for the glasses SDK, from the
+  [Meta Wearables Developer Center](https://wearables.developer.meta.com/)
+  (create a project → Configuration → the *Application ID* section
+  auto-generates them). Copy `Config/Secrets.example.xcconfig` to
+  `Config/Secrets.xcconfig` (gitignored) and fill in `META_APP_ID` /
+  `CLIENT_TOKEN` — they're injected into `Info.plist`'s `MWDAT` dict at build
+  time, so nothing sensitive is committed. In the Developer Center also
+  register your app's **Bundle ID** (Meta rejects hyphens) and **Team ID**.
+  See the [iOS DAT integration docs](https://wearables.developer.meta.com/docs/develop/dat/build-integration-ios/).
 - **Path A (Direct):** an API key from your chosen provider — nothing else.
 - **Path B (Hermes bridge):** additionally, macOS with Python 3.11+ and a
   working Hermes Agent install (`hermes chat` on PATH).

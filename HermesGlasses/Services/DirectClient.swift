@@ -10,7 +10,7 @@ import Foundation
 import os
 
 final class DirectClient: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "direct")
+    private let logger = Logger(subsystem: "com.flowsxr.hermesglasses", category: "direct")
 
     // MARK: - Provider selection (UserDefaults)
 

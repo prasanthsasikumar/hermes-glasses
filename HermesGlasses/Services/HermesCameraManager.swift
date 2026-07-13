@@ -37,7 +37,7 @@ enum HermesCameraError: LocalizedError {
 }
 
 final class HermesCameraManager: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "camera")
+    private let logger = Logger(subsystem: "com.flowsxr.hermesglasses", category: "camera")
 
     /// Diagnostic breadcrumbs (stream states, timings) — surfaced in the
     /// bridge log via the debug channel

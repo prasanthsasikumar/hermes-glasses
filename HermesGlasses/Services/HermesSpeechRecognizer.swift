@@ -36,7 +36,7 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
 
     // MARK: - Private
 
-    private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "speech")
+    private let logger = Logger(subsystem: "com.flowsxr.hermesglasses", category: "speech")
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
 
     private var request: SFSpeechAudioBufferRecognitionRequest?

@@ -42,7 +42,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
     // MARK: - Private
 
-    private let logger = Logger(subsystem: "com.flowsxr.hermes-glasses", category: "audio")
+    private let logger = Logger(subsystem: "com.flowsxr.hermesglasses", category: "audio")
 
     // Rebuilt fresh on every startCapture: AVAudioEngine caches the audio
     // graph/hardware formats of the previous route, and starting a stale
