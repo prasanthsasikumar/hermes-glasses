@@ -13,10 +13,10 @@ import os
 enum CaptureRoute {
     /// iPhone built-in mic; playback on the phone speaker
     case phoneMic
-    /// Glasses over Bluetooth HFP — bidirectional, but on Display glasses
+    /// Glasses over Bluetooth HFP - bidirectional, but on Display glasses
     /// the firmware shows its CALL SCREEN, covering the lens HUD
     case glassesMic
-    /// Earbuds/headset over Bluetooth HFP — mic + voice in the ears while
+    /// Earbuds/headset over Bluetooth HFP - mic + voice in the ears while
     /// the glasses' lens stays free for the HUD
     case headsetMic
 }
@@ -31,12 +31,12 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     var onPlaybackComplete: (() -> Void)?
     /// Diagnostic messages (mic route, levels) for remote debugging
     var onDebug: ((String) -> Void)?
-    /// Raw tap buffer, pre-conversion — for on-device speech recognition
+    /// Raw tap buffer, pre-conversion - for on-device speech recognition
     var onRawBuffer: ((AVAudioPCMBuffer) -> Void)?
-    /// Mic RMS level (0..~1), throttled to ~4/s — for the UI level meter
+    /// Mic RMS level (0..~1), throttled to ~4/s - for the UI level meter
     var onLevel: ((Float) -> Void)?
     /// Fired (on main) after a route/config change re-installed the tap.
-    /// Consumers feeding SFSpeech MUST restart their recognition request —
+    /// Consumers feeding SFSpeech MUST restart their recognition request -
     /// it cannot absorb a buffer-format change mid-request.
     var onRouteChanged: (() -> Void)?
 
@@ -58,7 +58,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     private var tapBufferCount: Int = 0
     private var lastDebugTime: TimeInterval = 0
     private var lastLevelTime: TimeInterval = 0
-    // Lazy conversion state — rebuilt whenever the tap's buffer format changes
+    // Lazy conversion state - rebuilt whenever the tap's buffer format changes
     private var converter: AVAudioConverter?
     private var converterInputFormat: AVAudioFormat?
 
@@ -69,11 +69,11 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     private let silenceFrames: Int = 20
     private var vadDisabled: Bool = true
 
-    // Playback — a self-contained clip player, independent of the engine
+    // Playback - a self-contained clip player, independent of the engine
     private var clipPlayer: AVAudioPlayer?
 
     override init() {
-        // 16 kHz mono PCM16 — the format the bridge expects. This
+        // 16 kHz mono PCM16 - the format the bridge expects. This
         // initializer cannot fail for a standard PCM format.
         captureFormat = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
@@ -99,7 +99,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     }
 
     /// Heuristic: does this Bluetooth port belong to the glasses (vs
-    /// earbuds/headset)? Used to keep headset mode off the glasses' HFP —
+    /// earbuds/headset)? Used to keep headset mode off the glasses' HFP -
     /// their call screen would cover the lens HUD.
     private static let glassesNameMarkers = ["ray-ban", "rayban", "oakley", "meta", "glasses"]
 
@@ -108,7 +108,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         return glassesNameMarkers.contains { name.contains($0) }
     }
 
-    /// True when the ACTIVE input is the glasses' hands-free link — the
+    /// True when the ACTIVE input is the glasses' hands-free link - the
     /// state in which Display glasses show their call screen over the HUD
     var isUsingGlassesInput: Bool {
         AVAudioSession.sharedInstance().currentRoute.inputs.contains {
@@ -118,7 +118,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     }
 
     /// Start capturing on the requested route. Returns true when the
-    /// requested Bluetooth route is actually active — false means the
+    /// requested Bluetooth route is actually active - false means the
     /// iPhone mic is in use (by choice, or as fallback when the Bluetooth
     /// route never appeared / no matching device was found).
     @discardableResult
@@ -132,7 +132,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
 
         var wantBluetooth = false
         if route != .phoneMic {
-            // Mode .default, NOT .voiceChat — its DSP gates speech to the
+            // Mode .default, NOT .voiceChat - its DSP gates speech to the
             // noise floor. HFP is bidirectional: TTS also moves to the
             // chosen device's speakers while this mode is active (by design).
             try session.setCategory(
@@ -149,7 +149,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                 target = hfpInputs.first(where: Self.looksLikeGlasses)
                     ?? hfpInputs.first
             case .headsetMic:
-                // NEVER fall back to the glasses here — that would put the
+                // NEVER fall back to the glasses here - that would put the
                 // call screen over the HUD the user chose this mode to keep
                 target = hfpInputs.first { !Self.looksLikeGlasses($0) }
             case .phoneMic:
@@ -169,9 +169,9 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             }
 
             if !wantBluetooth || !isUsingBluetoothInput {
-                // Requested device absent or route never materialized —
+                // Requested device absent or route never materialized -
                 // fall back to the iPhone mic so the session still works.
-                logger.warning("Bluetooth route unavailable for \(String(describing: route), privacy: .public) — falling back to iPhone mic")
+                logger.warning("Bluetooth route unavailable for \(String(describing: route), privacy: .public) - falling back to iPhone mic")
                 try? session.setPreferredInput(nil)
                 try session.setCategory(
                     .playAndRecord,
@@ -194,12 +194,12 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         logger.info("Audio session active. Input route: \(self.currentInputName, privacy: .public)")
 
         // Route changes (especially to/from HFP) renegotiate the hardware
-        // sample rate — let it settle before touching the engine.
+        // sample rate - let it settle before touching the engine.
         try? await Task.sleep(nanoseconds: 300_000_000)
 
         // Fresh engine every start: the old instance's cached graph is what
         // produces -10868 after a route change. The old player node dies
-        // with the old engine (never detach — that raises NSException).
+        // with the old engine (never detach - that raises NSException).
         rebuildEngine()
 
         var waited = 0
@@ -215,9 +215,9 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         do {
             try audioEngine.start()
         } catch {
-            // One retry with another fresh engine — the first start can
+            // One retry with another fresh engine - the first start can
             // race the route transition
-            logger.warning("Engine start failed (\(error.localizedDescription, privacy: .public)) — rebuilding and retrying")
+            logger.warning("Engine start failed (\(error.localizedDescription, privacy: .public)) - rebuilding and retrying")
             try? await Task.sleep(nanoseconds: 500_000_000)
             rebuildEngine()
             observeConfigurationChanges()
@@ -328,7 +328,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
         try session.setActive(true)
     }
 
-    /// 1.5 s 440 Hz sine as PCM16 mono 24 kHz — same format as bridge TTS,
+    /// 1.5 s 440 Hz sine as PCM16 mono 24 kHz - same format as bridge TTS,
     /// so playing it exercises the exact TTS playback path
     static func makeTestTone(duration: Double = 1.5) -> Data {
         let sampleRate = 24000.0
@@ -367,7 +367,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             queue: .main
         ) { [weak self] _ in
             guard let self, self.isCapturing else { return }
-            self.logger.info("Engine configuration changed — reinstalling tap. Route: \(self.currentInputName, privacy: .public)")
+            self.logger.info("Engine configuration changed - reinstalling tap. Route: \(self.currentInputName, privacy: .public)")
             self.inputNode.removeTap(onBus: 0)
             self.installTap()
             if !self.audioEngine.isRunning {
@@ -392,7 +392,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
             .joined(separator: ", ")
         sendDebug("tap installed: route=[\(inputs)] format=\(inputFormat.sampleRate)Hz/\(inputFormat.channelCount)ch gain=\(session.inputGain)")
 
-        // format: nil — the tap follows the node's live format. Passing an
+        // format: nil - the tap follows the node's live format. Passing an
         // explicit format raises NSException (SIGABRT) when the cached
         // format mismatches the hardware mid-route-change (e.g. switching
         // to Bluetooth HFP). The converter is built lazily per buffer
@@ -407,7 +407,7 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
     }
 
     private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
-        // (Re)build the converter whenever the incoming format changes —
+        // (Re)build the converter whenever the incoming format changes -
         // route switches change the sample rate under our feet
         if converter == nil || converterInputFormat != buffer.format {
             converter = AVAudioConverter(from: buffer.format, to: captureFormat)

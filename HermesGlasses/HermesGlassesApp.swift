@@ -1,6 +1,6 @@
 //
 // HermesGlassesApp.swift
-// Hermes Glasses — Talk to Hermes AI from Meta Ray-Ban glasses
+// Hermes Glasses - Talk to Hermes AI from Meta Ray-Ban glasses
 //
 // Main entry point. Configures the Meta Wearables DAT SDK, sets up
 // audio capture from the glasses, and connects to Hermes Agent for

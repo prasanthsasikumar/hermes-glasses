@@ -33,7 +33,7 @@ asked, user may reference what they see. Resumed sessions don't repeat it.
 - In addition to `VISUAL_KEYWORDS`, a deictic pattern triggers capture:
   `\b(this|that|these|those)\s+<word>` or "the one".
 - Suppression: if a photo was captured on this connection within the last
-  120 s, deictic-only triggers do NOT re-capture — session memory already
+  120 s, deictic-only triggers do NOT re-capture - session memory already
   holds the description. Explicit keywords ("look", "picture") always
   capture.
 
@@ -63,8 +63,8 @@ asked, user may reference what they see. Resumed sessions don't repeat it.
 Unit (stdlib unittest): session store date logic, session-ID extraction
 from stderr, deictic matching, recency suppression, persona-prefix only on
 fresh sessions. Existing process_query tests updated for the new
-ask_hermes signature. On-device: the exact transcript that failed —
-photo → "how do I make this drink" → follow-up — must now work.
+ask_hermes signature. On-device: the exact transcript that failed -
+photo → "how do I make this drink" → follow-up - must now work.
 
 ## Out of scope
 

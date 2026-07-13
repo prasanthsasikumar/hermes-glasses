@@ -1,5 +1,5 @@
 //
-// Standalone tests for the AIProvider layer — no XCTest target in this
+// Standalone tests for the AIProvider layer - no XCTest target in this
 // project, so these run via swiftc. Build command (all provider sources
 // + this file):
 //   xcrun swiftc \

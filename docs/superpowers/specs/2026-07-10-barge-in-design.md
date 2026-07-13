@@ -12,8 +12,8 @@ HFP hardware echo cancellation makes this safe), and by tap in any mode.
 
 - **Voice barge-in (glasses route only):** when TTS starts, recognition
   resumes immediately instead of staying suspended. If a partial transcript
-  of ≥ 2 words arrives during `.speaking` — and is not an echo of Hermes's
-  own words — playback stops and the utterance continues as the next query
+  of ≥ 2 words arrives during `.speaking` - and is not an echo of Hermes's
+  own words - playback stops and the utterance continues as the next query
   (normal pause-finalize → submit flow).
 - **Tap-to-interrupt (all modes):** tapping the "Hermes is speaking…"
   indicator stops playback and returns to listening.
@@ -22,7 +22,7 @@ HFP hardware echo cancellation makes this safe), and by tap in any mode.
 
 ## Components
 
-- `HermesAudioManager.stopPlayback()` — stops the AVAudioPlayer clip and
+- `HermesAudioManager.stopPlayback()` - stops the AVAudioPlayer clip and
   fires `onPlaybackComplete` (AVAudioPlayer.stop() does not call the
   delegate).
 - `HermesSessionViewModel`:
@@ -30,7 +30,7 @@ HFP hardware echo cancellation makes this safe), and by tap in any mode.
     recognizer when the actual route is Bluetooth (`isUsingBluetoothInput`).
   - `onPartial` handler: during `.speaking`, drop echo-like partials
     (normalized substring of `lastResponse`); interrupt at ≥ 2 words.
-  - `interruptSpeech()` — guard `.speaking`, call `stopPlayback()`.
+  - `interruptSpeech()` - guard `.speaking`, call `stopPlayback()`.
 - `ContentView`: speaking indicator becomes a button with a "tap to
   interrupt" hint.
 
@@ -39,7 +39,7 @@ HFP hardware echo cancellation makes this safe), and by tap in any mode.
 Normalize (lowercase, alphanumeric+space only) both the partial and
 `lastResponse`; if the partial appears in the response text, treat it as
 the glasses hearing Hermes and ignore it. Heuristic: a genuine interruption
-that happens to quote Hermes verbatim is ignored — acceptable.
+that happens to quote Hermes verbatim is ignored - acceptable.
 
 ## Testing (on device)
 

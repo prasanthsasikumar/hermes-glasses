@@ -9,7 +9,7 @@
 import Foundation
 
 enum HermesDisplayLogic {
-    /// Replies longer than this are cut with an ellipsis — spoken
+    /// Replies longer than this are cut with an ellipsis - spoken
     /// replies are 1-3 sentences, so truncation is rare.
     static let replyCharLimit = 300
 

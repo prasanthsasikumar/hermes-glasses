@@ -1,12 +1,12 @@
-# Provider abstraction & public-readiness — design
+# Provider abstraction & public-readiness - design
 
 Date: 2026-07-11
 
 ## Goal
 
 Make Hermes Glasses a clean, professional public repository where anyone can
-**bring their own AI provider** — Claude, OpenAI, Gemini, or a local model
-(Ollama) — with a paste-your-key onboarding, *or* run the full Hermes agent via
+**bring their own AI provider** - Claude, OpenAI, Gemini, or a local model
+(Ollama) - with a paste-your-key onboarding, *or* run the full Hermes agent via
 the bridge. Today "direct mode" is hardcoded to Anthropic and the README only
 teaches the Hermes-bridge path, which requires infrastructure most people won't
 have on first run.
@@ -15,7 +15,7 @@ have on first run.
 
 - No new UI surfaces beyond a generalized provider section in Settings.
 - No streaming responses (current design is single-shot request/response).
-- No per-provider tool/function-calling — direct mode stays a plain
+- No per-provider tool/function-calling - direct mode stays a plain
   chat+vision call; the agentic path remains the Hermes bridge.
 - No secrets or provider keys ever committed; keys live only in the Keychain
   (app) or environment (bridge).
@@ -24,13 +24,13 @@ have on first run.
 
 Two independent workstreams, executed in order:
 
-- **A — Provider abstraction** (core feature). The "connect your own API" work.
-- **B — Public-readiness cleanup** (docs + hygiene). Partly depends on A because
+- **A - Provider abstraction** (core feature). The "connect your own API" work.
+- **B - Public-readiness cleanup** (docs + hygiene). Partly depends on A because
   the README's onboarding narrative describes the provider UX from A.
 
 ---
 
-## Workstream A — Provider abstraction
+## Workstream A - Provider abstraction
 
 ### Current state
 
@@ -71,12 +71,12 @@ protocol AIProvider {
 `buildRequest` and `parseReply` are **pure** given their inputs (no globals) →
 directly unit-testable.
 
-**Concrete providers — three request shapes:**
+**Concrete providers - three request shapes:**
 
-- `AnthropicProvider` — Messages API. Refactor the existing `ClaudeDirectClient`
+- `AnthropicProvider` - Messages API. Refactor the existing `ClaudeDirectClient`
   body/parse logic into here unchanged (system as cached-first block + per-query
   context block, base64 image blocks, `x-api-key`/`anthropic-version`).
-- `OpenAICompatibleProvider` — `POST {base}/v1/chat/completions`,
+- `OpenAICompatibleProvider` - `POST {base}/v1/chat/completions`,
   `Authorization: Bearer <key>`, messages with array content and `image_url`
   data-URIs for vision. **One implementation serves OpenAI, Ollama, and any
   OpenAI-style proxy** (LM Studio, Groq, OpenRouter) via base-URL override.
@@ -84,7 +84,7 @@ directly unit-testable.
   - "Local (Ollama)" preset: `defaultBaseURL=http://localhost:11434`,
     `requiresKey=false`, `allowsCustomBaseURL=true`. Ollama exposes an
     OpenAI-compatible `/v1/chat/completions`, so it reuses this provider.
-- `GeminiProvider` — `POST {base}/v1beta/models/{model}:generateContent?key=`,
+- `GeminiProvider` - `POST {base}/v1beta/models/{model}:generateContent?key=`,
   `contents`/`parts` with `inline_data` for vision.
 
 **Keychain per provider:** account = `"<provider-id>_api_key"`. Users can store
@@ -138,16 +138,16 @@ Key status: Saved in Keychain / Not set
 
 ---
 
-## Workstream B — Public-readiness cleanup
+## Workstream B - Public-readiness cleanup
 
 - **Hardcoded LAN IP:** replace the three `ws://<personal-lan-ip>:8765/voice`
   defaults in `HermesSessionViewModel` with an empty preset set (no default
   preset) or a neutral `ws://YOUR-MAC-IP:8765/voice` placeholder, so the repo
   ships no personal network address.
 - **README rewrite** around two paths:
-  1. *Direct (your API) — zero infrastructure.* Install app → Settings → pick
+  1. *Direct (your API) - zero infrastructure.* Install app → Settings → pick
      provider (Claude/OpenAI/Gemini/Local) → paste key → talk. Front-door story.
-  2. *Hermes agent (bridge) — full agentic assistant with tools.* Link
+  2. *Hermes agent (bridge) - full agentic assistant with tools.* Link
      https://hermes-agent.nousresearch.com/docs/getting-started/installation
      (installer: `curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash`,
      or the desktop installer; CLI is `hermes`). Then run the bridge.
@@ -157,7 +157,7 @@ Key status: Saved in Keychain / Not set
   `AppLinkURLScheme` must be set. Keep the committed value as a `"0"` placeholder.
 - **Untrack scratch:** add `docs/superpowers/plans/` to `.gitignore` and
   `git rm --cached` it (contains personal absolute paths + device UDIDs). Keep
-  `docs/superpowers/specs/` (verified free of personal info — useful design docs).
+  `docs/superpowers/specs/` (verified free of personal info - useful design docs).
 - **`bridge/.env.example`** documenting `HERMES_BRIDGE_TOKEN`, `HERMES_BIN`,
   `HERMES_BRIDGE_BRAIN`, `HERMES_BRIDGE_BASE_URL`, `HERMES_BRIDGE_MODEL`,
   `HERMES_BRIDGE_TTS`, `ANTHROPIC_API_KEY` / provider keys.
@@ -174,8 +174,8 @@ Key status: Saved in Keychain / Not set
   model may not. `supportsVision` gates whether a photo is attached; when a
   provider or model lacks vision, the query goes text-only.
 - Keychain migration: the account scheme `"<provider-id>_api_key"` yields
-  `anthropic_api_key` for the Anthropic provider — byte-for-byte the account
-  existing users already have — so saved keys carry over with no migration step.
+  `anthropic_api_key` for the Anthropic provider - byte-for-byte the account
+  existing users already have - so saved keys carry over with no migration step.
 - Bridge multi-provider is included for symmetry but is the lower-risk half; if
   time-constrained it can land after the app side without blocking the release.
 ```

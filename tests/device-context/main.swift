@@ -1,5 +1,5 @@
 //
-// Standalone tests for DeviceContextFormatter — run via swiftc
+// Standalone tests for DeviceContextFormatter - run via swiftc
 // (no XCTest target in this project).
 //
 

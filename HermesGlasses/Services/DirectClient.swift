@@ -2,7 +2,7 @@
 // DirectClient.swift
 //
 // "Direct (your API)" mode: the phone calls the selected AI provider
-// directly — no bridge. Provider, model, base URL and key come from
+// directly - no bridge. Provider, model, base URL and key come from
 // UserDefaults/Keychain; same-day history and vision detection live here.
 //
 
@@ -162,7 +162,7 @@ enum VisualQueryDetector {
         "through the camera",
     ]
 
-    /// "this X"/"that X"/"the one" — visual unless the noun is abstract
+    /// "this X"/"that X"/"the one" - visual unless the noun is abstract
     private static let deicticPattern = try! NSRegularExpression(
         pattern: "\\b(this|that|these|those)\\s+([a-z]+)|\\bthe one\\b",
         options: [.caseInsensitive]

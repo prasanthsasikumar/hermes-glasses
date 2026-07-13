@@ -37,11 +37,11 @@ cd bridge && python -m unittest test_hermes_bridge -v
 Direct mode is a small seam. To add a provider:
 
 1. Add a type conforming to `AIProvider` in `HermesGlasses/Services/Providers/`
-   (pure Foundation — no `os`/SwiftUI, so it stays swiftc-testable).
+   (pure Foundation - no `os`/SwiftUI, so it stays swiftc-testable).
 2. Register it in `AIProviderRegistry.all` (`AIProvider.swift`).
 3. Add tests to `tests/providers/main.swift` for `buildRequest` / `parseReply`.
 
-That's it — the Settings UI and orchestration are provider-agnostic.
+That's it - the Settings UI and orchestration are provider-agnostic.
 
 ## Conventions
 

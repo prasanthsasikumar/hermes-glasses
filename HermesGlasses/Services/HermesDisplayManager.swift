@@ -3,7 +3,7 @@
 //
 // Attaches the Display capability to the shared voice DeviceSession and
 // renders HUD screens. Strictly best-effort: every failure is logged and
-// swallowed — the voice loop must never notice the display.
+// swallowed - the voice loop must never notice the display.
 //
 
 import Foundation
@@ -105,7 +105,7 @@ final class HermesDisplayManager {
         lastReplyText = ""
         status = .off
         display?.stop()
-        // Tear down synchronously — waiting for the async .stopped event
+        // Tear down synchronously - waiting for the async .stopped event
         // leaves `display` non-nil, and a quick start() would then bail on
         // its guard and never re-attach. cleanup() is idempotent, so the
         // late .stopped event (stream already finished) is harmless.

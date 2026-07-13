@@ -2,7 +2,7 @@
 // DeviceContextFormatter.swift
 //
 // Pure formatting for the per-query user-context line. Foundation-only
-// so it unit-tests standalone (tests/device-context/) — all sensor code
+// so it unit-tests standalone (tests/device-context/) - all sensor code
 // lives in DeviceContextProvider.
 //
 
@@ -32,7 +32,7 @@ enum DeviceContextFormatter {
     static func contextLine(_ inputs: DeviceContextInputs) -> String {
         var segments: [String] = []
 
-        // 1. Time — always present, locale-independent
+        // 1. Time - always present, locale-independent
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = inputs.timeZone

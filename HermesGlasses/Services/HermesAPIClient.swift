@@ -13,7 +13,7 @@ final class HermesAPIClient: NSObject {
     // MARK: - Callbacks
 
     var onTranscript: ((String) -> Void)?
-    /// (text, bridgeWillSendAudio) — when the second value is false, the
+    /// (text, bridgeWillSendAudio) - when the second value is false, the
     /// app speaks the text itself with on-device TTS
     var onResponse: ((String, Bool) -> Void)?
     var onAudioResponse: ((Data) -> Void)?

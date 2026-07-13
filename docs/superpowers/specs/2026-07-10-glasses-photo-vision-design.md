@@ -43,20 +43,20 @@ single query and `-Q` (quiet) prints only the final response.
 
 ## Components
 
-- **`HermesGlasses/Services/HermesCameraManager.swift` (new)** — owns the DAT
+- **`HermesGlasses/Services/HermesCameraManager.swift` (new)** - owns the DAT
   camera stream lifecycle. API: `capturePhoto() async throws -> Data`.
   Receives the `DeviceSession` from the ViewModel. Handles stream start/stop,
   state waiting, timeout.
-- **`HermesAPIClient`** — new incoming message `capture_photo` → callback
+- **`HermesAPIClient`** - new incoming message `capture_photo` → callback
   `onCapturePhotoRequested`; new method `sendPhoto(_ data: Data)` that
   base64-encodes and sends the JSON frame.
-- **`HermesSessionViewModel`** — wires `onCapturePhotoRequested` →
+- **`HermesSessionViewModel`** - wires `onCapturePhotoRequested` →
   `HermesCameraManager.capturePhoto()` → `sendPhoto`. On failure sends
   `{"type":"photo_error","message":...}` so the bridge stops waiting.
   Stores the last photo to attach to the next `ConversationTurn` for display.
-- **`ContentView`** — renders a thumbnail in the turn bubble when the turn
+- **`ContentView`** - renders a thumbnail in the turn bubble when the turn
   has a photo.
-- **`bridge/hermes_bridge.py`** — keyword check after STT; when triggered,
+- **`bridge/hermes_bridge.py`** - keyword check after STT; when triggered,
   sends `capture_photo`, awaits `photo` / `photo_error` / 10 s timeout while
   still consuming (and discarding) incoming audio frames; invokes
   `ask_hermes(text, image_path=...)`.
@@ -85,8 +85,8 @@ single query and `-Q` (quiet) prints only the final response.
 
 - Bridge: exercise keyword matching and the photo-await path with a small
   fake WebSocket client on the Mac (send transcript-triggering audio is not
-  needed — unit-test `is_visual_query()` and drive the socket directly).
-- Device: end-to-end — wear glasses, ask "what am I looking at?", verify
+  needed - unit-test `is_visual_query()` and drive the socket directly).
+- Device: end-to-end - wear glasses, ask "what am I looking at?", verify
   thumbnail + spoken answer; ask a non-visual question, verify no capture.
 
 ## Out of scope

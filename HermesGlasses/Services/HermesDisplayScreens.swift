@@ -8,7 +8,7 @@
 import MWDATDisplay
 
 enum HermesDisplayScreens {
-    /// User is speaking — show the partial transcript.
+    /// User is speaking - show the partial transcript.
     static func listening(partial: String) -> FlexBox {
         FlexBox(direction: .column, spacing: 8) {
             Text("Listening", style: .meta, color: .secondary)
@@ -88,7 +88,7 @@ enum HermesDisplayScreens {
     static func testScreen() -> FlexBox {
         FlexBox(direction: .column, spacing: 8) {
             Text("Hermes display", style: .heading)
-            Text("Connected — this is a test screen", style: .body, color: .secondary)
+            Text("Connected - this is a test screen", style: .body, color: .secondary)
         }
         .padding(24)
     }

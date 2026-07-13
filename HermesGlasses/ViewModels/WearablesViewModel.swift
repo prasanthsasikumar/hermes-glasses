@@ -87,13 +87,13 @@ final class WearablesViewModel {
         }
     }
 
-    /// Unregister then re-register with the Meta AI app — recovers from a
+    /// Unregister then re-register with the Meta AI app - recovers from a
     /// stale pairing where the SDK reports registered but sees no devices.
     func repairGlasses() async {
         do {
             try await wearables.startUnregistration()
         } catch {
-            // Not registered or already broken — proceed to register anyway
+            // Not registered or already broken - proceed to register anyway
         }
         do {
             try await wearables.startRegistration()

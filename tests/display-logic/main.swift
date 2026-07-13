@@ -1,5 +1,5 @@
 //
-// Standalone tests for HermesDisplayLogic — no XCTest target in this
+// Standalone tests for HermesDisplayLogic - no XCTest target in this
 // project, so these run via swiftc (see command below).
 //
 

@@ -1,5 +1,5 @@
 //
-// AnthropicProvider.swift — Claude Messages API (system blocks + base64
+// AnthropicProvider.swift - Claude Messages API (system blocks + base64
 // image blocks). Persona block stays first & cached; context is a second,
 // uncached block. Pure Foundation.
 //
@@ -14,9 +14,9 @@ struct AnthropicProvider: AIProvider {
     let requiresKey = true
     let supportsVision = true
     let curatedModels = [
-        ModelOption(id: "claude-opus-4-8", label: "Opus 4.8 — smartest"),
-        ModelOption(id: "claude-sonnet-5", label: "Sonnet 5 — balanced"),
-        ModelOption(id: "claude-haiku-4-5", label: "Haiku 4.5 — fastest"),
+        ModelOption(id: "claude-opus-4-8", label: "Opus 4.8 - smartest"),
+        ModelOption(id: "claude-sonnet-5", label: "Sonnet 5 - balanced"),
+        ModelOption(id: "claude-haiku-4-5", label: "Haiku 4.5 - fastest"),
     ]
 
     func buildRequest(_ req: AIRequest) throws -> URLRequest {

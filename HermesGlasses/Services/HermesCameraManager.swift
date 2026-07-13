@@ -5,7 +5,7 @@
 // Owns the camera stream lifecycle: a fresh stream is opened for every
 // capture and stopped when the capture finishes, so the glasses don't
 // drain battery between shots. Streams are not cached/reused across
-// captures — DAT streams are treated as one-shot.
+// captures - DAT streams are treated as one-shot.
 //
 
 import Foundation
@@ -39,7 +39,7 @@ enum HermesCameraError: LocalizedError {
 final class HermesCameraManager: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.flowsxr.hermesglasses", category: "camera")
 
-    /// Diagnostic breadcrumbs (stream states, timings) — surfaced in the
+    /// Diagnostic breadcrumbs (stream states, timings) - surfaced in the
     /// bridge log via the debug channel
     var onDebug: ((String) -> Void)?
 
@@ -90,7 +90,7 @@ final class HermesCameraManager: @unchecked Sendable {
         }
         defer { stateLock.withLockUnchecked { $0.captureInFlight = false } }
 
-        // Same lightweight config as Meta's CameraAccess sample — the video
+        // Same lightweight config as Meta's CameraAccess sample - the video
         // stream is just a carrier for photo capture, keep it cheap
         let config = StreamConfiguration(
             videoCodec: .raw,
@@ -109,7 +109,7 @@ final class HermesCameraManager: @unchecked Sendable {
         }
         defer { Task { await stateToken.cancel() } }
 
-        // The SDK reports WHY a stream dies here — without this listener
+        // The SDK reports WHY a stream dies here - without this listener
         // an aborted stream looks like a silent timeout
         let errorToken = stream.errorPublisher.listen { [weak self] streamError in
             self?.debug("camera: ERROR → \(streamError)")
@@ -117,8 +117,8 @@ final class HermesCameraManager: @unchecked Sendable {
         defer { Task { await errorToken.cancel() } }
 
         // The stream must run only while a capture is in flight. Register
-        // the stop before starting it so every exit path — including a
-        // start-timeout — guarantees the stream is torn down. Streams are
+        // the stop before starting it so every exit path - including a
+        // start-timeout - guarantees the stream is torn down. Streams are
         // one-shot: never cached or reused across captures.
         defer { stream.stop() }
 
@@ -129,7 +129,7 @@ final class HermesCameraManager: @unchecked Sendable {
             // wake). The bridge waits 25 s, so 10+10 fits comfortably.
             try await waitForStreaming(stream, timeout: 10.0)
         }
-        debug(String(format: "camera: streaming after %.1fs — capturing",
+        debug(String(format: "camera: streaming after %.1fs - capturing",
                      Date().timeIntervalSince(started)))
 
         let photo = try await awaitPhotoData(stream, timeout: 10.0)
@@ -166,7 +166,7 @@ final class HermesCameraManager: @unchecked Sendable {
                             cont.resume()
                         }
                     case .stopped:
-                        // Stream aborted before reaching .streaming — fail
+                        // Stream aborted before reaching .streaming - fail
                         // fast instead of burning the whole timeout
                         done.withLock { finished in
                             guard !finished else { return }

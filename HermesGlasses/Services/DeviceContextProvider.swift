@@ -126,11 +126,11 @@ final class DeviceContextProvider: NSObject {
             }
         }
 
-        // Weather older than 60 min is stale enough to mislead — omit
+        // Weather older than 60 min is stale enough to mislead - omit
         let weatherFresh = weatherAt.map { Date().timeIntervalSince($0) < 3600 } ?? false
 
         // Same for the location fix: after a relocation the old fix would
-        // be asserted confidently — better to say nothing until GPS lands
+        // be asserted confidently - better to say nothing until GPS lands
         let fixFresh = lastFixAt.map { Date().timeIntervalSince($0) < 3600 } ?? false
 
         let inputs = DeviceContextInputs(

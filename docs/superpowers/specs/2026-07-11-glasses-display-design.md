@@ -1,4 +1,4 @@
-# Glasses Display HUD — Design
+# Glasses Display HUD - Design
 
 **Date:** 2026-07-11
 **Status:** Approved by user ("looks good")
@@ -15,14 +15,14 @@ text replaces the spoken reply.
 
 - User's glasses are the Meta Ray-Ban **Display** model (confirmed); the
   DAT SDK's `MWDATDisplay` module ships in the SDK version already in our
-  package checkout — it just isn't linked by the app target yet.
+  package checkout - it just isn't linked by the app target yet.
 - Display API: declarative view trees sent over `Display` capability on a
   `DeviceSession` (`addDisplay()`). Components: `FlexBox`, `Text`
   (`heading`/`body`/`meta`, `primary`/`secondary`), `Button`
   (primary/secondary/outline, icons, `onClick` callbacks that fire in the
   phone app), `Icon` (fixed set), `Image` (URI), `VideoPlayer` (mp4 URI).
   Each `send()` replaces the whole screen.
-- Reference: `meta-wearables-dat-ios/samples/DisplayAccess` — uses
+- Reference: `meta-wearables-dat-ios/samples/DisplayAccess` - uses
   `AutoDeviceSelector(filter: { $0.supportsDisplay() })`, a pending-action
   pattern (send auto-attaches, view fires when `DisplayState == .started`),
   and handles `DeviceSessionError.datAppOnTheGlassesUpdateRequired`.
@@ -32,24 +32,24 @@ text replaces the spoken reply.
 ## Decisions (user-confirmed)
 
 1. Lens shows: reply text, live transcript, status indicators, on-lens
-   controls — the full HUD loop.
+   controls - the full HUD loop.
 2. Voice: keep TTS, add a **silent mode** toggle (text replaces voice).
-3. Idle: **blank lens** — nothing rendered outside an active exchange.
+3. Idle: **blank lens** - nothing rendered outside an active exchange.
 4. Approach A (state-driven HUD) over reply-card-only (B) and an
-   interactive conversation browser (C — YAGNI).
+   interactive conversation browser (C - YAGNI).
 
 ## Architecture
 
 One new service plus one screens file:
 
-- `HermesGlasses/Services/HermesDisplayManager.swift` — owns a persistent
+- `HermesGlasses/Services/HermesDisplayManager.swift` - owns a persistent
   display `DeviceSession` (selector filtered on `supportsDisplay()`) and
   the `Display` capability, using the sample's pending-action pattern.
   Lifecycle: `start()` when a Hermes session starts (if the display
   feature toggle is on), `stop()` on session end. All public methods are
   non-blocking, best-effort: errors are logged via the existing debug
   channel and never propagate to the voice loop.
-- `HermesGlasses/Services/HermesDisplayScreens.swift` — pure functions
+- `HermesGlasses/Services/HermesDisplayScreens.swift` - pure functions
   `(state) -> FlexBox`, no session state, unit-testable composition
   logic factored so text processing (truncation) is testable without the
   SDK.
@@ -74,8 +74,8 @@ var onNewChat: (() -> Void)?
 
 New settings (UserDefaults, exposed in Settings):
 
-- `display_hud_enabled` (Bool, default **true**) — "Glasses display".
-- `display_silent_mode` (Bool, default **false**) — "Silent mode
+- `display_hud_enabled` (Bool, default **true**) - "Glasses display".
+- `display_silent_mode` (Bool, default **false**) - "Silent mode
   (read replies instead of hearing them)". Only takes effect while the
   display is attached; if the display is unavailable, TTS behaves as
   today so replies are never silently dropped.

@@ -24,7 +24,7 @@ class TestIsVisualQuery(unittest.TestCase):
             "what's the weather tomorrow",
             "tell me a joke",
             "who wrote hamlet",
-            # bare 'picture'/'photo' must NOT trigger — meta-questions about
+            # bare 'picture'/'photo' must NOT trigger - meta-questions about
             # photos were re-photographing the room. (Note: a meta-question
             # containing the literal phrase 'take a picture' still triggers;
             # keyword matching cannot tell it from the command.)
@@ -242,7 +242,7 @@ class TestShouldCapturePhoto(unittest.TestCase):
 
 
 # Tests for the retained legacy SDK helper (ask_claude / build_claude_user_content
-# / trim_claude_history) — not on the live request path, which now goes through
+# / trim_claude_history) - not on the live request path, which now goes through
 # ask_provider()/build_provider_request(); kept for reference.
 class TestClaudeBrain(unittest.TestCase):
     def test_user_content_text_only(self):

@@ -3,7 +3,7 @@
 // Meta Wearables DAT credentials (MetaAppID + ClientToken) are injected here
 // as build settings and referenced from Info.plist as $(META_APP_ID) /
 // $(CLIENT_TOKEN). Real values live in Config/Secrets.xcconfig, which is
-// gitignored — copy Config/Secrets.example.xcconfig to create it.
+// gitignored - copy Config/Secrets.example.xcconfig to create it.
 //
 // Without Secrets.xcconfig the placeholders below are used, so the project
 // still builds for anyone who clones it (they supply their own values).

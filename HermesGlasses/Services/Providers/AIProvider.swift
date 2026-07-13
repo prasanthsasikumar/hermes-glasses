@@ -2,7 +2,7 @@
 // AIProvider.swift
 //
 // The provider seam for "Direct (your API)" mode. Pure Foundation so it
-// compiles under the standalone swiftc test harness — no os/SwiftUI here.
+// compiles under the standalone swiftc test harness - no os/SwiftUI here.
 //
 
 import Foundation
@@ -16,7 +16,7 @@ struct Turn: Codable, Equatable {
 /// A model a provider offers in the picker (users can also type a custom id).
 struct ModelOption: Equatable {
     let id: String     // wire value, e.g. "claude-opus-4-8"
-    let label: String  // UI label, e.g. "Opus 4.8 — smartest"
+    let label: String  // UI label, e.g. "Opus 4.8 - smartest"
 }
 
 /// Everything needed to shape one request, provider-agnostic.

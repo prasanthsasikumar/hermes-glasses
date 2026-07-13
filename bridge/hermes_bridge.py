@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Hermes Glasses Bridge — WebSocket server connecting the Hermes Glasses iOS
+Hermes Glasses Bridge - WebSocket server connecting the Hermes Glasses iOS
 app to a Hermes Agent. STT happens on the phone; this bridge handles text
 queries, photo requests, conversation memory, and TTS.
 
@@ -44,7 +44,7 @@ HERMES_BIN = os.environ.get(
 
 # Shared-secret auth. When set (HERMES_BRIDGE_TOKEN env), clients must
 # connect with ws://host:8765/voice?token=<value>. REQUIRED on any bridge
-# reachable from the internet — hermes has tool access, so an open bridge
+# reachable from the internet - hermes has tool access, so an open bridge
 # is remote code execution for anyone who finds the port.
 AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
 
@@ -54,11 +54,11 @@ AUTH_TOKEN = os.environ.get("HERMES_BRIDGE_TOKEN", "")
 BRIDGE_TTS = os.environ.get("HERMES_BRIDGE_TTS", "") == "1"
 
 # Which brain answers queries:
-#   "hermes" (default) — spawn the hermes CLI per query (agent with tools;
+#   "hermes" (default) - spawn the hermes CLI per query (agent with tools;
 #                        slower: pays agent boot every question)
-#   "claude"           — call the Claude API directly (fast conversational
+#   "claude"           - call the Claude API directly (fast conversational
 #                        answers + vision; needs ANTHROPIC_API_KEY)
-#   "anthropic" / "openai" / "gemini" — call the provider's HTTP API
+#   "anthropic" / "openai" / "gemini" - call the provider's HTTP API
 #                        directly (fast conversational answers + vision;
 #                        needs the matching *_API_KEY). "claude" is kept as
 #                        an alias for "anthropic" (back-compat).
@@ -149,7 +149,7 @@ def ask_provider(brain: str, text: str, photo: bytes | None = None) -> str:
     Stdlib-only (urllib), stateless single-turn request built with
     build_provider_request() and parsed with parse_provider_reply(). Unlike
     the legacy SDK-based ask_claude() below, this path carries no cross-turn
-    history — each query is answered independently.
+    history - each query is answered independently.
     """
     brain = _canon_brain(brain)
     base_url = os.environ.get("HERMES_BRIDGE_BASE_URL", BASE_URLS[brain])
@@ -196,12 +196,12 @@ def is_visual_query(text: str) -> bool:
     return any(keyword in lowered for keyword in VISUAL_KEYWORDS)
 
 
-# "this drink", "that building", "the one on the left" — references to
+# "this drink", "that building", "the one on the left" - references to
 # something the user is (probably) looking at
 DEICTIC_RE = None  # compiled below, after re is imported
 
 
-# "this morning", "that question" — deictic in grammar but not about
+# "this morning", "that question" - deictic in grammar but not about
 # anything visible. Nouns here never trigger a photo.
 DEICTIC_STOP_NOUNS = {
     "morning", "afternoon", "evening", "night", "time", "day", "week",
@@ -224,7 +224,7 @@ def should_capture_photo(text: str, last_photo_at: float, now: float) -> bool:
 
     Explicit visual keywords always capture. Deictic references ("this X")
     capture only for plausibly-visible nouns, and only when no photo was
-    taken recently — within the window, conversation memory already knows
+    taken recently - within the window, conversation memory already knows
     what the user is looking at.
     """
     if is_visual_query(text):
@@ -353,13 +353,13 @@ def build_claude_user_content(text: str, photo: bytes | None) -> list:
     return content
 
 
-# Retained legacy SDK helper — no longer on the request path (provider
+# Retained legacy SDK helper - no longer on the request path (provider
 # brains now go through ask_provider()/build_provider_request()); kept for
 # reference and its tested same-day history helpers.
 def ask_claude(text: str, photo: bytes | None = None) -> str | None:
     """Answer via the Claude API with same-day conversation memory.
 
-    Fast path: no process spawn, no agent boot — typically 2-4s for a
+    Fast path: no process spawn, no agent boot - typically 2-4s for a
     spoken-length reply. Photos go in as native image blocks.
     """
     try:
@@ -412,7 +412,7 @@ import re
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 BOX_CHARS = set("╭╮╰╯│─═╞╡┌┐└┘┤├")
 
-# Deictic references — compiled here because `re` is imported at this point
+# Deictic references - compiled here because `re` is imported at this point
 DEICTIC_RE = re.compile(r"\b(this|that|these|those)\s+([a-z]+)|\bthe one\b",
                         re.IGNORECASE)
 
@@ -477,7 +477,7 @@ def ask_hermes(
                     return reply, session_id
             return output, session_id
         if result.stderr.strip():
-            # No reply on stdout — return the error text sans session line
+            # No reply on stdout - return the error text sans session line
             err = "\n".join(
                 line for line in result.stderr.strip().splitlines()
                 if not line.startswith("session_id:")
@@ -494,7 +494,7 @@ def ask_hermes(
 # ── Text-to-Speech ─────────────────────────────────────────────────────────
 
 def synthesize_speech(text: str) -> bytes | None:
-    """Convert text to speech. Always returns raw PCM16 mono 24kHz —
+    """Convert text to speech. Always returns raw PCM16 mono 24kHz -
     the only format the app can play."""
     # Try Edge TTS first (better quality)
     try:
@@ -580,7 +580,7 @@ async def await_photo(websocket, timeout: float = 25.0) -> bytes | None:
             print("[Bridge] Photo wait timed out")
             return None
         if isinstance(message, bytes):
-            continue  # stray binary frame while waiting — drop it
+            continue  # stray binary frame while waiting - drop it
         data = json.loads(message)
         msg_type = data.get("type")
         if msg_type == "photo":
@@ -615,14 +615,14 @@ async def process_query(websocket, text: str, conn_state: dict | None = None,
     query_text = text
     if should_capture_photo(text, conn_state.get("last_photo_at", 0.0),
                             time.monotonic()):
-        print("[Bridge] Visual query — requesting photo from glasses")
+        print("[Bridge] Visual query - requesting photo from glasses")
         await websocket.send(json.dumps({"type": "capture_photo"}))
         photo = await await_photo(websocket)
         if photo:
             conn_state["last_photo_at"] = time.monotonic()
             print(f"[Bridge] Photo received: {len(photo)} bytes")
         else:
-            print("[Bridge] No photo — answering text-only")
+            print("[Bridge] No photo - answering text-only")
             query_text = ("(No photo could be captured from the glasses.) "
                           + text)
 
@@ -649,8 +649,8 @@ async def process_query(websocket, text: str, conn_state: dict | None = None,
                 ask_hermes, query_text, image_path, resume
             )
             if resume and not response:
-                # Stored session may have been pruned — retry fresh once
-                print("[Bridge] Resume failed — retrying with a fresh session")
+                # Stored session may have been pruned - retry fresh once
+                print("[Bridge] Resume failed - retrying with a fresh session")
                 clear_session()
                 response, session_id = await asyncio.to_thread(
                     ask_hermes, VOICE_PERSONA + text, image_path, None
@@ -780,7 +780,7 @@ async def main():
 ║              Hermes Glasses Bridge Server                ║
 ║                                                          ║
 ║  Listening on ws://{HOST}:{PORT}/voice                       ║
-║  STT: on the phone — the app sends text queries          ║
+║  STT: on the phone - the app sends text queries          ║
 ║  Brain: {BRAIN} {f"({CLAUDE_MODEL})" if _canon_brain(BRAIN) in ("anthropic", "openai", "gemini") else "(CLI agent)":<30}  ║
 ║                                                          ║
 ║  Connect your glasses app to:                            ║

@@ -74,7 +74,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            // Mic source — tap cycles iPhone → Glasses → Headset
+            // Mic source - tap cycles iPhone → Glasses → Headset
             if hermesVM.connectionState != .disconnected {
                 iconCircle(
                     micIconName,
@@ -172,7 +172,7 @@ struct ContentView: View {
                             UserBubble(text: hermesVM.lastTranscript)
                         }
 
-                        // LIVE transcription — words appear as you speak
+                        // LIVE transcription - words appear as you speak
                         if !hermesVM.liveTranscript.isEmpty {
                             liveTranscriptBubble
                         }
@@ -260,7 +260,7 @@ struct ContentView: View {
                     .font(.system(size: 28, weight: .bold))
                     .kerning(-0.5)
 
-                Text("\(assistantName) talks to you through your Meta Ray-Ban glasses — mic, speaker, and camera.")
+                Text("\(assistantName) talks to you through your Meta Ray-Ban glasses - mic, speaker, and camera.")
                     .font(.system(size: 16))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -429,9 +429,9 @@ struct ContentView: View {
     private var speakingLabel: String {
         if hermesVM.audio.isUsingBluetoothInput {
             let device = hermesVM.micSource == .headset ? "headset" : "glasses"
-            return "\(assistantName) speaking through \(device) — tap to stop"
+            return "\(assistantName) speaking through \(device) - tap to stop"
         }
-        return "\(assistantName) is speaking — tap to stop"
+        return "\(assistantName) is speaking - tap to stop"
     }
 
     // MARK: - Test Panel
@@ -687,12 +687,12 @@ struct SettingsView: View {
                     Text("Assistant")
                 } footer: {
                     if hermesVM.backend == .direct {
-                        Text("Direct mode needs no server — the phone calls \(hermesVM.directProvider.displayName) with your key. Applies from the next session.")
+                        Text("Direct mode needs no server - the phone calls \(hermesVM.directProvider.displayName) with your key. Applies from the next session.")
                     }
                 }
 
                 Section {
-                    // Saved presets — tap to select
+                    // Saved presets - tap to select
                     ForEach(hermesVM.endpointPresets, id: \.name) { preset in
                         Button {
                             endpoint = preset.url
@@ -781,7 +781,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Glasses Display")
                 } footer: {
-                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it — handy in meetings. Note: the glasses microphone's call screen covers the HUD; the iPhone or a headset mic keeps it visible.")
+                    Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it - handy in meetings. Note: the glasses microphone's call screen covers the HUD; the iPhone or a headset mic keeps it visible.")
                 }
 
                 Section {
@@ -889,7 +889,7 @@ struct SettingsView: View {
     private var cameraPermissionText: String {
         switch hermesVM.cameraPermissionGranted {
         case .some(true): return "Granted"
-        case .some(false): return "Denied — tap Photo test to grant"
+        case .some(false): return "Denied - tap Photo test to grant"
         case .none: return "Unknown (start a session)"
         }
     }
@@ -901,9 +901,9 @@ struct SettingsView: View {
         case .connected:
             // Glasses HFP mic = their own call screen covers the HUD
             return hermesVM.lensBlockedByCallScreen
-                ? "Connected — hidden by call screen (glasses mic)"
+                ? "Connected - hidden by call screen (glasses mic)"
                 : "Connected"
-        case .unavailable(let reason): return "Unavailable — \(reason)"
+        case .unavailable(let reason): return "Unavailable - \(reason)"
         }
     }
 }

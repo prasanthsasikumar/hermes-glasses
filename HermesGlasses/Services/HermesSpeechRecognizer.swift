@@ -29,9 +29,9 @@ enum HermesSpeechError: LocalizedError {
 final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
     // MARK: - Callbacks (delivered on the main queue)
 
-    /// Live partial transcript — fires as words are recognized
+    /// Live partial transcript - fires as words are recognized
     var onPartial: ((String) -> Void)?
-    /// Utterance complete (pause or finalizeNow) — trimmed, never empty
+    /// Utterance complete (pause or finalizeNow) - trimmed, never empty
     var onFinal: ((String) -> Void)?
 
     // MARK: - Private
@@ -44,7 +44,7 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
     /// Incremented on every cycle start; callbacks from cancelled tasks
     /// carry an older generation and are ignored. Without this, each
     /// task.cancel() fires that task's handler with an error, which would
-    /// tear down the NEW cycle — cascading until the recognizer is deaf
+    /// tear down the NEW cycle - cascading until the recognizer is deaf
     /// while the UI still says Listening.
     private var cycleGeneration = 0
     private var latestPartial: String = ""
@@ -111,7 +111,7 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
         tearDownCycle()
     }
 
-    /// Feed a raw mic buffer (any format — Speech converts internally)
+    /// Feed a raw mic buffer (any format - Speech converts internally)
     func append(_ buffer: AVAudioPCMBuffer) {
         guard isRunning, !isSuspended else { return }
         request?.append(buffer)
@@ -173,14 +173,14 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
             if error != nil {
                 // Recognizer gave up (silence limit, transient failure).
                 // Emit anything we have and start a fresh cycle.
-                self.logger.info("Recognition cycle #\(generation) ended with error — restarting")
+                self.logger.info("Recognition cycle #\(generation) ended with error - restarting")
                 self.emitFinalIfAny()
             }
         }
     }
 
     private func tearDownCycle() {
-        // Invalidate in-flight callbacks BEFORE cancel — cancel fires the
+        // Invalidate in-flight callbacks BEFORE cancel - cancel fires the
         // old task's handler with an error, which must see itself as stale
         cycleGeneration += 1
         task?.cancel()
@@ -209,7 +209,7 @@ final class HermesSpeechRecognizer: NSObject, @unchecked Sendable {
         lastChangeAt = .distantPast
 
         // Restart the cycle so the next utterance starts clean (skipped
-        // while suspended — unsuspend starts the next cycle)
+        // while suspended - unsuspend starts the next cycle)
         if isRunning, !isSuspended {
             tearDownCycle()
             startRecognitionCycle()

@@ -1,5 +1,5 @@
 //
-// GeminiProvider.swift — Google Generative Language generateContent.
+// GeminiProvider.swift - Google Generative Language generateContent.
 // Vision via inline_data parts; system via systemInstruction. Pure Foundation.
 //
 
@@ -13,8 +13,8 @@ struct GeminiProvider: AIProvider {
     let requiresKey = true
     let supportsVision = true
     let curatedModels = [
-        ModelOption(id: "gemini-2.5-flash", label: "2.5 Flash — fast"),
-        ModelOption(id: "gemini-2.5-pro", label: "2.5 Pro — smartest"),
+        ModelOption(id: "gemini-2.5-flash", label: "2.5 Flash - fast"),
+        ModelOption(id: "gemini-2.5-pro", label: "2.5 Pro - smartest"),
     ]
 
     func buildRequest(_ req: AIRequest) throws -> URLRequest {

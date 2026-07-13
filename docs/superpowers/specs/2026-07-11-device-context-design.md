@@ -1,12 +1,12 @@
-# Device Context for Queries — Design
+# Device Context for Queries - Design
 
 **Date:** 2026-07-11
 **Status:** Approved by user ("Sounds good, go ahead with A")
 
 ## Goal
 
-Every query carries a compact, current snapshot of the user's situation —
-local time, location, motion, connectivity, phone battery, weather — so
+Every query carries a compact, current snapshot of the user's situation -
+local time, location, motion, connectivity, phone battery, weather - so
 Claude Direct and both bridges can answer "what time is it", "where am I",
 "do I need a jacket", "am I online", "how much battery do I have" and use
 the context implicitly everywhere else.
@@ -16,9 +16,9 @@ the context implicitly everywhere else.
 - Maximal context: exact coordinates AND area name, connectivity, battery,
   plus motion activity and current weather ("send as much information
   about me and my status as we can gather").
-- Always attached (approach A) — not keyword-triggered, not tool-calling.
+- Always attached (approach A) - not keyword-triggered, not tool-calling.
 - Glasses battery is NOT available from the DAT SDK 0.8 (thermal/battery
-  error states only) — phone battery only, stated limitation.
+  error states only) - phone battery only, stated limitation.
 
 ## Context line format
 
@@ -30,18 +30,18 @@ Fri 11 Jul 2026, 3:42 PM (Pacific/Auckland) · Grafton, Auckland, NZ (-36.8605, 
 
 Segments, in order:
 
-1. **Time** — `EEE d MMM yyyy, h:mm a (TimeZone.identifier)`, device
+1. **Time** - `EEE d MMM yyyy, h:mm a (TimeZone.identifier)`, device
    locale-independent (en_US_POSIX day/month names). Always present.
-2. **Location** — `<subLocality or locality>, <locality if distinct>,
+2. **Location** - `<subLocality or locality>, <locality if distinct>,
    <ISO country> (<lat>, <lon> to 4 dp)`. Coordinates included only when
    the "precise location" sub-toggle is on; otherwise area name only.
    Omitted entirely when permission denied / no fix yet.
-3. **Motion** — one of `stationary`, `walking`, `running`, `cycling`,
+3. **Motion** - one of `stationary`, `walking`, `running`, `cycling`,
    `driving` from CMMotionActivity. Omitted when unknown/unavailable.
-4. **Connectivity** — `online (Wi-Fi)`, `online (cellular)`, or `offline`.
-5. **Battery** — `iPhone battery N%, charging|not charging`. Omitted if
+4. **Connectivity** - `online (Wi-Fi)`, `online (cellular)`, or `offline`.
+5. **Battery** - `iPhone battery N%, charging|not charging`. Omitted if
    monitoring unavailable.
-6. **Weather** — `<t>°C <condition>` from Open-Meteo current weather at
+6. **Weather** - `<t>°C <condition>` from Open-Meteo current weather at
    the last known coordinates. Omitted when offline, no location, fetch
    failed, or cache older than 60 min.
 
@@ -86,7 +86,7 @@ In `submitQuery` (both branches), fetch `contextProvider.contextLine()`:
   `{"type":"text","text":"Current user context: <line>"}` appended after
   the persona block. The persona block keeps its `cache_control:
   ephemeral` (cache prefix unchanged); the context block is NOT cached.
-  History stores raw user text only — old context never accumulates.
+  History stores raw user text only - old context never accumulates.
 - **Bridge mode**: the app prepends `[Context: <line>]\n\n` to the query
   text in `sendQuery`. Works with BOTH existing bridges unmodified (Mac +
   maya); Hermes/Claude simply see it inline. `lastTranscript` and the
@@ -105,7 +105,7 @@ In `submitQuery` (both branches), fetch `contextProvider.contextLine()`:
   - "Include precise coordinates" sub-toggle (`context_precise_location`,
     default ON per user's choice), disabled when master is off
   - A live preview row showing the exact current context line (or "Off").
-- Weather calls go to open-meteo.com with bare coordinates — noted in the
+- Weather calls go to open-meteo.com with bare coordinates - noted in the
   Settings footer.
 
 ## Error handling
@@ -113,7 +113,7 @@ In `submitQuery` (both branches), fetch `contextProvider.contextLine()`:
 Everything is best-effort and non-blocking: no context source may delay,
 fail, or alter a query beyond the added line. Sensor errors are logged
 (os.Logger, category "context") and the segment omitted. `contextLine()`
-is synchronous — a query is never gated on GPS/geocode/weather I/O.
+is synchronous - a query is never gated on GPS/geocode/weather I/O.
 
 ## Testing
 
@@ -127,7 +127,7 @@ is synchronous — a query is never gated on GPS/geocode/weather I/O.
 
 ## Out of scope (noted for later)
 
-- Calendar/reminders access ("what's on my calendar") — EventKit, own
+- Calendar/reminders access ("what's on my calendar") - EventKit, own
   permission + serialization; separate project.
 - Glasses battery (no SDK API).
 - Tool-calling architecture.

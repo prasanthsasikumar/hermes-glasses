@@ -27,7 +27,7 @@ client-supplied) text and requests `capture_photo` when visual.
 
 ## Components
 
-- **`HermesGlasses/Services/HermesSpeechRecognizer.swift` (new)** — wraps
+- **`HermesGlasses/Services/HermesSpeechRecognizer.swift` (new)** - wraps
   `SFSpeechRecognizer` + `SFSpeechAudioBufferRecognitionRequest` with
   on-device recognition (`requiresOnDeviceRecognition` when supported).
   API: `requestAuthorization() async -> Bool`, `start() throws`,
@@ -36,26 +36,26 @@ client-supplied) text and requests `capture_photo` when visual.
   End-of-utterance: 1.5 s with no partial-transcript change → current text
   is final → `onFinal` → recognizer restarts for the next utterance.
   `finalizeNow()` forces the same immediately (Send button).
-- **`HermesAudioManager`** — new `onRawBuffer((AVAudioPCMBuffer) -> Void)?`
+- **`HermesAudioManager`** - new `onRawBuffer((AVAudioPCMBuffer) -> Void)?`
   tap callback (raw, pre-conversion) and `onLevel((Float) -> Void)?`
   (RMS ~4×/s for the UI meter). Existing conversion path kept but unused
   by default.
-- **`HermesAPIClient`** — `sendQuery(_ text: String)` sends
+- **`HermesAPIClient`** - `sendQuery(_ text: String)` sends
   `{"type":"query","text":...}`.
-- **`HermesSessionViewModel`** — wires buffers → recognizer; publishes
+- **`HermesSessionViewModel`** - wires buffers → recognizer; publishes
   `liveTranscript`, `micLevel`; `sendNow()`; suppresses recognition while
   `.processing`/`.speaking` (no echo transcription); test-panel actions
   with published pass/fail results: `testBridge()`, `testPhoto()`,
   `testQuery()`, `testVisualQuery()`.
-- **`ContentView`** — live transcript bubble (italic, updates per word) +
+- **`ContentView`** - live transcript bubble (italic, updates per word) +
   "Send now" button; "Testing" section listing each test with ✓/✗/running
   state and error text; mic level bar.
-- **`bridge/hermes_bridge.py`** — new `query` message type: text goes
+- **`bridge/hermes_bridge.py`** - new `query` message type: text goes
   straight to the visual-keyword/photo/hermes/TTS pipeline (shared
   `process_query(websocket, text)` refactored out of `process_utterance`;
   the STT part stays in `process_utterance`). Unit test covers the query
   path including the visual branch (monkeypatched `ask_hermes`/TTS).
-- **`Info.plist`** — `NSSpeechRecognitionUsageDescription`.
+- **`Info.plist`** - `NSSpeechRecognitionUsageDescription`.
 
 ## Protocol addition
 

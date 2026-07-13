@@ -32,7 +32,7 @@ enum BridgeStatus: Equatable {
 
 /// Which brain answers queries
 enum AssistantBackend: String, CaseIterable {
-    /// Straight from the phone to the selected AI provider — no server
+    /// Straight from the phone to the selected AI provider - no server
     case direct
     /// WebSocket bridge on a server (Hermes agent or bridge-side provider)
     case bridge
@@ -45,7 +45,7 @@ enum AssistantBackend: String, CaseIterable {
     }
 }
 
-/// Where voice is captured (and, on Bluetooth, where TTS plays — HFP is
+/// Where voice is captured (and, on Bluetooth, where TTS plays - HFP is
 /// bidirectional)
 enum MicSource: String, CaseIterable {
     case phone
@@ -112,7 +112,7 @@ final class HermesSessionViewModel {
                     Task { @MainActor [weak self] in
                         guard let self, self.micSource == .glasses else { return }
                         await self.setMicSource(.phone)
-                        self.show("Switched to the iPhone mic — the lens HUD can't show while the glasses' hands-free mic is active.")
+                        self.show("Switched to the iPhone mic - the lens HUD can't show while the glasses' hands-free mic is active.")
                     }
                 } else {
                     displayManager.stop()
@@ -252,7 +252,7 @@ final class HermesSessionViewModel {
         }
         deviceSession = session
 
-        // Single state observer — use a continuation to signal readiness
+        // Single state observer - use a continuation to signal readiness
         do {
             // Boxed flag so both the Task and outer scope can access it
             let done = OSAllocatedUnfairLock(initialState: false)
@@ -346,7 +346,7 @@ final class HermesSessionViewModel {
             return
         }
 
-        // Session is started — set up Hermes and audio
+        // Session is started - set up Hermes and audio
         isGlassesConnected = true
         cameraManager.configure(session: session)
         cameraManager.onDebug = { [weak self] message in
@@ -357,11 +357,11 @@ final class HermesSessionViewModel {
         // Surface camera permission state early (non-interactive)
         Task { await ensureCameraPermission(interactive: false) }
 
-        // Personal context (time/location/motion/battery/weather) —
+        // Personal context (time/location/motion/battery/weather) -
         // requests location permission on first use
         contextProvider.start()
 
-        // Display HUD (Ray-Ban Display glasses) — best-effort, shares the
+        // Display HUD (Ray-Ban Display glasses) - best-effort, shares the
         // same device session as the camera
         displayManager.onDebug = { [weak self] message in
             Task { @MainActor [weak self] in
@@ -382,11 +382,11 @@ final class HermesSessionViewModel {
             self.startNewConversation()
             self.displayManager.showNewConversationFlash()
         }
-        // NOTE: the display attaches AFTER audio setup (step 3 below) —
+        // NOTE: the display attaches AFTER audio setup (step 3 below) -
         // whether the lens is free depends on the actual mic route: the
         // HFP glasses mic brings up the glasses' call screen over the HUD.
 
-        // 2. Connect the brain. Direct mode needs no server at all —
+        // 2. Connect the brain. Direct mode needs no server at all -
         // skip the bridge entirely.
         if backend == .direct {
             guard !directProvider.requiresKey || DirectClient.hasKey(for: directProvider.id) else {
@@ -418,7 +418,7 @@ final class HermesSessionViewModel {
                 if !bridgeWillSendAudio {
                     self.presentReply(text)
                 } else {
-                    // Bridge will stream its own TTS — show the card now,
+                    // Bridge will stream its own TTS - show the card now,
                     // Stop button active while it plays
                     self.displayManager.showReply(
                         text: HermesDisplayLogic.truncateReply(text),
@@ -469,7 +469,7 @@ final class HermesSessionViewModel {
         client.onCapturePhotoRequested = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // Fail fast if the Meta AI camera permission is missing —
+                // Fail fast if the Meta AI camera permission is missing -
                 // the interactive grant needs an app switch, which can't
                 // happen inside the bridge's photo wait.
                 guard await self.ensureCameraPermission(interactive: false) else {
@@ -525,7 +525,7 @@ final class HermesSessionViewModel {
             }
         }
 
-        // On-device TTS finished (or was interrupted) — same completion
+        // On-device TTS finished (or was interrupted) - same completion
         // flow as bridge-audio playback
         speechSynthesizer.onFinished = { [weak self] in
             Task { @MainActor [weak self] in
@@ -552,7 +552,7 @@ final class HermesSessionViewModel {
                 }
             } else {
                 self.liveTranscript = text
-                // A late partial can trail the finalized utterance — don't
+                // A late partial can trail the finalized utterance - don't
                 // let it overwrite the Thinking screen on the lens
                 switch self.connectionState {
                 case .listening, .recording:
@@ -577,10 +577,10 @@ final class HermesSessionViewModel {
                 route: micSource.captureRoute
             )
             if micSource == .glasses && !bluetoothActive {
-                show("Glasses mic not available — using iPhone mic")
+                show("Glasses mic not available - using iPhone mic")
             }
             if micSource == .headset && !bluetoothActive {
-                show("No headset mic found — using iPhone mic. Connect AirPods or another Bluetooth headset first.")
+                show("No headset mic found - using iPhone mic. Connect AirPods or another Bluetooth headset first.")
             }
             if speechOK {
                 try speechRecognizer.start()
@@ -592,7 +592,7 @@ final class HermesSessionViewModel {
         }
 
         // Attach the lens HUD only when the mic route leaves the lens
-        // free — the GLASSES' hands-free link brings up their call screen
+        // free - the GLASSES' hands-free link brings up their call screen
         // (a headset's hands-free link does not)
         if displayHUDEnabled && !lensBlockedByCallScreen {
             // stop() first: a standalone Display test may still hold an
@@ -634,7 +634,7 @@ final class HermesSessionViewModel {
     }
 
     /// Direct mode: photo decision + capture happen locally, then one
-    /// API call — no server round trips.
+    /// API call - no server round trips.
     private func askDirect(_ text: String, context: String? = nil) async {
         var photo: Data?
         if VisualQueryDetector.shouldCapturePhoto(text, lastPhotoAt: lastDirectPhotoAt),
@@ -667,7 +667,7 @@ final class HermesSessionViewModel {
         hasDirectKey = DirectClient.hasKey(for: directProviderID)
     }
 
-    /// "Send now" button — don't wait for the pause detection
+    /// "Send now" button - don't wait for the pause detection
     func sendNow() {
         speechRecognizer.finalizeNow()
     }
@@ -726,7 +726,7 @@ final class HermesSessionViewModel {
             displayManager.showReply(text: shown, speaking: true, dwellSeconds: nil)
             speechSynthesizer.speak(text)
             if audioManager.isUsingBluetoothInput {
-                // Glasses echo-cancel their own speaker — barge-in stays on
+                // Glasses echo-cancel their own speaker - barge-in stays on
                 speechRecognizer.isSuspended = false
             }
         }
@@ -749,14 +749,14 @@ final class HermesSessionViewModel {
         let heard = normalize(partial)
         guard !heard.isEmpty else { return true }
         // Heuristic: if what we heard appears verbatim in the response,
-        // assume it's echo. A user genuinely quoting Hermes back loses —
+        // assume it's echo. A user genuinely quoting Hermes back loses -
         // acceptable trade-off.
         return normalize(lastResponse).contains(heard)
     }
 
     /// True when the glasses' call screen owns the lens: their hands-free
     /// link is the active mic route. A headset's hands-free link does NOT
-    /// block the lens — that's the whole point of headset mode.
+    /// block the lens - that's the whole point of headset mode.
     var lensBlockedByCallScreen: Bool {
         micSource == .glasses && audioManager.isUsingBluetoothInput
     }
@@ -784,10 +784,10 @@ final class HermesSessionViewModel {
             )
             speechRecognizer.restartCycle()
             if target == .glasses && !bluetoothActive {
-                show("Glasses mic not available — using iPhone mic")
+                show("Glasses mic not available - using iPhone mic")
             }
             if target == .headset && !bluetoothActive {
-                show("No headset mic found — using iPhone mic. Connect AirPods or another Bluetooth headset first.")
+                show("No headset mic found - using iPhone mic. Connect AirPods or another Bluetooth headset first.")
             }
             // HUD ⇄ GLASSES hands-free mic are mutually exclusive: the
             // glasses show their call screen while their hands-free link
@@ -795,7 +795,7 @@ final class HermesSessionViewModel {
             if displayHUDEnabled, let session = deviceSession {
                 if lensBlockedByCallScreen {
                     displayManager.stop()
-                    show("Lens HUD paused — the glasses show their call screen while their hands-free mic is on. The iPhone or a headset mic keeps the HUD visible.")
+                    show("Lens HUD paused - the glasses show their call screen while their hands-free mic is on. The iPhone or a headset mic keeps the HUD visible.")
                 } else if displayManager.status == .off {
                     displayManager.start(session: session)
                 }
@@ -863,7 +863,7 @@ final class HermesSessionViewModel {
     }
 
     /// Probe the Hermes bridge (connect, await welcome, disconnect) without
-    /// touching the glasses — lets the UI show bridge reachability on launch.
+    /// touching the glasses - lets the UI show bridge reachability on launch.
     func checkBridge() async {
         guard bridgeStatus != .checking else { return }
         bridgeStatus = .checking
@@ -896,7 +896,7 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Glasses camera alone — no Hermes involved. Runs the interactive
+    /// Glasses camera alone - no Hermes involved. Runs the interactive
     /// permission flow (opens Meta AI) if camera access was never granted.
     func testPhoto() async {
         await runTest("Photo") { [self] in
@@ -985,7 +985,7 @@ final class HermesSessionViewModel {
                     displayManager.stop()
                     displayManager.start(session: session)
                 }
-                // Attach is async — wait up to 5 s for the capability
+                // Attach is async - wait up to 5 s for the capability
                 for _ in 0..<50 where displayManager.status != .connected {
                     try await Task.sleep(nanoseconds: 100_000_000)
                 }
@@ -1014,7 +1014,7 @@ final class HermesSessionViewModel {
                 session.stop()
                 throw error
             }
-            // Leave the test screen up briefly, then tear down — unless a
+            // Leave the test screen up briefly, then tear down - unless a
             // real session started meanwhile (it re-attaches the display
             // to its own session in startSession)
             Task { @MainActor [weak self] in

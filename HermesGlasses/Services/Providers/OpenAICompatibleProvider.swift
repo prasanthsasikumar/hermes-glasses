@@ -1,5 +1,5 @@
 //
-// OpenAICompatibleProvider.swift — /v1/chat/completions. One shape serves
+// OpenAICompatibleProvider.swift - /v1/chat/completions. One shape serves
 // OpenAI, Ollama, and OpenAI-style proxies (LM Studio, Groq, OpenRouter)
 // via base-URL override. Pure Foundation.
 //
@@ -20,7 +20,7 @@ struct OpenAICompatibleProvider: AIProvider {
         defaultBaseURL: "https://api.openai.com", requiresKey: true,
         curatedModels: [
             ModelOption(id: "gpt-4o", label: "GPT-4o"),
-            ModelOption(id: "gpt-4o-mini", label: "GPT-4o mini — fastest"),
+            ModelOption(id: "gpt-4o-mini", label: "GPT-4o mini - fastest"),
         ])
 
     static let ollama = OpenAICompatibleProvider(
@@ -28,7 +28,7 @@ struct OpenAICompatibleProvider: AIProvider {
         defaultBaseURL: "http://localhost:11434", requiresKey: false,
         curatedModels: [
             ModelOption(id: "llama3.2", label: "Llama 3.2"),
-            ModelOption(id: "llava", label: "LLaVA — vision"),
+            ModelOption(id: "llava", label: "LLaVA - vision"),
         ])
 
     func buildRequest(_ req: AIRequest) throws -> URLRequest {

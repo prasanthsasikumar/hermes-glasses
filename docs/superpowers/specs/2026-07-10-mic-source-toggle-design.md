@@ -26,35 +26,35 @@ ways).
 ## Components
 
 - **`HermesAudioManager`**
-  - `startCapture(useGlassesMic: Bool) async throws -> Bool` — returns whether
+  - `startCapture(useGlassesMic: Bool) async throws -> Bool` - returns whether
     the glasses (HFP) route is actually active. Glasses mode: category
-    `.playAndRecord`, mode `.default` (never `.voiceChat` — its DSP silences
+    `.playAndRecord`, mode `.default` (never `.voiceChat` - its DSP silences
     speech), options `[.allowBluetoothHFP]`, `setPreferredInput` to the HFP
     port, wait up to 3 s (non-blocking) for the route. Phone mode: unchanged
     (`[.defaultToSpeaker]`, no Bluetooth options).
-  - New `onRouteChanged: (() -> Void)?` — fired from the engine
+  - New `onRouteChanged: (() -> Void)?` - fired from the engine
     configuration-change observer after the tap is reinstalled.
 - **`HermesSpeechRecognizer`**
-  - New `restartCycle()` — tears down and restarts the recognition cycle.
+  - New `restartCycle()` - tears down and restarts the recognition cycle.
     Required because `SFSpeechAudioBufferRecognitionRequest` cannot absorb a
     buffer-format change mid-request; without a restart the recognizer goes
     silently deaf after any route change.
 - **`HermesSessionViewModel`**
   - `micSource: MicSource` (`.phone`/`.glasses`) published, backed by
     UserDefaults.
-  - `toggleMicSource() async` — persists the flip; if a session is live:
+  - `toggleMicSource() async` - persists the flip; if a session is live:
     `stopCapture()` → `startCapture(useGlassesMic:)` → `restartCycle()`;
     shows an error and reflects reality on fallback.
   - Wires `onRouteChanged` → `restartCycle()` (fixes the latent deaf-after-
     route-change bug for AirPods/cable events too).
-- **`ContentView`** — chip becomes a Button; Settings picker.
+- **`ContentView`** - chip becomes a Button; Settings picker.
 
 Bridge: no changes.
 
 ## Error handling
 
 - No HFP input found after 3 s → automatic phone-mic fallback + error banner
-  ("Glasses mic not available — using iPhone mic").
+  ("Glasses mic not available - using iPhone mic").
 - `startCapture` failure mid-toggle → endSession with the standard error path
   (same as today's startup failure).
 
