@@ -20,7 +20,7 @@ Part of the **Sidekick** project.
 <p align="center">
   <img src="docs/media/home.png" width="220" alt="Home screen with Glasses and Bridge both connected">
   &nbsp;&nbsp;
-  <img src="docs/media/settings-provider.png" width="220" alt="Direct (your API) mode with the Claude provider selected">
+  <img src="docs/media/settings-direct.png" width="220" alt="Direct (your API) mode with the Claude provider selected">
   &nbsp;&nbsp;
   <img src="docs/media/settings-features.png" width="220" alt="Voice, microphone, glasses-display and context settings">
 </p>
