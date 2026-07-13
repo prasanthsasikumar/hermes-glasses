@@ -8,11 +8,26 @@ tool-using conversations.
 
 Part of the **Sidekick** project.
 
-## Screenshots
+## Demo
 
-| Live transcription | Vision query | Settings |
-|---|---|---|
-| _screenshot coming_ | _screenshot coming_ | _screenshot coming_ |
+<p align="center">
+  <img src="docs/media/demo-hud.gif" width="300" alt="A spoken reply on the Ray-Ban Display HUD, hands-free">
+  &nbsp;&nbsp;
+  <img src="docs/media/demo-listening.gif" width="300" alt="Live transcription on the glasses lens">
+</p>
+<p align="center"><em>On the Ray-Ban Display lens — a spoken reply (left) and live transcription (right), fully hands-free.</em></p>
+
+<p align="center">
+  <img src="docs/media/home.png" width="240" alt="Home screen with Glasses and Bridge both connected">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/media/settings-provider.png" width="240" alt="Direct (your API) mode with the Claude provider selected">
+</p>
+<p align="center"><em>Home (glasses + bridge connected) and “Direct (your API)” — pick a provider, paste your key.</em></p>
+
+<p align="center">
+  <img src="docs/media/bridge-terminal.png" width="620" alt="Bridge log: a visual query captures a glasses photo and answers in 5.3 seconds">
+</p>
+<p align="center"><em>Bridge mode: a visual query captures a glasses photo and answers in ~5&nbsp;s.</em></p>
 
 ## What it does
 
@@ -28,6 +43,21 @@ Part of the **Sidekick** project.
 
 ## Architecture
 
+There are two runtime paths. **Direct (your API)** needs no server — the phone
+calls your provider itself:
+
+```
+┌─────────────┐   Bluetooth    ┌──────────────┐     HTTPS      ┌─────────────────────┐
+│  Ray-Ban    │ ─────────────▶ │  iPhone app  │ ─────────────▶ │  Your AI provider   │
+│  glasses    │  (DAT SDK:     │  (SwiftUI)   │  query +       │  Claude · OpenAI ·  │
+│             │   camera)      │  on-device   │  base64 photo  │  Gemini · Ollama    │
+└─────────────┘                │  STT + TTS   │ ◀───────────── │                     │
+                               └──────────────┘   reply text   └─────────────────────┘
+```
+
+**Hermes agent (bridge)** routes through a Mac running the agent (tools +
+memory), over a WebSocket:
+
 ```
 ┌─────────────┐   Bluetooth    ┌──────────────┐    WebSocket     ┌──────────────────┐
 │  Ray-Ban    │ ─────────────▶ │  iPhone app  │ ───────────────▶ │  Mac bridge      │
@@ -37,10 +67,6 @@ Part of the **Sidekick** project.
                                │  live STT    │  responses + TTS │  + edge-tts      │
                                └──────────────┘    (PCM 24 kHz)  └──────────────────┘
 ```
-
-In **Direct (your API)** mode the app skips the Mac bridge entirely and calls
-your chosen provider's API straight from the phone; the diagram above applies
-only to **Hermes agent (bridge)** mode.
 
 - **iOS app** (`HermesGlasses/`) — SwiftUI app using the
   [Meta Wearables Device Access Toolkit](https://github.com/facebook/meta-wearables-dat-ios)
