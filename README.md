@@ -18,11 +18,13 @@ Part of the **Sidekick** project.
 <p align="center"><em>On the Ray-Ban Display lens — a spoken reply (left) and live transcription (right), fully hands-free.</em></p>
 
 <p align="center">
-  <img src="docs/media/home.png" width="240" alt="Home screen with Glasses and Bridge both connected">
-  &nbsp;&nbsp;&nbsp;
-  <img src="docs/media/settings-provider.png" width="240" alt="Direct (your API) mode with the Claude provider selected">
+  <img src="docs/media/home.png" width="220" alt="Home screen with Glasses and Bridge both connected">
+  &nbsp;&nbsp;
+  <img src="docs/media/settings-provider.png" width="220" alt="Direct (your API) mode with the Claude provider selected">
+  &nbsp;&nbsp;
+  <img src="docs/media/settings-features.png" width="220" alt="Voice, microphone, glasses-display and context settings">
 </p>
-<p align="center"><em>Home (glasses + bridge connected) and “Direct (your API)” — pick a provider, paste your key.</em></p>
+<p align="center"><em>Home (glasses + bridge connected), “Direct (your API)” provider settings, and the voice / glasses / context controls.</em></p>
 
 <p align="center">
   <img src="docs/media/bridge-terminal.png" width="620" alt="Bridge log: a visual query captures a glasses photo and answers in 5.3 seconds">
