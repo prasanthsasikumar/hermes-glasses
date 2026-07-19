@@ -34,6 +34,7 @@
 		AAAA00000000000000000025 /* MapboxStaticMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000128 /* MapboxStaticMap.swift */; };
 		AAAA00000000000000000026 /* WikipediaImageClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000129 /* WikipediaImageClient.swift */; };
 		AAAA00000000000000000027 /* MapCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000130 /* MapCredentials.swift */; };
+		AAAA00000000000000000028 /* NavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000131 /* NavigationController.swift */; };
 		AAAA00000000000000000801 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000701 /* MWDATCore */; };
 		AAAA00000000000000000802 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000702 /* MWDATCamera */; };
 		AAAA00000000000000000803 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000703 /* MWDATMockDevice */; };
@@ -72,6 +73,7 @@
 		AAAA00000000000000000128 /* MapboxStaticMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation/MapboxStaticMap.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000129 /* WikipediaImageClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation/WikipediaImageClient.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000130 /* MapCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation/MapCredentials.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000131 /* NavigationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation/NavigationController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,6 +155,7 @@
 				AAAA00000000000000000128 /* MapboxStaticMap.swift */,
 				AAAA00000000000000000129 /* WikipediaImageClient.swift */,
 				AAAA00000000000000000130 /* MapCredentials.swift */,
+				AAAA00000000000000000131 /* NavigationController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -269,6 +272,7 @@
 				AAAA00000000000000000025 /* MapboxStaticMap.swift in Sources */,
 				AAAA00000000000000000026 /* WikipediaImageClient.swift in Sources */,
 				AAAA00000000000000000027 /* MapCredentials.swift in Sources */,
+				AAAA00000000000000000028 /* NavigationController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
