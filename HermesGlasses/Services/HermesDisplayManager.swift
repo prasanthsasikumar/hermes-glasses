@@ -36,6 +36,7 @@ final class HermesDisplayManager {
     var onStop: (() -> Void)?
     var onRepeat: (() -> Void)?
     var onNewChat: (() -> Void)?
+    var onStopNavigation: (() -> Void)?
 
     private var display: Display?
     private var stateListenerToken: AnyListenerToken?
@@ -172,6 +173,28 @@ final class HermesDisplayManager {
             speaking: false,
             dwellSeconds: HermesDisplayLogic.spokenDwellSeconds
         )
+    }
+
+    /// Active navigation frame. Owns the lens until stopped; no dwell.
+    func showNavigation(mapURL: String?, title: String, step: String, eta: String) {
+        cancelDwell()
+        send(HermesDisplayScreens.navigation(
+            mapURL: mapURL,
+            title: title,
+            step: step,
+            eta: eta,
+            onStop: { [weak self] in
+                Task { @MainActor in self?.onStopNavigation?() }
+            }
+        ))
+    }
+
+    /// Definition reply: picture + text. Dwell like a normal spoken reply.
+    func showDefinition(text: String, imageURL: String?) {
+        cancelDwell()
+        lastReplyText = text
+        send(HermesDisplayScreens.definition(text: text, imageURL: imageURL))
+        scheduleDwell(seconds: HermesDisplayLogic.spokenDwellSeconds)
     }
 
     func showNewConversationFlash() {
