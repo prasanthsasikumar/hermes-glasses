@@ -178,6 +178,7 @@ final class HermesDisplayManager {
     /// Active navigation frame. Owns the lens until stopped; no dwell.
     func showNavigation(mapURL: String?, title: String, step: String, eta: String) {
         cancelDwell()
+        lastReplyText = ""
         send(HermesDisplayScreens.navigation(
             mapURL: mapURL,
             title: title,
