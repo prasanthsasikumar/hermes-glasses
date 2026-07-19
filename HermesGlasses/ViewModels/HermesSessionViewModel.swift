@@ -457,12 +457,17 @@ final class HermesSessionViewModel {
                     self.presentReply(text)
                 } else {
                     // Bridge will stream its own TTS - show the card now,
-                    // Stop button active while it plays
-                    self.displayManager.showReply(
-                        text: HermesDisplayLogic.truncateReply(text),
-                        speaking: true,
-                        dwellSeconds: nil
-                    )
+                    // Stop button active while it plays. A definition query
+                    // still shows its picture (backend-agnostic).
+                    let shown = HermesDisplayLogic.truncateReply(text)
+                    if let subject = self.pendingDefinitionSubject {
+                        self.pendingDefinitionSubject = nil
+                        self.showDefinitionReply(text: shown, subject: subject, speaking: true)
+                    } else {
+                        self.displayManager.showReply(
+                            text: shown, speaking: true, dwellSeconds: nil
+                        )
+                    }
                 }
             }
         }
@@ -662,6 +667,7 @@ final class HermesSessionViewModel {
             lastTranscript = trimmed
             connectionState = .processing
             speechRecognizer.isSuspended = true
+            displayManager.clear()
             navigation.start(destination: destination, mode: mode)
             return
         case let .define(subject) where definitionImagesEnabled:

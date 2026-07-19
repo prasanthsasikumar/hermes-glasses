@@ -50,5 +50,14 @@ expectEqual(NavigationFormat.eta(seconds: 30), "1 min", "eta rounds up to 1")
 expectEqual(NavigationFormat.distance(meters: 300), "300 m", "distance meters")
 expectEqual(NavigationFormat.distance(meters: 1500), "1.5 km", "distance km")
 
+expectEqual(IntentDetector.detect("who is Ada Lovelace"),
+            .define(subject: "Ada Lovelace"), "who is")
+expectEqual(IntentDetector.detect("what are tectonic plates"),
+            .define(subject: "tectonic plates"), "what are")
+expectEqual(IntentDetector.detect("take me to the station by car"),
+            .navigate(destination: "the station", mode: .driving), "by car -> driving")
+expectEqual(IntentDetector.detect("navigate to the park on foot"),
+            .navigate(destination: "the park", mode: .walking), "on foot -> walking")
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

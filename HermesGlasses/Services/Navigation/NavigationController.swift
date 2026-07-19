@@ -71,7 +71,7 @@ final class NavigationController: NSObject {
                 onSpeak?("Navigating to \(destinationName), \(NavigationFormat.eta(seconds: route.expectedTravelTime)).")
                 manager.startUpdatingLocation()
             } catch {
-                guard gen == generation else { return }
+                guard isActive, gen == generation else { return }
                 onDebug?("Navigation failed: \(error.localizedDescription)")
                 onNotice?("I couldn't find a route to \(destinationName).")
                 end()
