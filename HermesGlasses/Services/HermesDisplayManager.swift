@@ -51,6 +51,9 @@ final class HermesDisplayManager {
     private var dwellTask: Task<Void, Never>?
     private var throttle = DisplaySendThrottle()
     private var lastReplyText: String = ""
+    /// Image URL of the definition currently shown (nil for plain replies),
+    /// so replySpeakingFinished can re-render the picture after speech.
+    private var lastDefinitionImageURL: String?
 
     // MARK: - Lifecycle
 
@@ -104,6 +107,7 @@ final class HermesDisplayManager {
         cancelDwell()
         pendingView = nil
         lastReplyText = ""
+        lastDefinitionImageURL = nil
         status = .off
         display?.stop()
         // Tear down synchronously - waiting for the async .stopped event
@@ -146,6 +150,7 @@ final class HermesDisplayManager {
     func showReply(text: String, speaking: Bool, dwellSeconds: Double?) {
         cancelDwell()
         lastReplyText = text
+        lastDefinitionImageURL = nil
         send(HermesDisplayScreens.reply(
             text: text,
             speaking: speaking,
@@ -165,20 +170,26 @@ final class HermesDisplayManager {
     }
 
     /// TTS ended or was interrupted: re-render without Stop, start the
-    /// spoken dwell, then blank.
+    /// spoken dwell, then blank. Re-shows the definition picture (if any)
+    /// instead of dropping back to text-only.
     func replySpeakingFinished() {
         guard !lastReplyText.isEmpty else { return }
-        showReply(
-            text: lastReplyText,
-            speaking: false,
-            dwellSeconds: HermesDisplayLogic.spokenDwellSeconds
-        )
+        if let imageURL = lastDefinitionImageURL {
+            showDefinition(text: lastReplyText, imageURL: imageURL, speaking: false)
+        } else {
+            showReply(
+                text: lastReplyText,
+                speaking: false,
+                dwellSeconds: HermesDisplayLogic.spokenDwellSeconds
+            )
+        }
     }
 
     /// Active navigation frame. Owns the lens until stopped; no dwell.
     func showNavigation(mapURL: String?, title: String, step: String, eta: String) {
         cancelDwell()
         lastReplyText = ""
+        lastDefinitionImageURL = nil
         send(HermesDisplayScreens.navigation(
             mapURL: mapURL,
             title: title,
@@ -190,17 +201,22 @@ final class HermesDisplayManager {
         ))
     }
 
-    /// Definition reply: picture + text. Dwell like a normal spoken reply.
-    func showDefinition(text: String, imageURL: String?) {
+    /// Definition reply: picture + text. While speaking, no dwell (persists
+    /// like the reply card); after speech, dwell like a spoken reply.
+    func showDefinition(text: String, imageURL: String?, speaking: Bool) {
         cancelDwell()
         lastReplyText = text
+        lastDefinitionImageURL = imageURL
         send(HermesDisplayScreens.definition(text: text, imageURL: imageURL))
-        scheduleDwell(seconds: HermesDisplayLogic.spokenDwellSeconds)
+        if !speaking {
+            scheduleDwell(seconds: HermesDisplayLogic.spokenDwellSeconds)
+        }
     }
 
     func showNewConversationFlash() {
         cancelDwell()
         lastReplyText = ""
+        lastDefinitionImageURL = nil
         send(HermesDisplayScreens.newConversation())
         scheduleDwell(seconds: 2)
     }
@@ -208,6 +224,7 @@ final class HermesDisplayManager {
     func clear() {
         cancelDwell()
         lastReplyText = ""
+        lastDefinitionImageURL = nil
         send(HermesDisplayScreens.blank())
     }
 

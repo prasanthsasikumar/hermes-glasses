@@ -236,6 +236,7 @@ final class HermesSessionViewModel {
     @ObservationIgnored private var pendingPhoto: Data?
     @ObservationIgnored private var lastDirectPhotoAt: Date?
     @ObservationIgnored private var pendingDefinitionSubject: String?
+    @ObservationIgnored private var definitionGeneration = 0
 
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
@@ -647,6 +648,10 @@ final class HermesSessionViewModel {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        // Bump so an in-flight definition-image fetch from a prior utterance
+        // can't paint over this new query or navigation.
+        definitionGeneration &+= 1
+
         // On-device intents run before the AI brain.
         switch IntentDetector.detect(trimmed) {
         case .stopNavigation where navigation.isActive:
@@ -800,15 +805,22 @@ final class HermesSessionViewModel {
         }
     }
 
-    /// Fetch the Wikipedia picture, then render text + image on the lens.
-    /// Falls back to the plain reply card if no image is found.
+    /// Show the definition text immediately, then fetch the Wikipedia picture
+    /// and add it - guarded so a slow fetch can't paint over a newer screen.
+    /// Dwell is decided by whether TTS is still going when the image arrives,
+    /// not when the fetch started. Falls back to text-only when no image.
     private func showDefinitionReply(text: String, subject: String, speaking: Bool) {
-        displayManager.showReply(text: text, speaking: speaking, dwellSeconds: nil)
+        displayManager.showDefinition(text: text, imageURL: nil, speaking: speaking)
+        let generation = definitionGeneration
         Task { @MainActor [weak self] in
             guard let self else { return }
             let imageURL = await WikipediaImageClient.image(for: subject)
-            guard imageURL != nil else { return }  // keep the reply card
-            self.displayManager.showDefinition(text: text, imageURL: imageURL)
+            guard let imageURL,
+                  self.definitionGeneration == generation else { return }
+            let stillSpeaking = (self.connectionState == .speaking)
+            self.displayManager.showDefinition(
+                text: text, imageURL: imageURL, speaking: stillSpeaking
+            )
         }
     }
 
