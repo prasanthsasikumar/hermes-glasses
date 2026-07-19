@@ -36,6 +36,13 @@ final class NavigationController: NSObject {
     private static let arrivalMeters: CLLocationDistance = 25
     private static let mapZoom: Double = 16
 
+    // One-time "no Mapbox token" notice latch.
+    private var noticedNoToken = false
+
+    // Session generation, guards a stale start() continuation from
+    // resurrecting a session that stop()/a newer start() has superseded.
+    private var generation = 0
+
     override init() {
         super.init()
         manager.delegate = self
@@ -44,6 +51,8 @@ final class NavigationController: NSObject {
 
     func start(destination: String, mode: TransportMode) {
         stop()  // clear any prior session
+        generation += 1
+        let gen = generation
         destinationName = destination
         isActive = true
         manager.requestWhenInUseAuthorization()
@@ -52,6 +61,7 @@ final class NavigationController: NSObject {
             do {
                 let placemark = try await resolve(destination)
                 let route = try await route(to: placemark, mode: mode)
+                guard isActive, gen == generation else { return }
                 self.route = route
                 self.routeCoords = Self.coords(of: route.polyline)
                 self.destinationCoord = placemark.location.map {
@@ -61,6 +71,7 @@ final class NavigationController: NSObject {
                 onSpeak?("Navigating to \(destinationName), \(NavigationFormat.eta(seconds: route.expectedTravelTime)).")
                 manager.startUpdatingLocation()
             } catch {
+                guard gen == generation else { return }
                 onDebug?("Navigation failed: \(error.localizedDescription)")
                 onNotice?("I couldn't find a route to \(destinationName).")
                 end()
@@ -81,6 +92,7 @@ final class NavigationController: NSObject {
         destinationCoord = nil
         lastSentAt = nil
         lastSentCoord = nil
+        noticedNoToken = false
         onEnd?()
     }
 
@@ -138,10 +150,10 @@ final class NavigationController: NSObject {
 
         // Throttle re-sends against the Bluetooth budget.
         let now = Date()
-        if let lastAt = lastSentAt, let lastCoord = lastSentCoord,
-           now.timeIntervalSince(lastAt) < Self.minInterval,
-           location.distance(from: lastCoord) < Self.minMoveMeters {
-            return
+        if let lastAt = lastSentAt, let lastCoord = lastSentCoord {
+            let waited = now.timeIntervalSince(lastAt) >= Self.minInterval
+            let moved  = location.distance(from: lastCoord) >= Self.minMoveMeters
+            if !(waited && moved) { return }
         }
         lastSentAt = now
         lastSentCoord = location
@@ -167,7 +179,8 @@ final class NavigationController: NSObject {
                 route: routeCoords
             )
         }
-        if mapURL == nil, lastSentAt == now {
+        if mapURL == nil, !noticedNoToken {
+            noticedNoToken = true
             onNotice?("Add a Mapbox token in Settings to see the map.")
         }
         onShow?(mapURL, destinationName, stepText,
