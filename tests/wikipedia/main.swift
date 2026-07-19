@@ -19,6 +19,9 @@ expectEqual(url?.absoluteString,
             "https://en.wikipedia.org/api/rest_v1/page/summary/Eiffel_Tower",
             "summary url")
 expect(WikipediaImageClient.summaryURL(for: "   ") == nil, "blank subject -> nil")
+expectEqual(WikipediaImageClient.summaryURL(for: "AC/DC")?.absoluteString,
+            "https://en.wikipedia.org/api/rest_v1/page/summary/AC%2FDC",
+            "slash in title is escaped")
 
 // Parsing: pick thumbnail.source; https only; nil when absent.
 let withThumb = """

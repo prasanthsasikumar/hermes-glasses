@@ -10,13 +10,15 @@ import Foundation
 
 enum WikipediaImageClient {
     /// REST summary endpoint. Spaces become underscores (Wikipedia titles),
-    /// then the title is percent-encoded for the path.
+    /// then the title is percent-encoded for the path component.
     static func summaryURL(for subject: String) -> URL? {
         let trimmed = subject.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let title = trimmed.replacingOccurrences(of: " ", with: "_")
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/")
         guard let encoded = title.addingPercentEncoding(
-            withAllowedCharacters: .urlPathAllowed
+            withAllowedCharacters: allowed
         ) else { return nil }
         return URL(string:
             "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
