@@ -52,6 +52,14 @@ photo via the DAT camera API.
   bridge mode gets it as a "[Context: …]" prefix on the query text - the
   bridges need no changes. History stores raw user text only. Keys:
   `context_enabled` / `context_precise_location` (both default true).
+- **On-device intents (`IntentDetector`):** the finalized transcript is
+  classified BEFORE the AI brain. "take me to X" / "I want to go to X" starts
+  `NavigationController` (MapKit route + CoreLocation) and never hits the AI;
+  the lens shows a Mapbox static map re-centered on the user (https images
+  only, 600x600, throttled >=15 m and >=4 s). "what is X" runs the normal
+  answer AND fetches a Wikipedia lead image, rendered as text + `Image` on the
+  lens. Keys: `navigation_enabled`, `definition_images_enabled`; Mapbox token
+  in Keychain via `MapCredentials`. All display-only + best-effort.
 
 ## Build & run
 
