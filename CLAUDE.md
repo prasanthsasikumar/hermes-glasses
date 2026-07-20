@@ -90,6 +90,22 @@ photo via the DAT camera API.
   `tests/dwell/`) fires a snap after 2 s of center-reticle coverage with
   IoU-based identity + post-snap cooldown. Snaps are session-only, in
   memory, no AI/bridge/network.
+- **Conversation capture ("record this conversation"):** whole-utterance
+  start/stop commands (`IntentDetector.conversationStartCommands` /
+  `conversationStopCommands`; stop is checked with `isConversationStop`
+  ONLY while active - during a capture EVERY utterance is claimed as
+  transcript before intents/AI, nothing reaches the brain). Runs inside
+  the voice session; vision side reuses the Lens machinery (live stream +
+  YOLO + `DwellTracker`) filtered to `person` boxes - a 2 s look snaps a
+  crop, gated by `ConversationCaptureModel` (10 s between snaps, 12 max,
+  tested in `tests/conversation/`). Stop saves ONE encounter: full
+  transcript as the note + every snap. `Encounter` now holds
+  `photoFilenames: [String]` (decoder migrates the old single
+  `photoFilename` key; `photoFilename` is a computed first-photo
+  accessor). `endSession()` SAVES a running capture (silently) instead of
+  discarding it - opposite of the half-finished "remember this person"
+  rule. Same `social_notes_enabled` gate; UI toggle is the Record chip in
+  the status row.
 - **`VoiceCommandCatalog` feeds the "What can I say?" page** from the
   detectors' own phrase lists (`IntentDetector.navTriggers` etc. are internal,
   NOT private, for exactly this). Never hand-copy trigger phrases into the UI -

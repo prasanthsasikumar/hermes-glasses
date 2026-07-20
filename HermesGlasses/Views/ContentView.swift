@@ -131,8 +131,29 @@ struct ContentView: View {
 
             statusChip(hermesVM.displayHUDEnabled ? "HUD on" : "HUD off", dot: nil)
 
+            // Conversation capture: one tap = same as saying "record this
+            // conversation" / "stop recording".
+            if hermesVM.socialNotesEnabled,
+               hermesVM.connectionState != .disconnected {
+                Button {
+                    hermesVM.toggleConversationCapture()
+                } label: {
+                    statusChip(
+                        hermesVM.conversationCaptureActive
+                            ? recordingChipLabel : "Record",
+                        dot: hermesVM.conversationCaptureActive ? .red : .gray
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
             Spacer(minLength: 0)
         }
+    }
+
+    private var recordingChipLabel: String {
+        let snaps = hermesVM.conversationCaptureSnapCount
+        return snaps == 0 ? "Recording…" : "Recording… \(snaps) 📸"
     }
 
     private func statusChip(_ label: String, dot: Color?) -> some View {

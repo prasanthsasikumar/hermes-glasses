@@ -52,6 +52,16 @@ enum VoiceCommandCatalog {
                 setting: nil
             ),
             VoiceCommandGroup(
+                id: "conversation",
+                title: "Record a conversation",
+                summary: "Saves everything said as one note until you stop it. Looking at a person for 2 seconds adds their photo; every person you look at gets added.",
+                examples: ["Record this conversation", "Start taking notes"],
+                followUp: "Say \"stop recording\" (or \"save the conversation\") to finish - the note and all photos land on the People screen.",
+                phrases: IntentDetector.conversationStartCommands.sorted()
+                    + IntentDetector.conversationStopCommands.sorted(),
+                setting: "People → Remember people I meet"
+            ),
+            VoiceCommandGroup(
                 id: "navigate",
                 title: "Navigate somewhere",
                 summary: "Puts a map and turn-by-turn directions on the lens. Add \"driving\" or \"by car\" for driving directions; walking is the default.",

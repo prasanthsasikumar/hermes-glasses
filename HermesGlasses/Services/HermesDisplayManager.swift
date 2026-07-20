@@ -225,6 +225,15 @@ final class HermesDisplayManager {
         send(HermesDisplayScreens.encounterPrompt())
     }
 
+    /// Conversation capture started. No dwell - the live-transcript
+    /// partials paint over it as soon as someone speaks.
+    func showRecordingStarted() {
+        cancelDwell()
+        lastReplyText = ""
+        lastDefinitionImageURL = nil
+        send(HermesDisplayScreens.recording())
+    }
+
     func showEncounterSaved(note: String) {
         cancelDwell()
         lastReplyText = ""

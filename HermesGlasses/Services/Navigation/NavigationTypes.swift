@@ -27,6 +27,9 @@ enum HermesIntent: Equatable {
     /// "remember this person" - snap a photo, then save the next utterance
     /// as a note about someone just met.
     case rememberPerson
+    /// "record this conversation" - transcribe everything and snap the
+    /// people looked at into one note, until told to stop.
+    case startConversationCapture
     case none
 }
 

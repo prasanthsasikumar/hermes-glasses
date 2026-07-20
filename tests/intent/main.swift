@@ -76,5 +76,25 @@ expectEqual(IntentDetector.isEncounterCancellation("cancel"), true, "cancel")
 expectEqual(IntentDetector.isEncounterCancellation("Never mind."), true, "never mind")
 expectEqual(IntentDetector.isEncounterCancellation("Sarah from Meta"), false, "a real note is not a cancel")
 
+// Conversation capture (whole-utterance commands)
+expectEqual(IntentDetector.detect("record this conversation"),
+            .startConversationCapture, "record this conversation")
+expectEqual(IntentDetector.detect("Start recording."),
+            .startConversationCapture, "start recording, case + punctuation")
+expectEqual(IntentDetector.detect("hey start taking notes"),
+            .startConversationCapture, "leading filler stripped")
+expectEqual(IntentDetector.detect("I was recording a video yesterday"),
+            .none, "mid-sentence recording is not a capture")
+expectEqual(IntentDetector.detect("record"), .none, "bare 'record' is too weak")
+
+// Stop is only consulted while a capture is running
+expectEqual(IntentDetector.isConversationStop("stop recording"), true, "stop recording")
+expectEqual(IntentDetector.isConversationStop("Save the conversation!"), true, "save the conversation")
+expectEqual(IntentDetector.isConversationStop("please stop recording"), true, "polite stop")
+expectEqual(IntentDetector.isConversationStop("we should stop meeting like this"),
+            false, "conversation speech is not a stop")
+expectEqual(IntentDetector.isConversationStop("she kept recording everything"),
+            false, "mid-sentence recording is not a stop")
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

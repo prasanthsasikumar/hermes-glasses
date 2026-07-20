@@ -135,6 +135,19 @@ enum HermesDisplayScreens {
         .padding(24)
     }
 
+    /// Conversation capture running: everything said is being noted.
+    static func recording() -> FlexBox {
+        FlexBox(direction: .column, spacing: 8) {
+            FlexBox(direction: .row, spacing: 12, crossAlignment: .center) {
+                Icon(name: .fourCornerFrame)
+                Text("Recording", style: .heading)
+            }
+            Text("Saving this conversation - say \"stop recording\" to finish",
+                 style: .meta, color: .secondary)
+        }
+        .padding(24)
+    }
+
     /// Encounter saved confirmation. Shows the start of the note so the
     /// user can see the transcription landed sanely.
     static func encounterSaved(note: String) -> FlexBox {
