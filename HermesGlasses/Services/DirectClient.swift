@@ -155,7 +155,7 @@ final class DirectClient: @unchecked Sendable {
 
 enum VisualQueryDetector {
     /// Explicit phrases that always need a fresh photo
-    private static let keywords = [
+    static let keywords = [
         "look at", "looking at", "see this", "what am i seeing",
         "what is this", "what's this", "read this", "in front of me",
         "take a picture", "take a photo", "snap a photo", "use the camera",

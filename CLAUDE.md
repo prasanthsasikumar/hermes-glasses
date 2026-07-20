@@ -69,6 +69,15 @@ photo via the DAT camera API.
   failure saves the note alone. Persisted by `EncounterStore` to Application
   Support (`encounters.json` + `photos/*.jpg`) - no AI, no bridge, no network.
   Reviewed in `PeopleView`. Key: `social_notes_enabled`.
+- **Settings is a hub, not one scroll** (`Views/SettingsView.swift`, extracted
+  out of ContentView): a glasses status card plus one row per area, detail one
+  tap deeper. Text the user types (bridge endpoint, API key) is owned by the
+  ROOT SettingsView and committed on Done *and* swipe-dismiss - sub-pages take
+  bindings, so nothing is lost whichever page is open.
+- **`VoiceCommandCatalog` feeds the "What can I say?" page** from the
+  detectors' own phrase lists (`IntentDetector.navTriggers` etc. are internal,
+  NOT private, for exactly this). Never hand-copy trigger phrases into the UI -
+  add them to the detector and the tester-facing list updates itself.
 
 ## Build & run
 
