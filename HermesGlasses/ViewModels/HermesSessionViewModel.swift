@@ -139,6 +139,18 @@ final class HermesSessionViewModel {
         (UserDefaults.standard.object(forKey: "definition_images_enabled") as? Bool) ?? true {
         didSet { UserDefaults.standard.set(definitionImagesEnabled, forKey: "definition_images_enabled") }
     }
+    /// "remember this person" -> photo + spoken note saved for follow-ups.
+    /// Default on.
+    var socialNotesEnabled: Bool =
+        (UserDefaults.standard.object(forKey: "social_notes_enabled") as? Bool) ?? true {
+        didSet { UserDefaults.standard.set(socialNotesEnabled, forKey: "social_notes_enabled") }
+    }
+    /// True between "remember this person" and the note being saved - drives
+    /// the "listening for a note" affordance in the phone UI.
+    var awaitingEncounterNote: Bool = false
+    /// Bumped whenever an encounter is saved/edited/deleted so the People
+    /// screen re-reads the store.
+    var encounterRevision: Int = 0
     /// Whether a Mapbox token is stored (drives Settings UI + notices).
     var hasMapboxToken: Bool = MapCredentials.hasToken
     /// Attach time/location/status context to every query
@@ -233,6 +245,13 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let displayManager = HermesDisplayManager()
     @ObservationIgnored private let contextProvider = DeviceContextProvider()
     @ObservationIgnored private let navigation = NavigationController()
+    @ObservationIgnored private let encounterStore = EncounterStore()
+    /// In-flight glasses capture for the encounter whose note we're awaiting.
+    /// Joined by `finishEncounter`, so the note and the photo can land in
+    /// either order.
+    @ObservationIgnored private var encounterPhotoTask: Task<Data?, Never>?
+    /// Fires if no note arrives - saves the photo with an empty note.
+    @ObservationIgnored private var encounterTimeoutTask: Task<Void, Never>?
     @ObservationIgnored private var pendingPhoto: Data?
     @ObservationIgnored private var lastDirectPhotoAt: Date?
     @ObservationIgnored private var pendingDefinitionSubject: String?
@@ -664,12 +683,25 @@ final class HermesSessionViewModel {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        // A pending encounter claims the next utterance outright: it's a
+        // note about a person, not a question, so it must not be
+        // re-classified as navigation/define or sent to the AI.
+        if awaitingEncounterNote {
+            finishEncounter(note: trimmed)
+            return
+        }
+
         // Bump so an in-flight definition-image fetch from a prior utterance
         // can't paint over this new query or navigation.
         definitionGeneration &+= 1
 
         // On-device intents run before the AI brain.
         switch IntentDetector.detect(trimmed) {
+        case .rememberPerson where socialNotesEnabled:
+            liveTranscript = ""
+            lastTranscript = trimmed
+            startEncounter()
+            return
         case .stopNavigation where navigation.isActive:
             navigation.stop()
             return
@@ -848,6 +880,126 @@ final class HermesSessionViewModel {
         }
     }
 
+    // MARK: - Social encounters
+
+    /// "remember this person": start the photo capture and immediately begin
+    /// waiting for the spoken note. The two run in PARALLEL - the camera can
+    /// take several seconds to wake, and the user shouldn't have to stand
+    /// there silently while it does. `finishEncounter` joins the two.
+    private func startEncounter() {
+        encounterTimeoutTask?.cancel()
+        awaitingEncounterNote = true
+        // Hold nav frames off the lens or a GPS tick repaints over the
+        // prompt mid-capture; the dwell's idleHandler restores the map.
+        if navigation.isActive {
+            navigation.displaySuppressed = true
+        }
+        displayManager.showEncounterPrompt()
+
+        encounterPhotoTask = Task { @MainActor [weak self] in
+            guard let self, self.isGlassesConnected,
+                  await self.ensureCameraPermission(interactive: false)
+            else { return nil }
+            // Note-only is a fine outcome: never lose the encounter over a
+            // camera failure.
+            return try? await self.cameraManager.capturePhoto()
+        }
+
+        // Audible "your turn" cue, unless the lens is doing the talking.
+        if displaySilentActive {
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+        } else {
+            connectionState = .speaking
+            speechRecognizer.isSuspended = true
+            speechSynthesizer.speak("Go ahead")
+        }
+
+        encounterTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.encounterNoteTimeout * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.awaitingEncounterNote else { return }
+            // Silence: keep the picture, leave the note for later.
+            self.finishEncounter(note: "")
+        }
+    }
+
+    /// How long to wait for the spoken note before saving the photo alone.
+    private static let encounterNoteTimeout: Double = 30
+
+    /// The note arrived (or timed out): join it with the photo and save.
+    private func finishEncounter(note: String) {
+        encounterTimeoutTask?.cancel()
+        encounterTimeoutTask = nil
+        awaitingEncounterNote = false
+        liveTranscript = ""
+
+        let photoTask = encounterPhotoTask
+        encounterPhotoTask = nil
+
+        if IntentDetector.isEncounterCancellation(note) {
+            photoTask?.cancel()
+            // Nothing to show, so go straight back to the map (if any)
+            // rather than waiting on a dwell that will never be scheduled.
+            if navigation.isActive {
+                navigation.displaySuppressed = false
+                navigation.refreshDisplay()
+            } else {
+                displayManager.clear()
+            }
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+            return
+        }
+
+        connectionState = .processing
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let photo = await photoTask?.value ?? nil
+            self.encounterStore.save(note: note, photo: photo)
+            self.encounterRevision &+= 1
+
+            // Mirror it into the on-phone chat so the capture is visible
+            // immediately, photo and all.
+            self.pendingPhoto = photo
+            self.addTurn(
+                userText: note.isEmpty ? "[Person remembered - no note]" : note,
+                agentText: photo == nil
+                    ? "Saved to People (no photo)"
+                    : "Saved to People"
+            )
+
+            self.displayManager.showEncounterSaved(
+                note: note.isEmpty ? "No note - add one in the app" : note
+            )
+            if self.displaySilentActive {
+                self.connectionState = .listening
+                self.speechRecognizer.isSuspended = false
+            } else {
+                self.connectionState = .speaking
+                self.speechRecognizer.isSuspended = true
+                self.speechSynthesizer.speak("Saved")
+            }
+        }
+    }
+
+    /// People screen: read-through to the store (the view holds no state of
+    /// its own; `encounterRevision` tells it when to re-read).
+    func allEncounters() -> [Encounter] { encounterStore.all() }
+
+    func encounterPhoto(_ encounter: Encounter) -> Data? {
+        encounterStore.photoData(for: encounter)
+    }
+
+    func updateEncounterNote(id: UUID, note: String) {
+        encounterStore.update(id: id, note: note)
+        encounterRevision &+= 1
+    }
+
+    func deleteEncounter(id: UUID) {
+        encounterStore.delete(id: id)
+        encounterRevision &+= 1
+    }
+
     /// On-lens Repeat button: re-speak (or re-show, in silent mode).
     func repeatLastReply() {
         guard !lastResponse.isEmpty else { return }
@@ -937,6 +1089,13 @@ final class HermesSessionViewModel {
         apiClient?.disconnect()
         apiClient = nil
         cameraManager.reset()
+        // A half-finished encounter dies with the session; the photo alone
+        // isn't worth a note-less entry the user never asked for.
+        encounterTimeoutTask?.cancel()
+        encounterTimeoutTask = nil
+        encounterPhotoTask?.cancel()
+        encounterPhotoTask = nil
+        awaitingEncounterNote = false
         pendingPhoto = nil
         deviceSession?.stop()
         deviceSession = nil

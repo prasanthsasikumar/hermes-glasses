@@ -24,6 +24,9 @@ enum HermesIntent: Equatable {
     case navigate(destination: String, mode: TransportMode)
     case stopNavigation
     case define(subject: String)
+    /// "remember this person" - snap a photo, then save the next utterance
+    /// as a note about someone just met.
+    case rememberPerson
     case none
 }
 
