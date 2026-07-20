@@ -270,6 +270,9 @@ final class HermesSessionViewModel {
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
 
+    /// Exposed for the Lens view, which drives the live stream directly
+    var camera: HermesCameraManager { cameraManager }
+
     init(wearables: WearablesInterface) {
         self.wearables = wearables
         self.deviceSelector = AutoDeviceSelector(wearables: wearables)

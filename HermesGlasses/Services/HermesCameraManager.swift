@@ -11,6 +11,7 @@
 import Foundation
 import MWDATCamera
 import MWDATCore
+import UIKit
 import os
 
 enum HermesCameraError: LocalizedError {
@@ -19,6 +20,7 @@ enum HermesCameraError: LocalizedError {
     case captureFailed
     case timeout
     case captureInProgress
+    case streamInUse
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +34,8 @@ enum HermesCameraError: LocalizedError {
             return "Timed out waiting for the glasses camera."
         case .captureInProgress:
             return "A photo capture is already in progress."
+        case .streamInUse:
+            return "The glasses camera is already streaming."
         }
     }
 }
@@ -48,6 +52,13 @@ final class HermesCameraManager: @unchecked Sendable {
     private struct State {
         var deviceSession: DeviceSession?
         var captureInFlight = false
+        // Live-stream mode (Lens view). A deliberate exception to the
+        // one-shot-stream rule: exactly one persistent stream, torn down
+        // by stopLiveStream(). While it runs, capturePhoto() serves the
+        // latest live frame instead of opening a competing stream.
+        var liveStream: MWDATCamera.Stream?
+        var liveTokens: [AnyListenerToken] = []
+        var latestLiveFrame: VideoFrame?
     }
 
     private let stateLock = OSAllocatedUnfairLock(uncheckedState: State())
@@ -66,6 +77,21 @@ final class HermesCameraManager: @unchecked Sendable {
 
     /// Capture a single JPEG from the glasses camera.
     func capturePhoto() async throws -> Data {
+        // While the Lens live stream runs, the camera is taken - serve the
+        // capture from the freshest live frame instead of opening a second
+        // stream (voice-loop visual queries keep working during streaming).
+        let liveFrame = stateLock.withLockUnchecked { state -> VideoFrame? in
+            state.liveStream != nil ? state.latestLiveFrame : nil
+        }
+        if let liveFrame {
+            guard let image = liveFrame.makeUIImage(),
+                  let jpeg = image.jpegData(compressionQuality: 0.85) else {
+                throw HermesCameraError.captureFailed
+            }
+            debug("camera: photo served from live frame (\(jpeg.count) bytes)")
+            return jpeg
+        }
+
         enum Entry {
             case busy
             case noSession
@@ -136,6 +162,93 @@ final class HermesCameraManager: @unchecked Sendable {
         debug(String(format: "camera: photo %d bytes in %.1fs total",
                      photo.count, Date().timeIntervalSince(started)))
         return photo
+    }
+
+    // MARK: - Live stream (Lens view)
+
+    /// Start a persistent video stream from the glasses. `onFrame` fires on
+    /// an SDK thread for every frame; hop to the main actor before touching
+    /// UI state. Throws if a photo capture is mid-flight or a live stream
+    /// is already running.
+    func startLiveStream(
+        onFrame: @escaping @Sendable (VideoFrame) -> Void,
+        onError: @escaping @Sendable (String) -> Void
+    ) async throws {
+        enum Entry {
+            case noSession, busy, inUse
+            case proceed(DeviceSession)
+        }
+        let entry: Entry = stateLock.withLockUnchecked { state in
+            guard let session = state.deviceSession else { return .noSession }
+            if state.captureInFlight { return .busy }
+            if state.liveStream != nil { return .inUse }
+            return .proceed(session)
+        }
+        let session: DeviceSession
+        switch entry {
+        case .noSession: throw HermesCameraError.noSession
+        case .busy: throw HermesCameraError.captureInProgress
+        case .inUse: throw HermesCameraError.streamInUse
+        case .proceed(let s): session = s
+        }
+
+        // Highest resolution the SDK offers - snaps are cropped from these
+        // frames. Drop to .medium if streaming proves choppy on device.
+        let config = StreamConfiguration(
+            videoCodec: .raw,
+            resolution: .high,
+            frameRate: 24
+        )
+        guard let stream = try session.addStream(config: config) else {
+            debug("lens: addStream returned nil")
+            throw HermesCameraError.streamUnavailable
+        }
+        debug("lens: live stream created, state=\(stream.state)")
+
+        let frameToken = stream.videoFramePublisher.listen { [weak self] frame in
+            self?.stateLock.withLockUnchecked { $0.latestLiveFrame = frame }
+            onFrame(frame)
+        }
+        let errorToken = stream.errorPublisher.listen { [weak self] streamError in
+            self?.debug("lens: ERROR → \(streamError)")
+            onError("\(streamError)")
+        }
+        let stateToken = stream.statePublisher.listen { [weak self] state in
+            self?.debug("lens: state → \(state)")
+        }
+
+        stateLock.withLockUnchecked { state in
+            state.liveStream = stream
+            state.liveTokens = [frameToken, errorToken, stateToken]
+        }
+
+        do {
+            if stream.state != .streaming {
+                stream.start()
+                try await waitForStreaming(stream, timeout: 10.0)
+            }
+        } catch {
+            stopLiveStream()
+            throw error
+        }
+        debug("lens: live stream running")
+    }
+
+    /// Tear down the live stream. Safe to call when no stream is running.
+    func stopLiveStream() {
+        let (stream, tokens): (MWDATCamera.Stream?, [AnyListenerToken]) =
+            stateLock.withLockUnchecked { state in
+                let out = (state.liveStream, state.liveTokens)
+                state.liveStream = nil
+                state.liveTokens = []
+                state.latestLiveFrame = nil
+                return out
+            }
+        stream?.stop()
+        if stream != nil { debug("lens: live stream stopped") }
+        Task {
+            for token in tokens { await token.cancel() }
+        }
     }
 
     // MARK: - Private
