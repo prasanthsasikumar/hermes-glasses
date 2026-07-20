@@ -27,6 +27,7 @@ struct ContentView: View {
 
     @State private var showSettings: Bool = false
     @State private var showPeople: Bool = false
+    @State private var showLens: Bool = false
     @AppStorage("show_test_panel") private var showTestPanel: Bool = true
 
     var body: some View {
@@ -45,6 +46,11 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showPeople) {
             PeopleView(hermesVM: hermesVM)
+        }
+        // fullScreenCover, not sheet - an accidental drag-dismiss would
+        // tear down the live stream mid-use; Done is the exit.
+        .fullScreenCover(isPresented: $showLens) {
+            LensView(camera: hermesVM.camera)
         }
         .task {
             await hermesVM.checkBridge()
@@ -82,6 +88,13 @@ struct ContentView: View {
                         showPeople = true
                     }
                 }
+
+                // Lens: live camera + object snap
+                iconCircle("viewfinder", tint: .secondary) {
+                    showLens = true
+                }
+                .disabled(wearablesVM.registrationState != .registered)
+                .opacity(wearablesVM.registrationState != .registered ? 0.4 : 1)
 
                 iconCircle("gearshape", tint: .secondary) {
                     showSettings = true
