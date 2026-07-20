@@ -1120,6 +1120,13 @@ final class HermesSessionViewModel {
                 onError: { _ in }  // stream death degrades to transcript-only
             )
             captureStreamRunning = true
+            // The capture may have been stopped while the camera was waking
+            // up - stopCaptureVision saw captureStreamRunning == false then,
+            // so the just-started stream is ours to tear down.
+            if !conversationCaptureActive {
+                cameraManager.stopLiveStream()
+                captureStreamRunning = false
+            }
         } catch {
             // Lens view may own the stream, or the camera is asleep - the
             // transcript is the valuable half; keep going without photos.
