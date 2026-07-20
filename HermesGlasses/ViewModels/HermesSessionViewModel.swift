@@ -129,6 +129,18 @@ final class HermesSessionViewModel {
             UserDefaults.standard.set(displaySilentMode, forKey: "display_silent_mode")
         }
     }
+    /// "take me to X" -> map + directions on the lens. Default on.
+    var navigationEnabled: Bool =
+        (UserDefaults.standard.object(forKey: "navigation_enabled") as? Bool) ?? true {
+        didSet { UserDefaults.standard.set(navigationEnabled, forKey: "navigation_enabled") }
+    }
+    /// "what is X" -> answer + Wikipedia picture on the lens. Default on.
+    var definitionImagesEnabled: Bool =
+        (UserDefaults.standard.object(forKey: "definition_images_enabled") as? Bool) ?? true {
+        didSet { UserDefaults.standard.set(definitionImagesEnabled, forKey: "definition_images_enabled") }
+    }
+    /// Whether a Mapbox token is stored (drives Settings UI + notices).
+    var hasMapboxToken: Bool = MapCredentials.hasToken
     /// Attach time/location/status context to every query
     var contextEnabled: Bool =
         (UserDefaults.standard.object(forKey: DeviceContextProvider.enabledKey) as? Bool) ?? true {
@@ -220,8 +232,11 @@ final class HermesSessionViewModel {
     @ObservationIgnored private let directClient = DirectClient()
     @ObservationIgnored private let displayManager = HermesDisplayManager()
     @ObservationIgnored private let contextProvider = DeviceContextProvider()
+    @ObservationIgnored private let navigation = NavigationController()
     @ObservationIgnored private var pendingPhoto: Data?
     @ObservationIgnored private var lastDirectPhotoAt: Date?
+    @ObservationIgnored private var pendingDefinitionSubject: String?
+    @ObservationIgnored private var definitionGeneration = 0
 
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
@@ -382,6 +397,40 @@ final class HermesSessionViewModel {
             self.startNewConversation()
             self.displayManager.showNewConversationFlash()
         }
+        // Navigation: drive the lens + TTS through the existing managers.
+        navigation.onShow = { [weak self] mapURL, title, step, eta in
+            self?.displayManager.showNavigation(
+                mapURL: mapURL, title: title, step: step, eta: eta)
+        }
+        navigation.onSpeak = { [weak self] text in
+            self?.speechSynthesizer.speak(text)
+        }
+        navigation.onNotice = { [weak self] text in
+            self?.show(text)
+        }
+        navigation.onEnd = { [weak self] in
+            guard let self else { return }
+            self.displayManager.clear()
+            self.connectionState = .listening
+            self.speechRecognizer.isSuspended = false
+        }
+        navigation.onDebug = { [weak self] message in
+            Task { @MainActor [weak self] in self?.apiClient?.sendDebug(message) }
+        }
+        displayManager.onStopNavigation = { [weak self] in
+            self?.navigation.stop()
+        }
+        // When a reply/definition dwell ends: restore the navigation map if
+        // still navigating, otherwise blank the lens as usual.
+        displayManager.idleHandler = { [weak self] in
+            guard let self else { return }
+            if self.navigation.isActive {
+                self.navigation.displaySuppressed = false
+                self.navigation.refreshDisplay()
+            } else {
+                self.displayManager.clear()
+            }
+        }
         // NOTE: the display attaches AFTER audio setup (step 3 below) -
         // whether the lens is free depends on the actual mic route: the
         // HFP glasses mic brings up the glasses' call screen over the HUD.
@@ -419,12 +468,17 @@ final class HermesSessionViewModel {
                     self.presentReply(text)
                 } else {
                     // Bridge will stream its own TTS - show the card now,
-                    // Stop button active while it plays
-                    self.displayManager.showReply(
-                        text: HermesDisplayLogic.truncateReply(text),
-                        speaking: true,
-                        dwellSeconds: nil
-                    )
+                    // Stop button active while it plays. A definition query
+                    // still shows its picture (backend-agnostic).
+                    let shown = HermesDisplayLogic.truncateReply(text)
+                    if let subject = self.pendingDefinitionSubject {
+                        self.pendingDefinitionSubject = nil
+                        self.showDefinitionReply(text: shown, subject: subject, speaking: true)
+                    } else {
+                        self.displayManager.showReply(
+                            text: shown, speaking: true, dwellSeconds: nil
+                        )
+                    }
                 }
             }
         }
@@ -609,6 +663,38 @@ final class HermesSessionViewModel {
     func submitQuery(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+
+        // Bump so an in-flight definition-image fetch from a prior utterance
+        // can't paint over this new query or navigation.
+        definitionGeneration &+= 1
+
+        // On-device intents run before the AI brain.
+        switch IntentDetector.detect(trimmed) {
+        case .stopNavigation where navigation.isActive:
+            navigation.stop()
+            return
+        case let .navigate(destination, mode) where navigationEnabled:
+            liveTranscript = ""
+            lastTranscript = trimmed
+            connectionState = .processing
+            speechRecognizer.isSuspended = true
+            displayManager.clear()
+            navigation.start(destination: destination, mode: mode)
+            return
+        case let .define(subject) where definitionImagesEnabled:
+            pendingDefinitionSubject = subject
+            // fall through to the normal answer path below
+        default:
+            pendingDefinitionSubject = nil
+        }
+
+        // While navigating, an answer temporarily overlays the map. Hold nav
+        // frames off the lens so a GPS tick doesn't cut the answer short; the
+        // map is restored when the answer's dwell ends (idleHandler).
+        if navigation.isActive {
+            navigation.displaySuppressed = true
+        }
+
         let context = contextProvider.contextLine()
         if backend == .direct {
             liveTranscript = ""
@@ -708,27 +794,57 @@ final class HermesSessionViewModel {
     /// Single reply path for both brains: lens card + (unless silent) TTS.
     private func presentReply(_ text: String) {
         let shown = HermesDisplayLogic.truncateReply(text)
+        let subject = pendingDefinitionSubject
+        pendingDefinitionSubject = nil
+
         if displaySilentActive {
             // Trade-off: if the BLE send itself fails after this point, the
             // reply is neither spoken nor shown (best-effort display).
-            displayManager.showReply(
-                text: shown,
-                speaking: false,
-                dwellSeconds: HermesDisplayLogic.readingDwellSeconds(
-                    charCount: shown.count
+            if let subject {
+                showDefinitionReply(text: shown, subject: subject, speaking: false)
+            } else {
+                displayManager.showReply(
+                    text: shown,
+                    speaking: false,
+                    dwellSeconds: HermesDisplayLogic.readingDwellSeconds(
+                        charCount: shown.count
+                    )
                 )
-            )
+            }
             // Nothing spoken → nothing to echo; listen again immediately
             connectionState = .listening
             speechRecognizer.isSuspended = false
         } else {
             connectionState = .speaking
-            displayManager.showReply(text: shown, speaking: true, dwellSeconds: nil)
+            if let subject {
+                showDefinitionReply(text: shown, subject: subject, speaking: true)
+            } else {
+                displayManager.showReply(text: shown, speaking: true, dwellSeconds: nil)
+            }
             speechSynthesizer.speak(text)
             if audioManager.isUsingBluetoothInput {
                 // Glasses echo-cancel their own speaker - barge-in stays on
                 speechRecognizer.isSuspended = false
             }
+        }
+    }
+
+    /// Show the definition text immediately, then fetch the Wikipedia picture
+    /// and add it - guarded so a slow fetch can't paint over a newer screen.
+    /// Dwell is decided by whether TTS is still going when the image arrives,
+    /// not when the fetch started. Falls back to text-only when no image.
+    private func showDefinitionReply(text: String, subject: String, speaking: Bool) {
+        displayManager.showDefinition(text: text, imageURL: nil, speaking: speaking)
+        let generation = definitionGeneration
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let imageURL = await WikipediaImageClient.image(for: subject)
+            guard let imageURL,
+                  self.definitionGeneration == generation else { return }
+            let stillSpeaking = (self.connectionState == .speaking)
+            self.displayManager.showDefinition(
+                text: text, imageURL: imageURL, speaking: stillSpeaking
+            )
         }
     }
 
@@ -812,6 +928,7 @@ final class HermesSessionViewModel {
         speechSynthesizer.stop()
         speechRecognizer.stop()
         displayManager.stop()
+        navigation.stop()
         displayStatus = .off
         contextProvider.stop()
         liveTranscript = ""

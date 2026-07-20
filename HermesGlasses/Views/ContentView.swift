@@ -633,6 +633,7 @@ struct SettingsView: View {
     @State private var showSavePreset: Bool = false
     @State private var presetName: String = ""
     @State private var presetsVersion: Int = 0  // bump to refresh list
+    @State private var mapboxTokenInput: String = ""
     @AppStorage("show_test_panel") private var showTestPanel: Bool = true
     @Environment(\.dismiss) private var dismiss
 
@@ -782,6 +783,33 @@ struct SettingsView: View {
                     Text("Glasses Display")
                 } footer: {
                     Text("Ray-Ban Display glasses only: live transcript, replies, and controls on the lens. Silent mode shows the reply as text instead of speaking it - handy in meetings. Note: the glasses microphone's call screen covers the HUD; the iPhone or a headset mic keeps it visible.")
+                }
+
+                Section {
+                    Toggle("Navigate on \"take me to...\"", isOn: Binding(
+                        get: { hermesVM.navigationEnabled },
+                        set: { hermesVM.navigationEnabled = $0 }
+                    ))
+                    Toggle("Show a picture on \"what is...\"", isOn: Binding(
+                        get: { hermesVM.definitionImagesEnabled },
+                        set: { hermesVM.definitionImagesEnabled = $0 }
+                    ))
+
+                    SecureField("Mapbox access token", text: $mapboxTokenInput)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    Button(hermesVM.hasMapboxToken ? "Update token" : "Save token") {
+                        MapCredentials.storeToken(mapboxTokenInput)
+                        hermesVM.hasMapboxToken = MapCredentials.hasToken
+                        mapboxTokenInput = ""
+                    }
+                    .disabled(mapboxTokenInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                } header: {
+                    Text("Navigation & maps")
+                } footer: {
+                    if !hermesVM.hasMapboxToken {
+                        Text("Navigation shows text directions until a Mapbox token is added. Get a free token at mapbox.com.")
+                    }
                 }
 
                 Section {

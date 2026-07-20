@@ -79,6 +79,49 @@ enum HermesDisplayScreens {
         .padding(24)
     }
 
+    /// Active navigation: map image (when a URL is available) over the
+    /// destination title, the current step, and ETA, with a Stop button.
+    /// Falls back to an arrow icon when there is no map URL (no token).
+    static func navigation(
+        mapURL: String?,
+        title: String,
+        step: String,
+        eta: String,
+        onStop: @escaping @Sendable () -> Void
+    ) -> FlexBox {
+        FlexBox(direction: .column, spacing: 12) {
+            if let mapURL {
+                Image(uri: mapURL, sizePreset: .fill, cornerRadius: .medium)
+            } else {
+                FlexBox(direction: .row, spacing: 12, crossAlignment: .center) {
+                    Icon(name: .compassNorthUpRed)
+                    Text(title, style: .heading)
+                }
+            }
+            FlexBox(direction: .column, spacing: 4) {
+                Text(step, style: .body)
+                Text("\(title) - \(eta)", style: .meta, color: .secondary)
+            }
+            .padding(16)
+            .background(.card)
+            Button(label: "Stop", style: .primary, onClick: onStop)
+        }
+    }
+
+    /// Definition reply: picture (when found) above the description text.
+    static func definition(text: String, imageURL: String?) -> FlexBox {
+        FlexBox(direction: .column, spacing: 12) {
+            if let imageURL {
+                Image(uri: imageURL, sizePreset: .fill, cornerRadius: .medium)
+            }
+            FlexBox(direction: .column) {
+                Text(text, style: .body)
+            }
+            .padding(24)
+            .background(.card)
+        }
+    }
+
     /// Blank the lens (idle state).
     static func blank() -> FlexBox {
         FlexBox(direction: .column) {}
