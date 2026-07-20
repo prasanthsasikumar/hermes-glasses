@@ -122,6 +122,32 @@ enum HermesDisplayScreens {
         }
     }
 
+    /// Encounter capture: photo taken, waiting for the spoken note.
+    static func encounterPrompt() -> FlexBox {
+        FlexBox(direction: .column, spacing: 8) {
+            FlexBox(direction: .row, spacing: 12, crossAlignment: .center) {
+                Icon(name: .fourCornerFrame)
+                Text("Who is this?", style: .heading)
+            }
+            Text("Say a note - name, where you met, follow-up",
+                 style: .meta, color: .secondary)
+        }
+        .padding(24)
+    }
+
+    /// Encounter saved confirmation. Shows the start of the note so the
+    /// user can see the transcription landed sanely.
+    static func encounterSaved(note: String) -> FlexBox {
+        FlexBox(direction: .column, spacing: 8) {
+            FlexBox(direction: .row, spacing: 12, crossAlignment: .center) {
+                Icon(name: .checkmarkCircle)
+                Text("Saved", style: .heading)
+            }
+            Text(note, style: .body, color: .secondary)
+        }
+        .padding(24)
+    }
+
     /// Blank the lens (idle state).
     static func blank() -> FlexBox {
         FlexBox(direction: .column) {}

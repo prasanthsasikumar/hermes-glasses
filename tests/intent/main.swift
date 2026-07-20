@@ -59,5 +59,22 @@ expectEqual(IntentDetector.detect("take me to the station by car"),
 expectEqual(IntentDetector.detect("navigate to the park on foot"),
             .navigate(destination: "the park", mode: .walking), "on foot -> walking")
 
+// Remember-a-person (whole-utterance commands)
+expectEqual(IntentDetector.detect("remember this person"), .rememberPerson, "remember this person")
+expectEqual(IntentDetector.detect("Remember this person."), .rememberPerson, "case + punctuation")
+expectEqual(IntentDetector.detect("hey remember her"), .rememberPerson, "leading filler stripped")
+expectEqual(IntentDetector.detect("new contact"), .rememberPerson, "new contact")
+expectEqual(IntentDetector.detect("remember this face"), .rememberPerson, "remember this face")
+
+// ...and the words that must NOT trigger it
+expectEqual(IntentDetector.detect("remember to email her tomorrow"), .none, "remember to ... is not a capture")
+expectEqual(IntentDetector.detect("I remember this person from the conference"), .none, "mid-sentence remember")
+expectEqual(IntentDetector.detect("what is a person"), .define(subject: "person"), "define still wins its own phrasing")
+
+// Cancellation is only consulted while a note is pending
+expectEqual(IntentDetector.isEncounterCancellation("cancel"), true, "cancel")
+expectEqual(IntentDetector.isEncounterCancellation("Never mind."), true, "never mind")
+expectEqual(IntentDetector.isEncounterCancellation("Sarah from Meta"), false, "a real note is not a cancel")
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

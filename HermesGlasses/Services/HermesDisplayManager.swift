@@ -216,6 +216,23 @@ final class HermesDisplayManager {
         }
     }
 
+    /// Waiting for the spoken note after an encounter photo. No dwell - the
+    /// prompt stays until the note is saved or the capture is abandoned.
+    func showEncounterPrompt() {
+        cancelDwell()
+        lastReplyText = ""
+        lastDefinitionImageURL = nil
+        send(HermesDisplayScreens.encounterPrompt())
+    }
+
+    func showEncounterSaved(note: String) {
+        cancelDwell()
+        lastReplyText = ""
+        lastDefinitionImageURL = nil
+        send(HermesDisplayScreens.encounterSaved(note: note))
+        scheduleDwell(seconds: 2)
+    }
+
     func showNewConversationFlash() {
         cancelDwell()
         lastReplyText = ""

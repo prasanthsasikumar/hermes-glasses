@@ -2,13 +2,54 @@
 // IntentDetector.swift
 //
 // Pure, on-device classification of a finalized utterance into a navigation
-// command, a definition request, or nothing. Runs BEFORE the AI brain, so it
-// stays cheap and Foundation-only (mirrors VisualQueryDetector's style).
+// command, a definition request, an encounter capture, or nothing. Runs
+// BEFORE the AI brain, so it stays cheap and Foundation-only (mirrors
+// VisualQueryDetector's style).
 //
 
 import Foundation
 
 enum IntentDetector {
+    /// Standalone commands that start an encounter capture (photo + note).
+    /// Matched against the WHOLE utterance, not as a substring: "remember"
+    /// is far too common a word to trigger on mid-sentence ("remember to
+    /// email her", "I remember this place").
+    private static let rememberCommands: Set<String> = [
+        "remember this person", "remember this guy", "remember this woman",
+        "remember this man", "remember this face", "remember this one",
+        "remember him", "remember her", "remember them",
+        "save this person", "note this person", "new contact",
+        "new person", "add contact",
+    ]
+
+    /// Spoken away-outs while a note is pending. Not part of `detect` - the
+    /// session asks explicitly, because these words are only special in the
+    /// awaiting-note state (otherwise "cancel" is a normal query).
+    private static let cancelWords: Set<String> = [
+        "cancel", "never mind", "nevermind", "forget it", "cancel that",
+        "discard", "delete that", "stop",
+    ]
+
+    /// True when an utterance offered as an encounter note is really the
+    /// user backing out.
+    static func isEncounterCancellation(_ text: String) -> Bool {
+        cancelWords.contains(normalizeCommand(text))
+    }
+
+    /// Lowercase, strip punctuation and leading address filler, collapse
+    /// whitespace - so "Hey, remember this person!" reduces to the bare
+    /// command.
+    private static func normalizeCommand(_ text: String) -> String {
+        var s = text.lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: " ?.!,'\""))
+        for filler in ["hey ", "ok ", "okay ", "hermes ", "please "] {
+            while s.hasPrefix(filler) {
+                s = String(s.dropFirst(filler.count))
+            }
+        }
+        return s.split(separator: " ").joined(separator: " ")
+    }
+
     /// Phrases that start a navigation command. Order matters: longer, more
     /// specific phrases first so "go to" doesn't swallow "want to go to".
     private static let navTriggers = [
@@ -42,6 +83,12 @@ enum IntentDetector {
 
         if stopPhrases.contains(where: { lowered.contains($0) }) {
             return .stopNavigation
+        }
+
+        // Whole-utterance match, so it runs before the substring-based
+        // detectors below and can't be shadowed by them.
+        if rememberCommands.contains(normalizeCommand(text)) {
+            return .rememberPerson
         }
 
         if let nav = detectNavigate(lowered, original: text) {

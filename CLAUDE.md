@@ -60,6 +60,15 @@ photo via the DAT camera API.
   answer AND fetches a Wikipedia lead image, rendered as text + `Image` on the
   lens. Keys: `navigation_enabled`, `definition_images_enabled`; Mapbox token
   in Keychain via `MapCredentials`. All display-only + best-effort.
+- **Social encounters ("remember this person"):** a whole-utterance command
+  (NOT a substring - "remember" is too common) starts a capture: the glasses
+  photo and the spoken note run IN PARALLEL (`encounterPhotoTask` is joined by
+  `finishEncounter`, so they can land in either order). The next finalized
+  utterance is claimed as the note before any other intent runs; "cancel"
+  discards; 30 s of silence saves the photo with an empty note; a camera
+  failure saves the note alone. Persisted by `EncounterStore` to Application
+  Support (`encounters.json` + `photos/*.jpg`) - no AI, no bridge, no network.
+  Reviewed in `PeopleView`. Key: `social_notes_enabled`.
 
 ## Build & run
 

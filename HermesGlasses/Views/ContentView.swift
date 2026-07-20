@@ -26,6 +26,7 @@ struct ContentView: View {
     let hermesVM: HermesSessionViewModel
 
     @State private var showSettings: Bool = false
+    @State private var showPeople: Bool = false
     @AppStorage("show_test_panel") private var showTestPanel: Bool = true
 
     var body: some View {
@@ -41,6 +42,9 @@ struct ContentView: View {
         .tint(HermesTheme.accent)
         .sheet(isPresented: $showSettings) {
             SettingsView(hermesVM: hermesVM, wearablesVM: wearablesVM)
+        }
+        .sheet(isPresented: $showPeople) {
+            PeopleView(hermesVM: hermesVM)
         }
         .task {
             await hermesVM.checkBridge()
@@ -82,6 +86,17 @@ struct ContentView: View {
                         ? HermesTheme.accent : .secondary
                 ) {
                     Task { await hermesVM.toggleMicSource() }
+                }
+            }
+
+            // People met (photo + note capture)
+            if hermesVM.socialNotesEnabled {
+                iconCircle(
+                    "person.crop.rectangle.stack",
+                    tint: hermesVM.awaitingEncounterNote
+                        ? HermesTheme.accent : .secondary
+                ) {
+                    showPeople = true
                 }
             }
 
@@ -573,6 +588,11 @@ struct ContentView: View {
     }
 
     private var bottomStatusLabel: String {
+        // The note capture overrides the generic states - it's the one time
+        // the user needs to know exactly what's being listened for.
+        if hermesVM.awaitingEncounterNote {
+            return "Say a note about this person"
+        }
         switch hermesVM.connectionState {
         case .disconnected: return ""
         case .connecting: return "Connecting…"
@@ -810,6 +830,17 @@ struct SettingsView: View {
                     if !hermesVM.hasMapboxToken {
                         Text("Navigation shows text directions until a Mapbox token is added. Get a free token at mapbox.com.")
                     }
+                }
+
+                Section {
+                    Toggle("Remember people I meet", isOn: Binding(
+                        get: { hermesVM.socialNotesEnabled },
+                        set: { hermesVM.socialNotesEnabled = $0 }
+                    ))
+                } header: {
+                    Text("People")
+                } footer: {
+                    Text("Say \"remember this person\" at a gathering: the glasses take a photo and the note you speak next is saved with it. Review them all on the People screen. Say \"cancel\" instead of a note to throw the capture away. Stays on your phone - no AI, no server.")
                 }
 
                 Section {
