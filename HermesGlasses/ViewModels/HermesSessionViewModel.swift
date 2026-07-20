@@ -266,6 +266,9 @@ final class HermesSessionViewModel {
     @ObservationIgnored private var lastDirectPhotoAt: Date?
     @ObservationIgnored private var pendingDefinitionSubject: String?
     @ObservationIgnored private var definitionGeneration = 0
+    /// Camera-only session owned by the Lens view (nil while the voice
+    /// session provides the camera, or when Lens is closed).
+    @ObservationIgnored private var lensSession: DeviceSession?
 
     /// Exposed for UI to show audio route
     var audio: HermesAudioManager { audioManager }
@@ -286,6 +289,11 @@ final class HermesSessionViewModel {
     // MARK: - Public API
 
     func startSession() async {
+        // The voice session owns the glasses from here on - a Lens-created
+        // camera session must not compete with it. (UI-wise Lens can't be
+        // open when this button is reachable; this is belt-and-braces.)
+        releaseCameraSession()
+
         connectionState = .connecting
 
         // 1. Create and start a device session with the glasses
@@ -1114,6 +1122,50 @@ final class HermesSessionViewModel {
         deviceSession = nil
         isGlassesConnected = false
         connectionState = .disconnected
+    }
+
+    // MARK: - Camera-only session (Lens view)
+
+    /// Connect the glasses camera WITHOUT starting the voice loop - no mic,
+    /// no speech, no bridge. The Lens view opens straight from the home
+    /// screen: it reuses the live voice session when one exists, otherwise
+    /// it creates its own DeviceSession, torn down by
+    /// `releaseCameraSession()` when the view closes.
+    func ensureCameraSession() async throws {
+        if deviceSession != nil || lensSession != nil { return }
+
+        let session = try wearables.createSession(deviceSelector: deviceSelector)
+        try session.start()
+
+        // Wait until the session actually starts - the camera stream is
+        // rejected before that. Polling beats a state-stream subscription
+        // here: no replay races, and Lens has no ongoing observer needs.
+        let deadline = Date().addingTimeInterval(15)
+        while session.state != .started {
+            if case .stopped = session.state {
+                throw DeviceSessionError.unexpectedError(
+                    description: "Glasses session stopped before starting"
+                )
+            }
+            if Date() >= deadline {
+                session.stop()
+                throw HermesCameraError.timeout
+            }
+            try await Task.sleep(nanoseconds: 150_000_000)
+        }
+
+        lensSession = session
+        cameraManager.configure(session: session)
+        _ = await ensureCameraPermission(interactive: false)
+    }
+
+    /// Tear down the Lens-owned camera session. No-op when the camera is
+    /// riding on the voice session (or nothing is connected).
+    func releaseCameraSession() {
+        guard let session = lensSession else { return }
+        lensSession = nil
+        if deviceSession == nil { cameraManager.reset() }
+        session.stop()
     }
 
     func setEndpoint(_ endpoint: String) {

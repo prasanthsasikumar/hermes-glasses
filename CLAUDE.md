@@ -77,7 +77,11 @@ photo via the DAT camera API.
 - **Lens view (Object Snap):** live glasses video via a persistent stream -
   the ONE exception to one-shot camera streams, owned by
   `HermesCameraManager.startLiveStream`/`stopLiveStream` and running only
-  while `LensView` is on screen. While it runs, `capturePhoto()` serves the
+  while `LensView` is on screen. Lens does NOT need (and must never start)
+  the voice session: it connects a camera-only DeviceSession via
+  `HermesSessionViewModel.ensureCameraSession()` (reuses the voice session
+  when one is live) and releases it on close - opening Lens never leaves
+  the mic listening. While it runs, `capturePhoto()` serves the
   latest live frame as JPEG (voice visual queries keep working; no second
   stream). Detection: bundled `yolo11n.mlpackage` (ultralytics export,
   `nms=True` - see `tools/export-yolo.md`) via `VNCoreMLRequest`;

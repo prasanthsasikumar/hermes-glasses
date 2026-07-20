@@ -50,7 +50,7 @@ struct ContentView: View {
         // fullScreenCover, not sheet - an accidental drag-dismiss would
         // tear down the live stream mid-use; Done is the exit.
         .fullScreenCover(isPresented: $showLens) {
-            LensView(camera: hermesVM.camera)
+            LensView(hermesVM: hermesVM)
         }
         .task {
             await hermesVM.checkBridge()

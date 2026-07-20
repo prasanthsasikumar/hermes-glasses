@@ -23,28 +23,50 @@ struct LensSnap: Identifiable {
 @MainActor
 @Observable
 final class LensViewModel {
+    /// Stages of the snap moment: shutter flash ("Taking a pic…"), then
+    /// the crop reveal ("Cropping…"). Nil outside a capture.
+    enum CaptureStage: Equatable {
+        case flash
+        case cropping
+    }
+
     var feedImage: UIImage?
     var detections: [Detection] = []
     var dwellProgress: Double = 0
     var targetLabel: String?
     var snaps: [LensSnap] = []
-    var statusText = "Starting glasses camera…"
+    var statusText = "Connecting to glasses…"
     var errorBanner: String?
     var isStreaming = false
     var fps = 0
+    var captureStage: CaptureStage?
 
+    @ObservationIgnored private let hermesVM: HermesSessionViewModel
     @ObservationIgnored private let camera: HermesCameraManager
     @ObservationIgnored private let detector = ObjectDetector()
     @ObservationIgnored private let dwell = DwellTracker()
     @ObservationIgnored private var frameCount = 0
     @ObservationIgnored private var fpsWindowStart = Date()
 
-    init(camera: HermesCameraManager) {
-        self.camera = camera
+    init(hermesVM: HermesSessionViewModel) {
+        self.hermesVM = hermesVM
+        self.camera = hermesVM.camera
     }
 
     func start() async {
         errorBanner = nil
+
+        // Connect the glasses camera WITHOUT the voice loop - opening
+        // Lens must never leave the mic listening in the background.
+        statusText = "Connecting to glasses…"
+        do {
+            try await hermesVM.ensureCameraSession()
+        } catch {
+            errorBanner = error.localizedDescription
+            statusText = "Glasses unavailable"
+            return
+        }
+
         statusText = "Loading model…"
         do {
             try await detector.load()
@@ -90,6 +112,7 @@ final class LensViewModel {
         camera.stopLiveStream()
         detector.onDetections = nil
         isStreaming = false
+        hermesVM.releaseCameraSession()
     }
 
     // MARK: - Private
@@ -114,12 +137,28 @@ final class LensViewModel {
         )
         dwellProgress = update.progress
         targetLabel = update.target?.label
-        if let snap = update.snap, let frame = feedImage,
-           let cropped = Self.crop(frame, to: snap.rect) {
-            snaps.insert(
-                LensSnap(image: cropped, label: snap.label, date: Date()),
-                at: 0
-            )
+        if let snap = update.snap, let frame = feedImage {
+            runCaptureEffect(frame: frame, detection: snap)
+        }
+    }
+
+    /// The snap moment: freeze the triggering frame, flash the shutter
+    /// ("Taking a pic…"), then reveal the crop ("Cropping…"). The dwell
+    /// tracker's cooldown keeps the same object from re-firing meanwhile.
+    private func runCaptureEffect(frame: UIImage, detection: Detection) {
+        guard captureStage == nil else { return }
+        Task { @MainActor in
+            captureStage = .flash
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            captureStage = .cropping
+            try? await Task.sleep(nanoseconds: 550_000_000)
+            if let cropped = Self.crop(frame, to: detection.rect) {
+                snaps.insert(
+                    LensSnap(image: cropped, label: detection.label, date: Date()),
+                    at: 0
+                )
+            }
+            captureStage = nil
         }
     }
 

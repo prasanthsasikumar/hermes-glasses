@@ -14,8 +14,8 @@ struct LensView: View {
     @State private var selectedSnap: LensSnap?
     @Environment(\.dismiss) private var dismiss
 
-    init(camera: HermesCameraManager) {
-        _model = State(initialValue: LensViewModel(camera: camera))
+    init(hermesVM: HermesSessionViewModel) {
+        _model = State(initialValue: LensViewModel(hermesVM: hermesVM))
     }
 
     var body: some View {
@@ -76,6 +76,7 @@ struct LensView: View {
                     detectionOverlay(in: fitted)
                     reticle
                         .position(x: fitted.midX, y: fitted.midY)
+                    captureOverlay
                 }
             }
             .aspectRatio(4.0 / 3.0, contentMode: .fit)
@@ -144,6 +145,38 @@ struct LensView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    /// Shutter flash + status pill for the snap moment ("Taking a pic…"
+    /// then "Cropping…"), driven by the model's capture stage.
+    @ViewBuilder
+    private var captureOverlay: some View {
+        if let stage = model.captureStage {
+            ZStack {
+                if stage == .flash {
+                    Rectangle()
+                        .fill(.white)
+                        .opacity(0.65)
+                        .transition(.opacity)
+                }
+                VStack {
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Image(systemName: stage == .flash
+                            ? "camera.fill" : "scissors")
+                        Text(stage == .flash ? "Taking a pic…" : "Cropping…")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .padding(.bottom, 14)
+                }
+            }
+            .animation(.easeOut(duration: 0.3), value: stage)
+            .allowsHitTesting(false)
+        }
     }
 
     /// Center reticle: a ring that fills clockwise as dwell accumulates.
