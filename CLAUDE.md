@@ -74,6 +74,18 @@ photo via the DAT camera API.
   tap deeper. Text the user types (bridge endpoint, API key) is owned by the
   ROOT SettingsView and committed on Done *and* swipe-dismiss - sub-pages take
   bindings, so nothing is lost whichever page is open.
+- **Lens view (Object Snap):** live glasses video via a persistent stream -
+  the ONE exception to one-shot camera streams, owned by
+  `HermesCameraManager.startLiveStream`/`stopLiveStream` and running only
+  while `LensView` is on screen. While it runs, `capturePhoto()` serves the
+  latest live frame as JPEG (voice visual queries keep working; no second
+  stream). Detection: bundled `yolo11n.mlpackage` (ultralytics export,
+  `nms=True` - see `tools/export-yolo.md`) via `VNCoreMLRequest`;
+  `ObjectDetector` converts Vision's bottom-left boxes to top-left-origin
+  `Detection`s ONCE at that boundary. `DwellTracker` (pure logic, tested in
+  `tests/dwell/`) fires a snap after 2 s of center-reticle coverage with
+  IoU-based identity + post-snap cooldown. Snaps are session-only, in
+  memory, no AI/bridge/network.
 - **`VoiceCommandCatalog` feeds the "What can I say?" page** from the
   detectors' own phrase lists (`IntentDetector.navTriggers` etc. are internal,
   NOT private, for exactly this). Never hand-copy trigger phrases into the UI -
