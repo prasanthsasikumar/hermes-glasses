@@ -42,6 +42,11 @@ final class NavigationController: NSObject {
     // Session generation, guards a stale start() continuation from
     // resurrecting a session that stop()/a newer start() has superseded.
     private var generation = 0
+    /// Latest fix, so the map can be repainted on demand (refreshDisplay).
+    private var lastLocation: CLLocation?
+    /// When true, keep tracking/advancing but don't push frames to the lens
+    /// (an answer is temporarily overlaying the map).
+    var displaySuppressed = false
 
     override init() {
         super.init()
@@ -92,6 +97,8 @@ final class NavigationController: NSObject {
         destinationCoord = nil
         lastSentAt = nil
         lastSentCoord = nil
+        lastLocation = nil
+        displaySuppressed = false
         noticedNoToken = false
         onEnd?()
     }
@@ -136,8 +143,9 @@ final class NavigationController: NSObject {
 
     private func handle(location: CLLocation) {
         guard isActive, let route else { return }
+        lastLocation = location
 
-        // Arrival check.
+        // Arrival check (runs even while an answer overlays the map).
         if let dest = destinationCoord {
             let destLoc = CLLocation(latitude: dest.lat, longitude: dest.lon)
             if location.distance(from: destLoc) <= Self.arrivalMeters {
@@ -146,6 +154,13 @@ final class NavigationController: NSObject {
                 end()
                 return
             }
+        }
+
+        // While an answer overlays the map, keep advancing steps but don't
+        // paint - refreshDisplay() repaints when the overlay ends.
+        if displaySuppressed {
+            advanceStep(near: location)
+            return
         }
 
         // Throttle re-sends against the Bluetooth budget.
@@ -159,6 +174,21 @@ final class NavigationController: NSObject {
         lastSentCoord = location
 
         advanceStep(near: location)
+        renderFrame(for: location)
+    }
+
+    /// Re-emit the current navigation frame immediately (bypassing the
+    /// throttle) - used to restore the map after an answer overlay ends.
+    func refreshDisplay() {
+        guard isActive, let location = lastLocation else { return }
+        lastSentAt = Date()
+        lastSentCoord = location
+        renderFrame(for: location)
+    }
+
+    /// Build the map + step text for `location` and push it to the lens.
+    private func renderFrame(for location: CLLocation) {
+        guard let route else { return }
         let step = route.steps.indices.contains(currentStepIndex)
             ? route.steps[currentStepIndex] : nil
         let instruction = step?.instructions.isEmpty == false

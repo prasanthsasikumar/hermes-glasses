@@ -420,6 +420,17 @@ final class HermesSessionViewModel {
         displayManager.onStopNavigation = { [weak self] in
             self?.navigation.stop()
         }
+        // When a reply/definition dwell ends: restore the navigation map if
+        // still navigating, otherwise blank the lens as usual.
+        displayManager.idleHandler = { [weak self] in
+            guard let self else { return }
+            if self.navigation.isActive {
+                self.navigation.displaySuppressed = false
+                self.navigation.refreshDisplay()
+            } else {
+                self.displayManager.clear()
+            }
+        }
         // NOTE: the display attaches AFTER audio setup (step 3 below) -
         // whether the lens is free depends on the actual mic route: the
         // HFP glasses mic brings up the glasses' call screen over the HUD.
@@ -675,6 +686,13 @@ final class HermesSessionViewModel {
             // fall through to the normal answer path below
         default:
             pendingDefinitionSubject = nil
+        }
+
+        // While navigating, an answer temporarily overlays the map. Hold nav
+        // frames off the lens so a GPS tick doesn't cut the answer short; the
+        // map is restored when the answer's dwell ends (idleHandler).
+        if navigation.isActive {
+            navigation.displaySuppressed = true
         }
 
         let context = contextProvider.contextLine()

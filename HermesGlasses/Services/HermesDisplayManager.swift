@@ -37,6 +37,9 @@ final class HermesDisplayManager {
     var onRepeat: (() -> Void)?
     var onNewChat: (() -> Void)?
     var onStopNavigation: (() -> Void)?
+    /// What to do when a reply/definition dwell ends. Default (nil) blanks the
+    /// lens; the session sets this to restore the navigation map when active.
+    var idleHandler: (() -> Void)?
 
     private var display: Display?
     private var stateListenerToken: AnyListenerToken?
@@ -275,7 +278,12 @@ final class HermesDisplayManager {
         dwellTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            self?.clear()
+            guard let self else { return }
+            if let idle = self.idleHandler {
+                idle()
+            } else {
+                self.clear()
+            }
         }
     }
 
