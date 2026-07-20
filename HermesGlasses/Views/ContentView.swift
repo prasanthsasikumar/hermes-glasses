@@ -55,20 +55,58 @@ struct ContentView: View {
 
     @ViewBuilder
     private var header: some View {
-        HStack(spacing: 6) {
-            Text(assistantName)
-                .font(.system(size: 20, weight: .bold))
-                .kerning(-0.4)
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Text(assistantName)
+                    .font(.system(size: 30, weight: .bold))
+                    .kerning(-0.6)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
 
-            Spacer(minLength: 4)
+                Spacer(minLength: 4)
 
-            // Glasses connection
+                // New conversation
+                iconCircle("plus", tint: HermesTheme.accent) {
+                    hermesVM.startNewConversation()
+                }
+                .disabled(hermesVM.connectionState == .disconnected)
+                .opacity(hermesVM.connectionState == .disconnected ? 0.4 : 1)
+
+                // People met (photo + note capture)
+                if hermesVM.socialNotesEnabled {
+                    iconCircle(
+                        "person.crop.rectangle.stack",
+                        tint: hermesVM.awaitingEncounterNote
+                            ? HermesTheme.accent : .secondary
+                    ) {
+                        showPeople = true
+                    }
+                }
+
+                iconCircle("gearshape", tint: .secondary) {
+                    showSettings = true
+                }
+            }
+
+            statusChips
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+    }
+
+    /// Connection state, one chip each - the header title row stays clean.
+    private var statusChips: some View {
+        HStack(spacing: 8) {
             statusChip("Glasses", dot: glassesDotColor)
 
-            // Bridge reachability (or Claude key status in direct mode)
+            // Bridge reachability (or provider key status in direct mode)
             if hermesVM.backend == .direct {
-                statusChip(hermesVM.directProvider.displayName,
-                           dot: (!hermesVM.directProvider.requiresKey || hermesVM.hasDirectKey) ? .green : .red)
+                statusChip(
+                    hermesVM.directProvider.displayName,
+                    dot: (!hermesVM.directProvider.requiresKey || hermesVM.hasDirectKey)
+                        ? .green : .red
+                )
             } else {
                 Button {
                     Task { await hermesVM.checkBridge() }
@@ -78,56 +116,25 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            // Mic source - tap cycles iPhone → Glasses → Headset
-            if hermesVM.connectionState != .disconnected {
-                iconCircle(
-                    micIconName,
-                    tint: hermesVM.audio.isUsingBluetoothInput
-                        ? HermesTheme.accent : .secondary
-                ) {
-                    Task { await hermesVM.toggleMicSource() }
-                }
-            }
+            statusChip(hermesVM.displayHUDEnabled ? "HUD on" : "HUD off", dot: nil)
 
-            // People met (photo + note capture)
-            if hermesVM.socialNotesEnabled {
-                iconCircle(
-                    "person.crop.rectangle.stack",
-                    tint: hermesVM.awaitingEncounterNote
-                        ? HermesTheme.accent : .secondary
-                ) {
-                    showPeople = true
-                }
-            }
-
-            // New conversation
-            iconCircle("square.and.pencil", tint: .secondary) {
-                hermesVM.startNewConversation()
-            }
-            .disabled(hermesVM.connectionState == .disconnected)
-            .opacity(hermesVM.connectionState == .disconnected ? 0.4 : 1)
-
-            // Settings
-            iconCircle("gearshape", tint: .secondary) {
-                showSettings = true
-            }
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
     }
 
-    private func statusChip(_ label: String, dot: Color) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(dot)
-                .frame(width: 7, height: 7)
+    private func statusChip(_ label: String, dot: Color?) -> some View {
+        HStack(spacing: 7) {
+            if let dot {
+                Circle()
+                    .fill(dot)
+                    .frame(width: 7, height: 7)
+            }
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13.5, weight: .medium))
+                .foregroundStyle(dot == nil ? .secondary : .primary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 7)
         .background(HermesTheme.chipFill, in: Capsule())
     }
 
@@ -138,20 +145,12 @@ struct ContentView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 30, height: 30)
+                .frame(width: 38, height: 38)
                 .background(HermesTheme.chipFill, in: Circle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var micIconName: String {
-        switch hermesVM.micSource {
-        case .phone: return "iphone.gen3"
-        case .glasses: return "eyeglasses"
-        case .headset: return "headphones"
-        }
     }
 
     private var glassesDotColor: Color {
@@ -525,61 +524,101 @@ struct ContentView: View {
 
     @ViewBuilder
     private var bottomBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-
+        Group {
             if hermesVM.connectionState == .disconnected {
-                // Big accent start button
                 Button {
                     Task { await hermesVM.startSession() }
                 } label: {
-                    Text("Start Session")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(
-                            wearablesVM.registrationState == .registered
-                                ? HermesTheme.accent
-                                : Color(.systemGray3),
-                            in: Capsule()
-                        )
+                    HStack(spacing: 10) {
+                        Image(systemName: "mic")
+                            .font(.system(size: 17, weight: .semibold))
+                        Text("Start listening")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        wearablesVM.registrationState == .registered
+                            ? HermesTheme.accent
+                            : Color(.systemGray3),
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    )
                 }
                 .buttonStyle(.plain)
                 .disabled(wearablesVM.registrationState != .registered)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
             } else {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        WaveformView(
-                            level: hermesVM.micLevel,
-                            accent: HermesTheme.accent
-                        )
-                        Text(bottomStatusLabel)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(isErrorState ? .red : .secondary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        hermesVM.endSession()
-                    } label: {
-                        Text("End")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.red)
-                            .padding(.horizontal, 18)
-                            .frame(height: 40)
-                            .background(.red.opacity(0.13), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                listeningCard
             }
         }
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+    }
+
+    /// Live session card: what Hermes is doing, the mic level, and the way
+    /// out. The subtitle doubles as the mic-source switch - it's the only
+    /// place the current mic is named, so it's where a tap to change it
+    /// belongs.
+    private var listeningCard: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(stateDotColor)
+                .frame(width: 9, height: 9)
+
+            Button {
+                Task { await hermesVM.toggleMicSource() }
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(bottomStatusLabel)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(isErrorState ? .red : .primary)
+                        .lineLimit(1)
+                    Text("\(hermesVM.micSource.shortLabel) mic · tap to switch")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            WaveformView(
+                level: hermesVM.micLevel,
+                accent: HermesTheme.accent,
+                barCount: 8
+            )
+
+            Button {
+                hermesVM.endSession()
+            } label: {
+                Text("End")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 18)
+                    .frame(height: 38)
+                    .background(.red.opacity(0.16), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 14)
+        .padding(.vertical, 12)
+        .background(
+            HermesTheme.chipFill,
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+    }
+
+    /// Mirrors `bottomStatusLabel`: green while it's the user's turn, accent
+    /// while Hermes is working or talking, red on error.
+    private var stateDotColor: Color {
+        if isErrorState { return .red }
+        switch hermesVM.connectionState {
+        case .listening, .recording: return .green
+        case .processing, .speaking: return HermesTheme.accent
+        case .connecting, .disconnected, .error: return .secondary
+        }
     }
 
     private var isErrorState: Bool {
@@ -618,19 +657,25 @@ struct ContentView: View {
 struct WaveformView: View {
     let level: Float
     let accent: Color
-
-    private let barCount = 30
+    /// 30 reads as a full-width meter; 8 fits inside the session card.
+    var barCount: Int = 30
 
     var body: some View {
         HStack(spacing: 3.5) {
             ForEach(0..<barCount, id: \.self) { i in
+                // Sine envelope so the run tapers at both ends, floored at
+                // half so the outermost bars stay visible rather than
+                // collapsing to dots.
                 let env = sin(Double(i) / Double(barCount - 1) * .pi)
-                let wobble = 0.35 + 0.65 * abs(sin(Double(i) * 2.7 + 1.3))
+                let taper = 0.5 + 0.5 * env
+                // Fixed per-bar resting heights (5–16pt, as in the design):
+                // a silent room still reads as a waveform, not a dotted line.
+                let resting = 5 + 11 * abs(sin(Double(i) * 2.7 + 1.3))
                 Capsule()
                     .fill(accent.opacity(0.45 + 0.55 * env))
                     .frame(
                         width: 3,
-                        height: max(3, 24 * amplitude * env * wobble)
+                        height: max(3, resting * taper + 22 * amplitude * env)
                     )
             }
         }

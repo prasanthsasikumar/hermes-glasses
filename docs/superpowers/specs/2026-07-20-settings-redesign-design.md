@@ -79,3 +79,26 @@ someone adds a trigger — sourcing it from the detector makes drift impossible.
 Built for device and simulator; hub and command pages screenshotted on an
 iPhone 17 Pro simulator. Existing `tests/intent` and `tests/encounters` suites
 still pass (the detector lists only changed visibility).
+
+---
+
+## Addendum: Home screen (variant 2a)
+
+The design file was later extended with home-screen variants 2a (native) and
+2b (branded). 2a was implemented, matching the settings decision.
+
+Changes to `ContentView`:
+
+- **Header** becomes a large 30pt title (the assistant's name) with three
+  38pt circular buttons: `+` (new conversation, accent), People, and Settings.
+- **Status chips** move out of the title row onto their own line: Glasses,
+  the assistant/Bridge chip, and HUD on/off.
+- **Session card** replaces the divider + waveform strip: a rounded card with
+  a state dot, the status line, the mic subtitle, a compact 8-bar waveform,
+  and the End button. Idle shows a single "Start listening" button.
+- **Mic switching**, which the design drops along with the old header icon,
+  is preserved on the card's subtitle ("iPhone mic · tap to switch") - the
+  only place the current mic is named is the right place to change it.
+- **`WaveformView`** gains a `barCount` (30 wide meter, 8 in the card) and a
+  fixed per-bar resting profile. The old formula scaled purely by mic level,
+  so a quiet room rendered as a row of dots rather than a waveform.
