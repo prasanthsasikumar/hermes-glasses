@@ -73,5 +73,47 @@ reopened.update(id: UUID(), note: "nobody")
 reopened.delete(id: UUID())
 expectEqual(reopened.all().count, 2, "unknown id is a no-op")
 
+// Multi-photo save (conversation capture): every photo lands on disk
+let photoA = Data([0xFF, 0xD8, 0x0A])
+let photoB = Data([0xFF, 0xD8, 0x0B])
+let multi = reopened.save(note: "Team standup with Sarah and Raj",
+                          photos: [photoA, photoB],
+                          timestamp: now.addingTimeInterval(300))
+expectEqual(multi.photoFilenames.count, 2, "two filenames assigned")
+expectEqual(reopened.photoDatas(for: multi), [photoA, photoB], "photos round-trip in order")
+expectEqual(multi.photoFilename, multi.photoFilenames.first, "legacy accessor is the first photo")
+expectEqual(reopened.photoData(for: multi), photoA, "single-photo read serves the first")
+
+// Multi-photo persists and deletes all its files
+let reopened2 = EncounterStore(directory: root)
+expectEqual(reopened2.photoDatas(for: multi).count, 2, "multi-photo persisted")
+let multiPaths = multi.photoFilenames.map {
+    root.appendingPathComponent("photos").appendingPathComponent($0)
+}
+reopened2.delete(id: multi.id)
+expectTrue(multiPaths.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) },
+           "all photo files deleted")
+
+// Legacy index (single photoFilename key) still decodes
+let legacyRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+    .appendingPathComponent("encounter-legacy-\(UUID().uuidString)")
+defer { try? FileManager.default.removeItem(at: legacyRoot) }
+try? FileManager.default.createDirectory(
+    at: legacyRoot.appendingPathComponent("photos"), withIntermediateDirectories: true)
+let legacyJSON = """
+[{"id":"11111111-2222-3333-4444-555555555555","note":"old-format entry",
+"timestamp":"2026-07-10T12:00:00Z","photoFilename":"legacy.jpg"},
+{"id":"11111111-2222-3333-4444-666666666666","note":"old note-only entry",
+"timestamp":"2026-07-10T13:00:00Z"}]
+"""
+try? legacyJSON.data(using: .utf8)!.write(
+    to: legacyRoot.appendingPathComponent("encounters.json"))
+let legacyStore = EncounterStore(directory: legacyRoot)
+expectEqual(legacyStore.all().count, 2, "legacy index decodes")
+expectEqual(legacyStore.all().last?.photoFilenames, ["legacy.jpg"],
+            "legacy photoFilename migrates into the array")
+expectEqual(legacyStore.all().first?.photoFilenames, [],
+            "legacy note-only entry has no photos")
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

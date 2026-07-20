@@ -25,6 +25,35 @@ enum IntentDetector {
         "new person", "add contact",
     ]
 
+    /// Standalone commands that start a conversation capture: every
+    /// utterance from here on becomes part of one note, and looking at a
+    /// person for 2 s snaps their photo into it. Whole-utterance matched,
+    /// like `rememberCommands` - "recording" is common mid-sentence.
+    static let conversationStartCommands: Set<String> = [
+        "record this conversation", "record the conversation",
+        "record our conversation", "start recording",
+        "start recording this conversation", "start a recording",
+        "remember this conversation", "start taking notes", "take notes",
+        "record this meeting", "record the meeting",
+    ]
+
+    /// Ends a running capture and saves the note. Only consulted while a
+    /// capture is active (`isConversationStop`) - during one, EVERY
+    /// utterance is transcript, so these must be phrases nobody says
+    /// mid-conversation by accident.
+    static let conversationStopCommands: Set<String> = [
+        "stop recording", "stop the recording", "end recording",
+        "end the recording", "finish recording", "finish the recording",
+        "stop taking notes", "save the conversation",
+        "save this conversation", "save the recording", "save the note",
+    ]
+
+    /// True when an utterance heard during a capture is the command to end
+    /// it rather than conversation to transcribe.
+    static func isConversationStop(_ text: String) -> Bool {
+        conversationStopCommands.contains(normalizeCommand(text))
+    }
+
     /// Spoken away-outs while a note is pending. Not part of `detect` - the
     /// session asks explicitly, because these words are only special in the
     /// awaiting-note state (otherwise "cancel" is a normal query).
@@ -92,6 +121,10 @@ enum IntentDetector {
         // detectors below and can't be shadowed by them.
         if rememberCommands.contains(normalizeCommand(text)) {
             return .rememberPerson
+        }
+
+        if conversationStartCommands.contains(normalizeCommand(text)) {
+            return .startConversationCapture
         }
 
         if let nav = detectNavigate(lowered, original: text) {

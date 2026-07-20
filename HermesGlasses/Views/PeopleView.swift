@@ -142,10 +142,16 @@ private struct EncounterDetailView: View {
     @State private var note: String = ""
     @Environment(\.dismiss) private var dismiss
 
+    /// All photos on the entry - one for a classic capture, several for a
+    /// recorded conversation.
+    private var photos: [UIImage] {
+        hermesVM.encounterPhotos(encounter).compactMap(UIImage.init(data:))
+    }
+
     var body: some View {
         Form {
-            if let data = hermesVM.encounterPhoto(encounter),
-               let image = UIImage(data: data) {
+            let photos = self.photos
+            if photos.count == 1, let image = photos.first {
                 Section {
                     Image(uiImage: image)
                         .resizable()
@@ -154,6 +160,23 @@ private struct EncounterDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .listRowInsets(EdgeInsets())
+            } else if photos.count > 1 {
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(photos.enumerated()), id: \.offset) { _, image in
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 180, height: 220)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
 
             Section("Note") {

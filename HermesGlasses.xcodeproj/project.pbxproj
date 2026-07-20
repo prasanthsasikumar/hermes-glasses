@@ -37,6 +37,7 @@
 		AAAA00000000000000000028 /* NavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000131 /* NavigationController.swift */; };
 		AAAA00000000000000000029 /* Encounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000132 /* Encounter.swift */; };
 		AAAA00000000000000000030 /* EncounterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000133 /* EncounterStore.swift */; };
+		AAAA00000000000000000039 /* ConversationCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000142 /* ConversationCapture.swift */; };
 		AAAA00000000000000000031 /* PeopleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000134 /* PeopleView.swift */; };
 		AAAA00000000000000000032 /* VoiceCommandCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000135 /* VoiceCommandCatalog.swift */; };
 		AAAA00000000000000000033 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000136 /* SettingsView.swift */; };
@@ -86,6 +87,7 @@
 		AAAA00000000000000000131 /* NavigationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation/NavigationController.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000132 /* Encounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Social/Encounter.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000133 /* EncounterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Social/EncounterStore.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000142 /* ConversationCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Social/ConversationCapture.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000134 /* PeopleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000135 /* VoiceCommandCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandCatalog.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000136 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -183,6 +185,7 @@
 				AAAA00000000000000000131 /* NavigationController.swift */,
 				AAAA00000000000000000132 /* Encounter.swift */,
 				AAAA00000000000000000133 /* EncounterStore.swift */,
+				AAAA00000000000000000142 /* ConversationCapture.swift */,
 				AAAA00000000000000000135 /* VoiceCommandCatalog.swift */,
 				AAAA00000000000000000137 /* DwellTracker.swift */,
 				AAAA00000000000000000138 /* ObjectDetector.swift */,
@@ -313,6 +316,7 @@
 				AAAA00000000000000000028 /* NavigationController.swift in Sources */,
 				AAAA00000000000000000029 /* Encounter.swift in Sources */,
 				AAAA00000000000000000030 /* EncounterStore.swift in Sources */,
+				AAAA00000000000000000039 /* ConversationCapture.swift in Sources */,
 				AAAA00000000000000000031 /* PeopleView.swift in Sources */,
 				AAAA00000000000000000032 /* VoiceCommandCatalog.swift in Sources */,
 				AAAA00000000000000000033 /* SettingsView.swift in Sources */,

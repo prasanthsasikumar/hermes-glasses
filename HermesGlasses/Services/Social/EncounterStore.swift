@@ -53,11 +53,19 @@ final class EncounterStore: @unchecked Sendable {
             .sorted { $0.timestamp > $1.timestamp }
     }
 
+    /// The cover photo (first capture).
     func photoData(for encounter: Encounter) -> Data? {
         guard let filename = encounter.photoFilename else { return nil }
         return try? Data(
             contentsOf: photosURL.appendingPathComponent(filename)
         )
+    }
+
+    /// All photos, in capture order. Files that went missing are skipped.
+    func photoDatas(for encounter: Encounter) -> [Data] {
+        encounter.photoFilenames.compactMap { filename in
+            try? Data(contentsOf: photosURL.appendingPathComponent(filename))
+        }
     }
 
     // MARK: - Writes
@@ -66,17 +74,26 @@ final class EncounterStore: @unchecked Sendable {
     /// produces a note-only entry rather than losing the encounter.
     @discardableResult
     func save(note: String, photo: Data?, timestamp: Date = Date()) -> Encounter {
+        save(note: note, photos: photo.map { [$0] } ?? [], timestamp: timestamp)
+    }
+
+    /// Save an encounter with any number of photos (conversation capture).
+    /// A photo that fails to write is dropped, never fatal - a missing
+    /// picture beats a lost encounter.
+    @discardableResult
+    func save(note: String, photos: [Data], timestamp: Date = Date()) -> Encounter {
         let id = UUID()
-        var filename: String?
-        if let photo {
-            let name = "\(id.uuidString).jpg"
+        var filenames: [String] = []
+        for (index, photo) in photos.enumerated() {
+            let name = photos.count == 1
+                ? "\(id.uuidString).jpg"
+                : "\(id.uuidString)-\(index).jpg"
             do {
                 try photo.write(
                     to: photosURL.appendingPathComponent(name), options: .atomic
                 )
-                filename = name
+                filenames.append(name)
             } catch {
-                // Keep the note - a missing picture beats a lost encounter.
                 logger.error("Photo write failed: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -85,7 +102,7 @@ final class EncounterStore: @unchecked Sendable {
             id: id,
             note: note.trimmingCharacters(in: .whitespacesAndNewlines),
             timestamp: timestamp,
-            photoFilename: filename
+            photoFilenames: filenames
         )
         lock.withLock { encounters.append(encounter) }
         writeIndex()
@@ -106,7 +123,7 @@ final class EncounterStore: @unchecked Sendable {
             guard let index = encounters.firstIndex(where: { $0.id == id }) else { return nil }
             return encounters.remove(at: index)
         }
-        if let filename = removed?.photoFilename {
+        for filename in removed?.photoFilenames ?? [] {
             try? FileManager.default.removeItem(
                 at: photosURL.appendingPathComponent(filename)
             )

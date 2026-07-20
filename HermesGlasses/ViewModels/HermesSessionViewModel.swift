@@ -6,6 +6,8 @@
 // and plays back responses through the glasses.
 //
 
+import CoreMedia
+import MWDATCamera
 import MWDATCore
 import Observation
 import os
@@ -158,6 +160,12 @@ final class HermesSessionViewModel {
     /// True between "remember this person" and the note being saved - drives
     /// the "listening for a note" affordance in the phone UI.
     var awaitingEncounterNote: Bool = false
+    /// True while a conversation capture runs ("record this conversation"):
+    /// every utterance becomes transcript, a 2 s person dwell snaps a photo,
+    /// and nothing reaches the AI until the stop command saves one note.
+    var conversationCaptureActive: Bool = false
+    /// Photos kept so far in the running capture (drives the UI chip).
+    var conversationCaptureSnapCount: Int = 0
     /// Bumped whenever an encounter is saved/edited/deleted so the People
     /// screen re-reads the store.
     var encounterRevision: Int = 0
@@ -262,6 +270,16 @@ final class HermesSessionViewModel {
     @ObservationIgnored private var encounterPhotoTask: Task<Data?, Never>?
     /// Fires if no note arrives - saves the photo with an empty note.
     @ObservationIgnored private var encounterTimeoutTask: Task<Void, Never>?
+    // Conversation capture ("record this conversation"): pure state plus
+    // the vision pipeline (live stream → person detections → dwell) that
+    // feeds it. All torn down by `stopCaptureVision()`.
+    @ObservationIgnored private var captureModel = ConversationCaptureModel()
+    @ObservationIgnored private var capturePhotos: [Data] = []
+    @ObservationIgnored private var captureDetector: ObjectDetector?
+    @ObservationIgnored private var captureDwell: DwellTracker?
+    @ObservationIgnored private var captureLatestFrame: UIImage?
+    @ObservationIgnored private var captureStreamRunning = false
+    @ObservationIgnored private var captureSetupTask: Task<Void, Never>?
     @ObservationIgnored private var pendingPhoto: Data?
     @ObservationIgnored private var lastDirectPhotoAt: Date?
     @ObservationIgnored private var pendingDefinitionSubject: String?
@@ -712,6 +730,18 @@ final class HermesSessionViewModel {
             return
         }
 
+        // A running conversation capture claims every utterance next: it is
+        // all transcript until the stop command - nothing reaches the AI.
+        if conversationCaptureActive {
+            if IntentDetector.isConversationStop(trimmed) {
+                finishConversationCapture()
+            } else {
+                captureModel.addLine(trimmed)
+                liveTranscript = ""
+            }
+            return
+        }
+
         // Bump so an in-flight definition-image fetch from a prior utterance
         // can't paint over this new query or navigation.
         definitionGeneration &+= 1
@@ -722,6 +752,11 @@ final class HermesSessionViewModel {
             liveTranscript = ""
             lastTranscript = trimmed
             startEncounter()
+            return
+        case .startConversationCapture where socialNotesEnabled:
+            liveTranscript = ""
+            lastTranscript = trimmed
+            startConversationCapture()
             return
         case .stopNavigation where navigation.isActive:
             navigation.stop()
@@ -1003,12 +1038,188 @@ final class HermesSessionViewModel {
         }
     }
 
+    // MARK: - Conversation capture
+
+    /// "record this conversation": from here until the stop command, every
+    /// finalized utterance is appended to one note and a 2 s dwell on a
+    /// person snaps their photo into it. The camera side is best-effort -
+    /// a transcript-only capture still saves if the stream won't start.
+    func startConversationCapture() {
+        guard !conversationCaptureActive,
+              connectionState != .disconnected else { return }
+        conversationCaptureActive = true
+        captureModel = ConversationCaptureModel()
+        capturePhotos = []
+        conversationCaptureSnapCount = 0
+
+        if navigation.isActive {
+            navigation.displaySuppressed = true
+        }
+        displayManager.showRecordingStarted()
+
+        // Audible "it's on" cue, unless the lens is doing the talking.
+        if displaySilentActive {
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+        } else {
+            connectionState = .speaking
+            speechRecognizer.isSuspended = true
+            speechSynthesizer.speak("Recording. Say stop recording to save.")
+        }
+
+        captureSetupTask = Task { @MainActor [weak self] in
+            await self?.startCaptureVision()
+        }
+    }
+
+    /// UI toggle (the record chip) - same paths as the voice commands.
+    func toggleConversationCapture() {
+        if conversationCaptureActive {
+            finishConversationCapture()
+        } else {
+            startConversationCapture()
+        }
+    }
+
+    /// Spin up the person-snap pipeline: YOLO detector + a persistent live
+    /// stream (the same machinery as the Lens view, sharing
+    /// HermesCameraManager's single-live-stream slot).
+    private func startCaptureVision() async {
+        guard isGlassesConnected,
+              await ensureCameraPermission(interactive: false) else { return }
+
+        let detector = ObjectDetector()
+        do {
+            try await detector.load()
+        } catch {
+            return  // transcript-only capture
+        }
+        guard conversationCaptureActive else { return }
+
+        captureDetector = detector
+        captureDwell = DwellTracker()
+        detector.onDetections = { [weak self] detections in
+            // ObjectDetector calls this on the main queue.
+            MainActor.assumeIsolated {
+                self?.handleCaptureDetections(detections)
+            }
+        }
+
+        do {
+            try await cameraManager.startLiveStream(
+                onFrame: { [weak self] frame in
+                    // SDK thread - decode then hop to main.
+                    let image = frame.makeUIImage()
+                    let pixelBuffer = CMSampleBufferGetImageBuffer(frame.sampleBuffer)
+                    Task { @MainActor [weak self] in
+                        guard let self, self.conversationCaptureActive else { return }
+                        if let image { self.captureLatestFrame = image }
+                        if let pixelBuffer { self.captureDetector?.process(pixelBuffer) }
+                    }
+                },
+                onError: { _ in }  // stream death degrades to transcript-only
+            )
+            captureStreamRunning = true
+            // The capture may have been stopped while the camera was waking
+            // up - stopCaptureVision saw captureStreamRunning == false then,
+            // so the just-started stream is ours to tear down.
+            if !conversationCaptureActive {
+                cameraManager.stopLiveStream()
+                captureStreamRunning = false
+            }
+        } catch {
+            // Lens view may own the stream, or the camera is asleep - the
+            // transcript is the valuable half; keep going without photos.
+            captureDetector?.onDetections = nil
+            captureDetector = nil
+            captureDwell = nil
+        }
+    }
+
+    /// A detection batch during capture: person boxes only → dwell → snap.
+    private func handleCaptureDetections(_ detections: [Detection]) {
+        guard conversationCaptureActive, let dwell = captureDwell else { return }
+        let now = CACurrentMediaTime()
+        let update = dwell.update(
+            detections: ConversationCaptureModel.people(detections), at: now
+        )
+        guard let snap = update.snap, let frame = captureLatestFrame,
+              captureModel.recordSnap(at: now) else { return }
+
+        let cropped = LensViewModel.crop(frame, to: snap.rect, padding: 0.25)
+        guard let jpeg = (cropped ?? frame).jpegData(compressionQuality: 0.85)
+        else { return }
+        capturePhotos.append(jpeg)
+        conversationCaptureSnapCount = capturePhotos.count
+        displayManager.showPhotoCaptured()
+    }
+
+    /// Stop command (or UI toggle): save the whole capture as ONE encounter -
+    /// full transcript as the note, every snapped person attached.
+    func finishConversationCapture() {
+        guard conversationCaptureActive else { return }
+        stopCaptureVision()
+        conversationCaptureActive = false
+        liveTranscript = ""
+
+        let photos = capturePhotos
+        capturePhotos = []
+        conversationCaptureSnapCount = 0
+
+        guard captureModel.hasContent else {
+            // Nothing said, no one snapped - no entry to save.
+            displayManager.clear()
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+            return
+        }
+
+        encounterStore.save(note: captureModel.note, photos: photos)
+        encounterRevision &+= 1
+
+        // Mirror into the on-phone chat, cover photo and all.
+        pendingPhoto = photos.first
+        addTurn(
+            userText: "[Conversation recorded]",
+            agentText: photos.isEmpty
+                ? "Saved to People (no photos)"
+                : "Saved to People (\(photos.count) photo\(photos.count == 1 ? "" : "s"))"
+        )
+
+        displayManager.showEncounterSaved(note: "Conversation saved")
+        if displaySilentActive {
+            connectionState = .listening
+            speechRecognizer.isSuspended = false
+        } else {
+            connectionState = .speaking
+            speechRecognizer.isSuspended = true
+            speechSynthesizer.speak("Saved")
+        }
+    }
+
+    private func stopCaptureVision() {
+        captureSetupTask?.cancel()
+        captureSetupTask = nil
+        captureDetector?.onDetections = nil
+        captureDetector = nil
+        captureDwell = nil
+        captureLatestFrame = nil
+        if captureStreamRunning {
+            cameraManager.stopLiveStream()
+            captureStreamRunning = false
+        }
+    }
+
     /// People screen: read-through to the store (the view holds no state of
     /// its own; `encounterRevision` tells it when to re-read).
     func allEncounters() -> [Encounter] { encounterStore.all() }
 
     func encounterPhoto(_ encounter: Encounter) -> Data? {
         encounterStore.photoData(for: encounter)
+    }
+
+    func encounterPhotos(_ encounter: Encounter) -> [Data] {
+        encounterStore.photoDatas(for: encounter)
     }
 
     func updateEncounterNote(id: UUID, note: String) {
@@ -1096,6 +1307,20 @@ final class HermesSessionViewModel {
     }
 
     func endSession() {
+        // Unlike a half-finished "remember this person", a running
+        // conversation capture is saved, not discarded - an hour of notes
+        // must not vanish because the session dropped. Silent: the audio
+        // stack is going away anyway.
+        if conversationCaptureActive {
+            stopCaptureVision()
+            conversationCaptureActive = false
+            if captureModel.hasContent {
+                encounterStore.save(note: captureModel.note, photos: capturePhotos)
+                encounterRevision &+= 1
+            }
+            capturePhotos = []
+            conversationCaptureSnapCount = 0
+        }
         sessionObserverTask?.cancel()
         sessionObserverTask = nil
         speechSynthesizer.stop()
