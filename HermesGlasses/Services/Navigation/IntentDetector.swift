@@ -14,7 +14,10 @@ enum IntentDetector {
     /// Matched against the WHOLE utterance, not as a substring: "remember"
     /// is far too common a word to trigger on mid-sentence ("remember to
     /// email her", "I remember this place").
-    private static let rememberCommands: Set<String> = [
+    ///
+    /// Internal, not private: `VoiceCommandCatalog` builds the in-app
+    /// command reference from these lists so the two can't drift apart.
+    static let rememberCommands: Set<String> = [
         "remember this person", "remember this guy", "remember this woman",
         "remember this man", "remember this face", "remember this one",
         "remember him", "remember her", "remember them",
@@ -25,7 +28,7 @@ enum IntentDetector {
     /// Spoken away-outs while a note is pending. Not part of `detect` - the
     /// session asks explicitly, because these words are only special in the
     /// awaiting-note state (otherwise "cancel" is a normal query).
-    private static let cancelWords: Set<String> = [
+    static let cancelWords: Set<String> = [
         "cancel", "never mind", "nevermind", "forget it", "cancel that",
         "discard", "delete that", "stop",
     ]
@@ -52,12 +55,12 @@ enum IntentDetector {
 
     /// Phrases that start a navigation command. Order matters: longer, more
     /// specific phrases first so "go to" doesn't swallow "want to go to".
-    private static let navTriggers = [
+    static let navTriggers = [
         "how do i get to", "i want to go to", "take me to", "navigate to",
         "directions to", "drive me to", "walk me to", "go to",
     ]
 
-    private static let stopPhrases = [
+    static let stopPhrases = [
         "stop navigation", "cancel navigation", "end navigation",
         "stop navigating", "stop the navigation",
     ]
@@ -65,7 +68,7 @@ enum IntentDetector {
     /// Phrases that request a definition. The captured tail is the subject.
     /// Order matters: longer, more specific phrases first so "what's a" doesn't
     /// match the 'a' in "what's an".
-    private static let defineTriggers = [
+    static let defineTriggers = [
         "tell me about", "what is the", "what is an", "what's the",
         "what is a", "what's an", "what are", "what is", "what's a",
         "what's", "who is", "who was",

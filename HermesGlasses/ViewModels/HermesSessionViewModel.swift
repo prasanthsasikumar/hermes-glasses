@@ -60,6 +60,16 @@ enum MicSource: String, CaseIterable {
         }
     }
 
+    /// Compact form for the settings hub row, where the caveat in `label`
+    /// doesn't fit.
+    var shortLabel: String {
+        switch self {
+        case .phone: return "iPhone"
+        case .glasses: return "Glasses"
+        case .headset: return "Headset"
+        }
+    }
+
     var captureRoute: CaptureRoute {
         switch self {
         case .phone: return .phoneMic

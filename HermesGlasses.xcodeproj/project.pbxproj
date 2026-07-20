@@ -38,6 +38,8 @@
 		AAAA00000000000000000029 /* Encounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000132 /* Encounter.swift */; };
 		AAAA00000000000000000030 /* EncounterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000133 /* EncounterStore.swift */; };
 		AAAA00000000000000000031 /* PeopleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000134 /* PeopleView.swift */; };
+		AAAA00000000000000000032 /* VoiceCommandCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000135 /* VoiceCommandCatalog.swift */; };
+		AAAA00000000000000000033 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000136 /* SettingsView.swift */; };
 		AAAA00000000000000000801 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000701 /* MWDATCore */; };
 		AAAA00000000000000000802 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000702 /* MWDATCamera */; };
 		AAAA00000000000000000803 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA00000000000000000703 /* MWDATMockDevice */; };
@@ -80,6 +82,8 @@
 		AAAA00000000000000000132 /* Encounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Social/Encounter.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000133 /* EncounterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Social/EncounterStore.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000134 /* PeopleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleView.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000135 /* VoiceCommandCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandCatalog.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000136 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +129,7 @@
 				AAAA00000000000000000102 /* ContentView.swift */,
 				AAAA00000000000000000103 /* RegistrationView.swift */,
 				AAAA00000000000000000134 /* PeopleView.swift */,
+				AAAA00000000000000000136 /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -165,6 +170,7 @@
 				AAAA00000000000000000131 /* NavigationController.swift */,
 				AAAA00000000000000000132 /* Encounter.swift */,
 				AAAA00000000000000000133 /* EncounterStore.swift */,
+				AAAA00000000000000000135 /* VoiceCommandCatalog.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -285,6 +291,8 @@
 				AAAA00000000000000000029 /* Encounter.swift in Sources */,
 				AAAA00000000000000000030 /* EncounterStore.swift in Sources */,
 				AAAA00000000000000000031 /* PeopleView.swift in Sources */,
+				AAAA00000000000000000032 /* VoiceCommandCatalog.swift in Sources */,
+				AAAA00000000000000000033 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
