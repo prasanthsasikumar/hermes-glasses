@@ -109,7 +109,16 @@ struct ContentView: View {
     }
 
     /// Connection state, one chip each - the header title row stays clean.
+    /// Scrolls horizontally: four-plus chips (or the growing Recording
+    /// label) don't fit a phone width, and wrapped chip text is worse.
     private var statusChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            statusChipsRow
+        }
+        .scrollClipDisabled()
+    }
+
+    private var statusChipsRow: some View {
         HStack(spacing: 8) {
             statusChip("Glasses", dot: glassesDotColor)
 
@@ -146,8 +155,6 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            Spacer(minLength: 0)
         }
     }
 
@@ -166,6 +173,8 @@ struct ContentView: View {
             Text(label)
                 .font(.system(size: 13.5, weight: .medium))
                 .foregroundStyle(dot == nil ? .secondary : .primary)
+                .lineLimit(1)
+                .fixedSize()
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 7)
