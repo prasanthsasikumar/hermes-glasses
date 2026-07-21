@@ -238,3 +238,10 @@ docs/superpowers/                      # design specs and implementation plans
   the glasses microphone is the next milestone.
 - Glasses photos may arrive rotated (EXIF orientation not yet normalized).
 - Visual-query detection is keyword-based ("look", "what is this", …).
+
+## Discussion
+
+Write-ups and demos, with questions answered in the comments:
+
+- [r/SideProject - "I built an app that lets you talk to your own AI…"](https://www.reddit.com/r/SideProject/comments/1uvhx6l/i_built_an_app_that_lets_you_talk_to_your_own_ai/)
+- [r/augmentedreality - "My AI agent lives on my Meta Ray-Bans. I asked it…"](https://www.reddit.com/r/augmentedreality/comments/1v0dbcy/my_ai_agent_lives_on_my_meta_raybans_i_asked_it/)
