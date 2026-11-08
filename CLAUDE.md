@@ -41,6 +41,17 @@ photo via the DAT camera API.
   link makes the glasses firmware show its CALL SCREEN on the lens, which
   covers all DAT display content. iPhone mic = HUD visible; glasses mic =
   call screen. Firmware behavior - cannot be overridden from the app.
+- **iPhone-mic mode allows A2DP, never HFP.** `.allowBluetoothA2DP` puts
+  TTS in connected glasses/earbuds while the mic stays on the phone; A2DP is
+  output-only, so it can't steal the input and opens no call screen. Adding
+  `.allowBluetoothHFP` here is what would let iOS re-route the MIC and kill
+  the tap. The call-screen caveat (label, footer, "HUD paused" notice, the
+  HUD toggle bouncing the mic back to iPhone) is gated on
+  `activeGlassesHaveDisplay` - Ray-Ban Meta without Display has no HUD.
+- **"Session ended by device" can mean a glasses firmware update.** The SDK
+  has `datAppOnTheGlassesUpdateRequired`, but on 0.8.0 an out-of-date pair
+  surfaced as the generic `unexpectedError` instead, ~0.6 s after `start()`.
+  Check the Meta AI app before theorising.
 - **Headset mode is the pocket setup:** `MicSource.headset` routes HFP to
   earbuds (never to the glasses - port chosen by name heuristic in
   `HermesAudioManager.looksLikeGlasses`), so the lens keeps the HUD while

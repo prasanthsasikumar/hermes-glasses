@@ -283,13 +283,17 @@ final class HermesAudioManager: NSObject, @unchecked Sendable {
                 try session.setActive(true)
             }
         } else {
-            // iPhone mic only: no Bluetooth options, so iOS cannot
-            // re-route input to the glasses and kill the tap.
+            // iPhone mic, voice in the glasses. .allowBluetoothA2DP and
+            // NEVER .allowBluetoothHFP: A2DP is output-only, so iOS cannot
+            // re-route INPUT to the glasses and kill the tap, and it opens no
+            // hands-free link, so Display glasses show no call screen. TTS
+            // lands on connected A2DP glasses/earbuds; with none, the speaker.
             try session.setCategory(
                 .playAndRecord,
                 mode: .default,
-                options: [.defaultToSpeaker]
+                options: [.defaultToSpeaker, .allowBluetoothA2DP]
             )
+            try? session.setPreferredInput(nil)
             try session.setActive(true)
         }
 

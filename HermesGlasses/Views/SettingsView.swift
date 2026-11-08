@@ -84,7 +84,14 @@ struct SettingsView: View {
                     HermesDivider()
                     navRow("Voice & Microphone", icon: "mic",
                            value: hermesVM.micSource.shortLabel) {
-                        VoicePage(hermesVM: hermesVM)
+                        VoicePage(
+                            hermesVM: hermesVM,
+                            // Unknown (nothing paired) counts as Display, so
+                            // the warning is never withheld from someone it
+                            // applies to.
+                            glassesHaveDisplay: wearablesVM.glasses.isEmpty
+                                || wearablesVM.glasses.contains(where: \.supportsDisplay)
+                        )
                     }
                     // AiSee has no lens - the whole row (and the HUD
                     // settings behind it) is meaningless for that vendor.
@@ -231,13 +238,16 @@ struct SettingsView: View {
         }
     }
 
-    /// The dot must answer the same question `deviceStatus` does. Under AiSee
-    /// that is the kit's own link, not `isGlassesConnected` - which only goes
-    /// true once a session has claimed the glasses, so connected AiSee glasses
-    /// with no session running showed "Connected" beside a grey dot.
+    /// The dot must answer the same question `deviceStatus` does. Neither
+    /// vendor may use `isGlassesConnected` for it - that only goes true once a
+    /// session has claimed the glasses, so glasses that were in range and
+    /// ready showed "Not connected" beside a grey dot until Start listening.
+    /// Meta's answer is the SDK's own selector (`activeGlassesDevice`), the
+    /// same predicate `createSession` resolves through; AiSee's is the kit's
+    /// link.
     private var deviceDotConnected: Bool {
         switch hermesVM.glassesVendor {
-        case .meta: return hermesVM.isGlassesConnected
+        case .meta: return hermesVM.metaGlassesReachable
         case .aisee: return hermesVM.aisee.state.isConnected
         }
     }
@@ -245,7 +255,9 @@ struct SettingsView: View {
     private var deviceStatus: String {
         switch hermesVM.glassesVendor {
         case .meta:
-            let connection = hermesVM.isGlassesConnected ? "Connected" : "Not connected"
+            let connection = hermesVM.isGlassesConnected
+                ? "In use"
+                : hermesVM.metaGlassesReachable ? "Connected" : "Not connected"
             let count = wearablesVM.devices.count
             return "\(connection) · \(count) device\(count == 1 ? "" : "s")"
         case .aisee:
@@ -361,8 +373,10 @@ private struct DevicesPage: View {
             HermesDeviceCard(
                 title: active.name,
                 status: hermesVM.isGlassesConnected
-                    ? "In use" : "Paired · not connected",
-                dot: hermesVM.isGlassesConnected
+                    ? "In use"
+                    : hermesVM.metaGlassesReachable
+                        ? "Connected" : "Paired · not connected",
+                dot: hermesVM.metaGlassesReachable
                     ? HermesTheme.online : .gray,
                 chips: active.capabilities
             ) {
@@ -1036,6 +1050,9 @@ private struct AssistantPage: View {
 
 private struct VoicePage: View {
     let hermesVM: HermesSessionViewModel
+    /// The call-screen caveat is Ray-Ban Display only - glasses without a
+    /// lens have nothing for the hands-free link to cover.
+    let glassesHaveDisplay: Bool
 
     var body: some View {
         Form {
@@ -1051,14 +1068,17 @@ private struct VoicePage: View {
                     // Not `MicSource.allCases`: the AiSee mic only exists
                     // when the AiSee glasses are the selected vendor.
                     ForEach(hermesVM.availableMicSources, id: \.self) { source in
-                        Text(source.label).tag(source)
+                        Text(source.label(glassesHaveDisplay: glassesHaveDisplay))
+                            .tag(source)
                     }
                 }
                 .pickerStyle(.inline)
             } header: {
                 Text("Microphone")
             } footer: {
-                Text("Glasses mode shows a CALL SCREEN on the lens and hides the HUD. Headset mode (AirPods etc.) is the pocket setup: talk and listen through the earbuds while the lens keeps the HUD. Audio never leaves your phone for speech-to-text.")
+                Text(glassesHaveDisplay
+                     ? "Glasses mode shows a CALL SCREEN on the lens and hides the HUD. Headset mode (AirPods etc.) is the pocket setup: talk and listen through the earbuds while the lens keeps the HUD. Audio never leaves your phone for speech-to-text."
+                     : "Glasses mode uses the glasses' hands-free link for both mic and voice - call quality, so recognition can be a little less accurate. With the iPhone mic, Hermes still speaks through the glasses. Audio never leaves your phone for speech-to-text.")
             }
 
             Section {
