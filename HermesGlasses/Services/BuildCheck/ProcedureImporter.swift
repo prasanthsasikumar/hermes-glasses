@@ -40,7 +40,8 @@ enum ProcedureImporter {
         return text
     }
 
-    private static func ocr(_ page: PDFPage) async -> String {
+    /// Internal: the machine-manual importer reads scanned pages the same way.
+    static func ocr(_ page: PDFPage) async -> String {
         let bounds = page.bounds(for: .mediaBox)
         let scale = 2000 / max(bounds.width, bounds.height, 1)
         let image = page.thumbnail(of: CGSize(width: bounds.width * scale, height: bounds.height * scale), for: .mediaBox)

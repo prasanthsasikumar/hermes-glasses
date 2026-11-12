@@ -447,6 +447,71 @@ photo via the DAT camera API.
   (`interactiveDismissDisabled`); Close / Mark ready are the exits and both
   persist, so an edit can't be lost to a stray swipe.
 - **New files: `tools/pbx-register.py`** does the four pbxproj edits.
+- **The machine guide (Manuals app) is a second brain, not an intent.**
+  `MachineGuideViewModel` (owned by the App struct, like Build Check)
+  installs `hermesVM.machineGuideClaimer`, consulted in `submitQuery` AFTER
+  the capture / Build Check / recording-only gates and BEFORE the on-device
+  intents. While the guide is on it claims EVERY utterance - "go to step
+  five" must not start a navigation - and from cold only its own phrases
+  (`IntentDetector.machineGuideCommand`). It answers through
+  `beginExternalQuery` / `finishExternalQuery`, so state, chat, lens and TTS
+  behave exactly as for an ordinary reply; `finishExternalQuery` is a no-op
+  unless the session is still `.processing`. Works in either backend, but
+  every call goes to the DIRECT provider via `MachineGuide` (the one seam):
+  `askOneShot` to identify, `askWithHistory` to answer. `askWithHistory`
+  reads and writes NO stored history - the guide keeps its own, per machine,
+  reset on every machine change so "next" can't continue another machine's
+  procedure.
+- **The guide must work with no display.** Target hardware is Ray-Ban Meta
+  Gen 1/2. Everything it tells the engineer is SPOKEN, failures included
+  ("I couldn't get an answer…" goes through `finishExternalQuery`, not an
+  alert) - nobody assembling an engine is looking at the phone. The app
+  declares no `.lens` capability (pinned in `tests/apps`).
+- **A wrong manual is the failure that matters.** Identification returns a
+  letter + confidence (`MachineIdentifier`, pure, `tests/manuals`); below
+  `acceptConfidence` (0.6, PROVISIONAL - not yet measured on real machines)
+  the guide ASKS for the name instead of assuming, keeps the question
+  (`pendingQuestion`) and answers it once named. `ManualNameMatcher` has two
+  strengths on purpose: `explicitSelection` ("this is machine B", honoured
+  any time) and the looser `answer`, used ONLY right after "say its name".
+  Don't loosen the first - "this is a different machine" must name nothing.
+- **Identification is ONE image.** `askOneShot` carries a single JPEG, so
+  `MachineGuideComposer` draws the live photo full-width (a nameplate has to
+  stay readable) with one small labelled reference tile per manual under it.
+  The tile is `referencePhotoFilenames.first` - the PDF's cover page until
+  someone adds a photo of the real machine, which is far better evidence.
+- **Manual text is stored per page and excerpted per question.**
+  `ManualStore` keeps pages in `texts/<id>.json`, not in the index. A manual
+  under `ManualExcerpt.defaultBudget` (120k chars) is sent whole in the
+  system prompt (cached on Anthropic); a longer one is cut to the pages
+  sharing words with the question AND the previous exchange, plus the page
+  after each. Scanned pages go through `ProcedureImporter.ocr` on-device.
+  Diagrams are NOT sent - a manual that is mostly drawings answers poorly.
+- **The voice is ONE queue with two voices** (`HermesSpeechSynthesizer`).
+  With an ElevenLabs key (`ElevenLabsVoice`: Keychain first, else
+  `ELEVENLABS_API_KEY` from the gitignored `Config/Secrets.xcconfig` via
+  Info.plist) each piece is fetched as MP3 (`eleven_flash_v2_5`, max 2 in
+  flight) and played with AVAudioPlayer; without one, or for ANY piece that
+  fails, the iPhone voice speaks it - a reply is never lost to the network.
+  401/403 switch ElevenLabs off for the app run (`onVoiceFallback` notice);
+  429/5xx only cost that sentence. `onFinished` fires ONCE per stream, and
+  `beginStream()` returns a token that `enqueue`/`endStream` check, so the
+  tail of an interrupted reply can't leak into the next thing spoken.
+  With ElevenLabs on, bridge mode asks the bridge for NO audio
+  (`bridgeTTS` false) - otherwise the reply is spoken twice.
+- **Replies are spoken while they are written.** Direct mode and the
+  machine guide go through `speakStreaming` -> `completeReply`:
+  `DirectClient.askStream` / `askWithHistoryStream` yield text deltas
+  (real SSE on Anthropic - `supportsStreaming` / `streamDelta`; other
+  providers yield the whole reply as one piece), `SentenceChunker` (pure,
+  `tests/voice`) releases the first sentence at once and groups later ones
+  to ~140 chars, and each piece goes straight to the voice. So
+  `connectionState` becomes `.speaking` BEFORE the reply is complete and the
+  chat turn / lens card are written at the end. `speakStreaming` throws only
+  if nothing was said yet; after that a failure is SPOKEN. Silent mode
+  (`displaySilentActive`) skips all of it and takes the old `presentReply`
+  path. Timing lines to grep on device: "First words from", "First audio",
+  "machine guide: identify took".
 - **Badge assist must never outlive `badge_ocr_enabled`.** The assist pass
   selects sightings whose badge is nil. With on-device OCR off, EVERY sighting
   is nil, so assist would run at its full 6-call maximum - turning OCR off to

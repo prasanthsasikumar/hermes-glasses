@@ -39,6 +39,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ElevenLabsAPIKey</key>
+	<string>$(ELEVENLABS_API_KEY)</string>
+	<key>ElevenLabsVoiceID</key>
+	<string>$(ELEVENLABS_VOICE_ID)</string>
 	<key>MWDAT</key>
 	<dict>
 		<key>Analytics</key>

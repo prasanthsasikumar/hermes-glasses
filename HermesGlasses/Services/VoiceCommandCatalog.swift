@@ -86,6 +86,26 @@ enum VoiceCommandCatalog {
                 setting: nil
             ),
             VoiceCommandGroup(
+                id: "machineguide",
+                title: "Get help with a machine",
+                summary: "Takes a photo of the machine in front of you, finds its manual among the ones you imported, and answers out loud from it. From then on every question goes to that manual.",
+                examples: ["Help me assemble this", "Which machine is this", "Start machine guide"],
+                followUp: "Then just ask: \"first step\", \"next\", \"what's the torque for these bolts\", \"is this right?\"",
+                phrases: IntentDetector.machineGuideTriggers.map { "\(placeholder) \($0) \(placeholder)" }
+                    + IntentDetector.machineIdentifyCommands.sorted()
+                    + IntentDetector.machineGuideStartCommands.sorted(),
+                setting: "Manuals → Start by voice"
+            ),
+            VoiceCommandGroup(
+                id: "machineguide-during",
+                title: "While the machine guide is on",
+                summary: "Move to another machine, name the machine yourself when the camera can't tell, or switch the guide off.",
+                examples: ["Which machine is this", "This is Machine B", "Stop the guide"],
+                followUp: "\"This is …\" takes the name you gave the manual on the Manuals screen.",
+                phrases: IntentDetector.machineGuideStopCommands.sorted(),
+                setting: nil
+            ),
+            VoiceCommandGroup(
                 id: "navigate",
                 title: "Navigate somewhere",
                 summary: "Puts a map and turn-by-turn directions on the lens. Add \"driving\" or \"by car\" for driving directions; walking is the default.",

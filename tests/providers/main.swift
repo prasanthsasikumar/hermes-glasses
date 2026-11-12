@@ -212,5 +212,27 @@ do {
     expectEqual(cfg?["maxOutputTokens"] as? Int, 8192, "gemini honours maxTokens")
 }
 
+// ── Streaming ───────────────────────────────────────────────────────────
+do {
+    let p = AnthropicProvider()
+    expect(p.supportsStreaming, "anthropic streams")
+    expect(!GeminiProvider().supportsStreaming, "gemini answers whole (default)")
+    expect(!OpenAICompatibleProvider.openAI.supportsStreaming, "openai answers whole (default)")
+    var req = AIRequest(systemPrompt: "S", contextLine: nil, history: [], userText: "hi",
+                        imageJPEG: nil, model: "m", baseURL: p.defaultBaseURL, apiKey: "k")
+    expect(bodyJSON(try! p.buildRequest(req))["stream"] == nil, "no stream flag unless asked")
+    req.stream = true
+    expectEqual(bodyJSON(try! p.buildRequest(req))["stream"] as? Bool, true, "stream flag when asked")
+    expectEqual(p.streamDelta(#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#),
+                "Hello", "text delta carries words")
+    expectEqual(p.streamDelta(#"{"type":"message_start","message":{}}"#), nil, "message_start carries none")
+    expectEqual(p.streamDelta(#"{"type":"ping"}"#), nil, "ping carries none")
+    expectEqual(p.streamDelta(#"{"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"{"}}"#),
+                nil, "a tool-input delta is not speech")
+    expectEqual(p.streamDelta("[DONE]"), nil, "non-JSON payload is ignored")
+    expectEqual(GeminiProvider().streamDelta(#"{"type":"content_block_delta","delta":{"type":"text_delta","text":"x"}}"#),
+                nil, "a provider that doesn't stream parses nothing")
+}
+
 if failures > 0 { print("\(failures) test(s) FAILED"); exit(1) }
 print("All provider tests passed")

@@ -42,6 +42,10 @@ struct AIRequest {
     /// Anthropic/OpenAI, the model default for Gemini). Build Check's
     /// procedure split asks for more: a long document's step list is JSON.
     var maxTokens: Int? = nil
+    /// Ask for the reply as server-sent events, so its first sentence can
+    /// be spoken while the rest is still being written. Only honoured by
+    /// providers whose `supportsStreaming` is true.
+    var stream = false
 }
 
 enum AIProviderError: LocalizedError, Equatable {
@@ -75,6 +79,13 @@ protocol AIProvider {
 }
 
 extension AIProvider {
+    /// Providers stream only when they say so; everyone else answers whole.
+    var supportsStreaming: Bool { false }
+
+    /// The text carried by one SSE `data:` payload, or nil when the event
+    /// carries none (pings, block starts, usage).
+    func streamDelta(_ payload: String) -> String? { nil }
+
     /// System prompt with the per-query context appended (used by providers
     /// that have no separate system-block mechanism).
     func systemText(_ req: AIRequest) -> String {

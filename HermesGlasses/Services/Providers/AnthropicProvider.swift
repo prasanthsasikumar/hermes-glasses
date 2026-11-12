@@ -45,6 +45,7 @@ struct AnthropicProvider: AIProvider {
         var body: [String: Any] = [
             "model": req.model, "max_tokens": req.maxTokens ?? 1024, "system": system, "messages": messages,
         ]
+        if req.stream { body["stream"] = true }
         if req.webSearch {
             // The server-side web search tool: the API searches and reads
             // results itself; the reply comes back as ordinary text blocks.
@@ -88,6 +89,18 @@ struct AnthropicProvider: AIProvider {
             throw AIProviderError.badResponse("Unexpected response from the API.")
         }
         return texts.joined()
+    }
+
+    var supportsStreaming: Bool { true }
+
+    /// `content_block_delta` events with a `text_delta` carry the words;
+    /// everything else (message_start, ping, usage) carries none.
+    func streamDelta(_ payload: String) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+              json["type"] as? String == "content_block_delta",
+              let delta = json["delta"] as? [String: Any],
+              delta["type"] as? String == "text_delta" else { return nil }
+        return delta["text"] as? String
     }
 
     private func errorMessage(_ data: Data) -> String? {

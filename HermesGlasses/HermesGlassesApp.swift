@@ -22,6 +22,7 @@ struct HermesGlassesApp: App {
     @State private var wearablesViewModel: WearablesViewModel
     @State private var hermesSessionViewModel: HermesSessionViewModel
     @State private var buildCheckViewModel: BuildCheckViewModel
+    @State private var machineGuideViewModel: MachineGuideViewModel
     @State private var permissions = PermissionsCoordinator()
 
     /// First launch runs the three-step wizard (glasses → permissions →
@@ -61,6 +62,7 @@ struct HermesGlassesApp: App {
         let session = HermesSessionViewModel(wearables: wearables)
         self._hermesSessionViewModel = State(wrappedValue: session)
         self._buildCheckViewModel = State(wrappedValue: BuildCheckViewModel(hermesVM: session))
+        self._machineGuideViewModel = State(wrappedValue: MachineGuideViewModel(hermesVM: session))
     }
 
     var body: some Scene {
@@ -69,7 +71,8 @@ struct HermesGlassesApp: App {
                 ContentView(
                     wearablesVM: wearablesViewModel,
                     hermesVM: hermesSessionViewModel,
-                    buildCheckVM: buildCheckViewModel
+                    buildCheckVM: buildCheckViewModel,
+                    machineGuideVM: machineGuideViewModel
                 )
                 // Handle Meta AI URL callback after registration
                 .onOpenURL { url in

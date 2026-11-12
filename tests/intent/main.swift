@@ -112,5 +112,23 @@ expectEqual(IntentDetector.buildRunCommand("the next step is the cover"), nil, "
 expectEqual(IntentDetector.buildRunCommand("I fixed the bracket earlier"), nil, "narration containing 'fixed'")
 expectEqual(IntentDetector.buildRunCommand("confirmed torque on bolt three"), nil, "narration starting with confirmed")
 
+// Machine guide
+expectEqual(IntentDetector.detect("Start machine guide"), .machineGuide(.start), "start machine guide")
+expectEqual(IntentDetector.detect("Which machine is this?"), .machineGuide(.identify), "which machine is this")
+expectEqual(IntentDetector.detect("What machine am I looking at"), .machineGuide(.identify), "what machine am i looking at")
+expectEqual(IntentDetector.detect("Hey, can you help me assemble this engine"), .machineGuide(.question),
+            "a trigger mid-sentence is a question for the manual")
+expectEqual(IntentDetector.detect("how do I put this together"), .machineGuide(.question), "how do i put this together")
+expectEqual(IntentDetector.detect("stop the guide"), .none, "stop is not an intent from cold")
+expectEqual(IntentDetector.machineGuideCommand("Stop the guide."), .stop, "stop the guide, during a guide")
+expectEqual(IntentDetector.machineGuideCommand("end guide"), .stop, "end guide")
+expectEqual(IntentDetector.machineGuideCommand("this is a different machine"), .identify, "different machine re-identifies")
+expectEqual(IntentDetector.machineGuideCommand("what's the torque on the head bolts"), nil, "a plain question is not a command")
+expectEqual(IntentDetector.machineGuideCommand("the machine guide said otherwise"), nil, "start phrase mid-sentence is not a command")
+expectEqual(IntentDetector.detect("what machine is this"), .machineGuide(.identify),
+            "identify wins over the define trigger")
+expectEqual(IntentDetector.detect("what is a torque wrench"), .define(subject: "torque wrench"),
+            "ordinary definitions are untouched")
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

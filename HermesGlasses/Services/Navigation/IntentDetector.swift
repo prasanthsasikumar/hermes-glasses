@@ -88,6 +88,53 @@ enum IntentDetector {
         return nil
     }
 
+    // MARK: Machine guide
+
+    /// Whole-utterance: turn the guide on and identify what's in view.
+    static let machineGuideStartCommands: Set<String> = [
+        "start machine guide", "start the machine guide", "machine guide",
+        "start assembly guide", "start the assembly guide", "assembly guide",
+        "start assembly help", "start guide",
+    ]
+    /// Only consulted while the guide is on, when it claims every utterance.
+    static let machineGuideStopCommands: Set<String> = [
+        "stop machine guide", "end machine guide", "stop the machine guide",
+        "end the machine guide", "stop assembly guide", "end assembly guide",
+        "stop the guide", "end the guide", "stop guide", "end guide", "exit guide",
+    ]
+    /// Whole-utterance: (re)identify the machine. Also how the engineer
+    /// moves on to another machine mid-shift.
+    static let machineIdentifyCommands: Set<String> = [
+        "which machine is this", "what machine is this",
+        "which machine am i looking at", "what machine am i looking at",
+        "which engine is this", "what engine is this",
+        "identify this machine", "identify the machine", "identify this engine",
+        "new machine", "different machine", "this is a different machine",
+        "switch machine", "next machine",
+    ]
+    /// Matched ANYWHERE in the utterance, like the nav triggers: the
+    /// sentence itself is the engineer's first question, so it is answered
+    /// from the manual once the machine is identified.
+    static let machineGuideTriggers = [
+        "help me assemble", "help me build", "help me put",
+        "help me with this machine", "help me with this engine",
+        "how do i assemble", "how do i build this", "how do i put this together",
+        "how to assemble",
+    ]
+
+    /// start / identify / question from cold, plus stop. Nil = not about
+    /// the guide. While the guide is on, a nil utterance is a question for
+    /// the manual; the session decides that, not this.
+    static func machineGuideCommand(_ text: String) -> MachineGuideCommand? {
+        let c = normalizeCommand(text)
+        if machineGuideStopCommands.contains(c) { return .stop }
+        if machineGuideStartCommands.contains(c) { return .start }
+        if machineIdentifyCommands.contains(c) { return .identify }
+        let lowered = text.lowercased()
+        if machineGuideTriggers.contains(where: { lowered.contains($0) }) { return .question }
+        return nil
+    }
+
     /// True when an utterance heard during a capture is the command to end
     /// it rather than conversation to transcribe.
     static func isConversationStop(_ text: String) -> Bool {
@@ -169,6 +216,12 @@ enum IntentDetector {
 
         if buildCheckStartCommands.contains(normalizeCommand(text)) {
             return .startBuildCheck
+        }
+
+        // "stop the guide" means nothing unless a guide is running, and the
+        // session asks about that itself - so it is not an intent from cold.
+        if let guide = machineGuideCommand(text), guide != .stop {
+            return .machineGuide(guide)
         }
 
         if let nav = detectNavigate(lowered, original: text) {

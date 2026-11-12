@@ -65,11 +65,13 @@
 		AAAA0000000000000000891 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000892 /* RosterView.swift */; };
 		AAAA00000000000000000873 /* LookupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000874 /* LookupViewModel.swift */; };
 		AAAA00000000000000000A77 /* BuildCheckViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A78 /* BuildCheckViewModel.swift */; };
+		AAAA00000000000000000A98 /* MachineGuideViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A99 /* MachineGuideViewModel.swift */; };
 		AAAA00000000000000000875 /* LookupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000876 /* LookupView.swift */; };
 		AAAA00000000000000000A7F /* BuildRunReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A80 /* BuildRunReviewView.swift */; };
 		AAAA00000000000000000A7D /* BuildRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7E /* BuildRunView.swift */; };
 		AAAA00000000000000000A7B /* ProcedureEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7C /* ProcedureEditorView.swift */; };
 		AAAA00000000000000000A79 /* BuildCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7A /* BuildCheckView.swift */; };
+		AAAA00000000000000000A9A /* ManualsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A9B /* ManualsView.swift */; };
 		AAAA00000000000000000843 /* HermesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000844 /* HermesApp.swift */; };
 		AAAA00000000000000000845 /* AppDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000846 /* AppDrawerView.swift */; };
 		AAAA00000000000000000823 /* VisionSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000824 /* VisionSource.swift */; };
@@ -118,6 +120,13 @@
 		AAAA00000000000000000A6D /* ChimeTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A6E /* ChimeTone.swift */; };
 		AAAA00000000000000000A6B /* BuildRunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A6C /* BuildRunStore.swift */; };
 		AAAA00000000000000000A69 /* ProcedureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A6A /* ProcedureStore.swift */; };
+		AAAA00000000000000000A90 /* MachineManual.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A91 /* MachineManual.swift */; };
+		AAAA00000000000000000A92 /* ManualStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A93 /* ManualStore.swift */; };
+		AAAA00000000000000000A9C /* SentenceChunker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A9D /* SentenceChunker.swift */; };
+		AAAA00000000000000000A9E /* ElevenLabsRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A9F /* ElevenLabsRequest.swift */; };
+		AAAA00000000000000000AA0 /* ElevenLabsVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000AA1 /* ElevenLabsVoice.swift */; };
+		AAAA00000000000000000A94 /* MachineGuideLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A95 /* MachineGuideLogic.swift */; };
+		AAAA00000000000000000A96 /* MachineGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A97 /* MachineGuide.swift */; };
 		AAAA00000000000000000A67 /* BuildRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A68 /* BuildRun.swift */; };
 		AAAA00000000000000000A65 /* BuildRunTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A66 /* BuildRunTracker.swift */; };
 		AAAA00000000000000000A63 /* ChangeGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A64 /* ChangeGate.swift */; };
@@ -233,11 +242,13 @@
 		AAAA0000000000000000892 /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000874 /* LookupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A78 /* BuildCheckViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheckViewModel.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A99 /* MachineGuideViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineGuideViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000876 /* LookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A80 /* BuildRunReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunReviewView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7E /* BuildRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7C /* ProcedureEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureEditorView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7A /* BuildCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheckView.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A9B /* ManualsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualsView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000844 /* HermesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesApp.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000846 /* AppDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDrawerView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000824 /* VisionSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionSource.swift; sourceTree = "<group>"; };
@@ -282,6 +293,13 @@
 		AAAA00000000000000000A6E /* ChimeTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheck/ChimeTone.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A6C /* BuildRunStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheck/BuildRunStore.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A6A /* ProcedureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheck/ProcedureStore.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A91 /* MachineManual.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Manuals/MachineManual.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A93 /* ManualStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Manuals/ManualStore.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A9D /* SentenceChunker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/SentenceChunker.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A9F /* ElevenLabsRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/ElevenLabsRequest.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000AA1 /* ElevenLabsVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/ElevenLabsVoice.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A95 /* MachineGuideLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Manuals/MachineGuideLogic.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000A97 /* MachineGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Manuals/MachineGuide.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A68 /* BuildRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheck/BuildRun.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A66 /* BuildRunTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheck/BuildRunTracker.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A64 /* ChangeGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheck/ChangeGate.swift; sourceTree = "<group>"; };
@@ -372,6 +390,7 @@
 				AAAA00000000000000000A7E /* BuildRunView.swift */,
 				AAAA00000000000000000A7C /* ProcedureEditorView.swift */,
 				AAAA00000000000000000A7A /* BuildCheckView.swift */,
+				AAAA00000000000000000A9B /* ManualsView.swift */,
 				AAAA0000000000000000892 /* RosterView.swift */,
 			);
 			path = Views;
@@ -385,6 +404,7 @@
 				AAAA00000000000000000139 /* LensViewModel.swift */,
 				AAAA00000000000000000874 /* LookupViewModel.swift */,
 				AAAA00000000000000000A78 /* BuildCheckViewModel.swift */,
+				AAAA00000000000000000A99 /* MachineGuideViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -471,6 +491,13 @@
 				AAAA00000000000000000A6E /* ChimeTone.swift */,
 				AAAA00000000000000000A6C /* BuildRunStore.swift */,
 				AAAA00000000000000000A6A /* ProcedureStore.swift */,
+				AAAA00000000000000000A91 /* MachineManual.swift */,
+				AAAA00000000000000000A93 /* ManualStore.swift */,
+				AAAA00000000000000000A9D /* SentenceChunker.swift */,
+				AAAA00000000000000000A9F /* ElevenLabsRequest.swift */,
+				AAAA00000000000000000AA1 /* ElevenLabsVoice.swift */,
+				AAAA00000000000000000A95 /* MachineGuideLogic.swift */,
+				AAAA00000000000000000A97 /* MachineGuide.swift */,
 				AAAA00000000000000000A68 /* BuildRun.swift */,
 				AAAA00000000000000000A66 /* BuildRunTracker.swift */,
 				AAAA00000000000000000A64 /* ChangeGate.swift */,
@@ -655,11 +682,13 @@
 				AAAA0000000000000000891 /* RosterView.swift in Sources */,
 				AAAA00000000000000000873 /* LookupViewModel.swift in Sources */,
 				AAAA00000000000000000A77 /* BuildCheckViewModel.swift in Sources */,
+				AAAA00000000000000000A98 /* MachineGuideViewModel.swift in Sources */,
 				AAAA00000000000000000875 /* LookupView.swift in Sources */,
 				AAAA00000000000000000A7F /* BuildRunReviewView.swift in Sources */,
 				AAAA00000000000000000A7D /* BuildRunView.swift in Sources */,
 				AAAA00000000000000000A7B /* ProcedureEditorView.swift in Sources */,
 				AAAA00000000000000000A79 /* BuildCheckView.swift in Sources */,
+				AAAA00000000000000000A9A /* ManualsView.swift in Sources */,
 				AAAA00000000000000000845 /* AppDrawerView.swift in Sources */,
 				AAAA00000000000000000823 /* VisionSource.swift in Sources */,
 				AAAA00000000000000000835 /* VisionRouting.swift in Sources */,
@@ -703,6 +732,13 @@
 				AAAA00000000000000000A6D /* ChimeTone.swift in Sources */,
 				AAAA00000000000000000A6B /* BuildRunStore.swift in Sources */,
 				AAAA00000000000000000A69 /* ProcedureStore.swift in Sources */,
+				AAAA00000000000000000A90 /* MachineManual.swift in Sources */,
+				AAAA00000000000000000A92 /* ManualStore.swift in Sources */,
+				AAAA00000000000000000A9C /* SentenceChunker.swift in Sources */,
+				AAAA00000000000000000A9E /* ElevenLabsRequest.swift in Sources */,
+				AAAA00000000000000000AA0 /* ElevenLabsVoice.swift in Sources */,
+				AAAA00000000000000000A94 /* MachineGuideLogic.swift in Sources */,
+				AAAA00000000000000000A96 /* MachineGuide.swift in Sources */,
 				AAAA00000000000000000A67 /* BuildRun.swift in Sources */,
 				AAAA00000000000000000A65 /* BuildRunTracker.swift in Sources */,
 				AAAA00000000000000000A63 /* ChangeGate.swift in Sources */,

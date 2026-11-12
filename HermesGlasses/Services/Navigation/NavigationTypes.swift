@@ -19,6 +19,18 @@ struct MapCoordinate: Equatable {
     let lon: Double
 }
 
+/// What an utterance asks of the machine guide. Lives here, next to
+/// `HermesIntent`, so suites that compile this file alone still build.
+enum MachineGuideCommand: Equatable {
+    /// Turn the guide on and identify the machine in view.
+    case start
+    case stop
+    /// Identify (again) - a new machine is in front of the engineer.
+    case identify
+    /// A question that starts the guide and is then answered from the manual.
+    case question
+}
+
 /// What a finalized utterance asks for. `.none` means the normal reply path.
 enum HermesIntent: Equatable {
     case navigate(destination: String, mode: TransportMode)
@@ -32,6 +44,9 @@ enum HermesIntent: Equatable {
     case startConversationCapture
     /// "start build check" - begin a Build Check run on the last procedure.
     case startBuildCheck
+    /// "help me assemble this" / "which machine is this" - the machine
+    /// guide: photograph the machine, pick its manual, answer from it.
+    case machineGuide(MachineGuideCommand)
     case none
 }
 

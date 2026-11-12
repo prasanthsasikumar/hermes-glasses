@@ -11,4 +11,10 @@
 META_APP_ID = 0
 CLIENT_TOKEN =
 
+// Optional: an ElevenLabs key makes Hermes speak with a natural voice
+// (Settings -> Voice). Empty = the iPhone's built-in voice. A key can also
+// be pasted in the app, which then takes precedence over this one.
+ELEVENLABS_API_KEY =
+ELEVENLABS_VOICE_ID =
+
 #include? "Secrets.xcconfig"

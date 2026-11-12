@@ -1105,8 +1105,10 @@ private struct VoicePage: View {
             } header: {
                 Text("Voice")
             } footer: {
-                Text("On = faster but more robotic, generated on the phone. Off = natural voice generated on the bridge (adds 1–3 s per reply). Applies from the next question.")
+                Text("On = faster but more robotic, generated on the phone. Off = natural voice generated on the bridge (adds 1–3 s per reply). Applies from the next question. Ignored while the ElevenLabs voice below is on.")
             }
+
+            ElevenLabsVoiceSection()
         }
         .hermesFormStyle()
         .navigationTitle("Voice & Microphone")
@@ -1574,6 +1576,60 @@ private struct DeveloperPage: View {
         case .some(true): return "Granted"
         case .some(false): return "Denied"
         case .none: return "Unknown"
+        }
+    }
+}
+
+/// Settings -> Voice -> the natural voice. Owns no typed text (the key is
+/// pasted from the clipboard in one tap), so nothing here can be lost to a
+/// swipe-dismiss.
+private struct ElevenLabsVoiceSection: View {
+    @State private var enabled = ElevenLabsVoice.isEnabled
+    @State private var keySource = ElevenLabsVoice.keySource
+    @State private var voiceID = ElevenLabsVoice.voiceID
+    @State private var note: String?
+
+    var body: some View {
+        Section {
+            Toggle("ElevenLabs voice", isOn: $enabled)
+                .onChange(of: enabled) { _, on in ElevenLabsVoice.isEnabled = on }
+            LabeledContent("API key", value: keyLabel)
+            Button("Paste key from clipboard") {
+                let pasted = (UIPasteboard.general.string ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard pasted.count >= 20, !pasted.contains(" ") else {
+                    note = "The clipboard doesn't hold an API key."
+                    return
+                }
+                note = ElevenLabsVoice.storeKey(pasted) ? "Key saved." : "Couldn't save the key to the Keychain."
+                keySource = ElevenLabsVoice.keySource
+            }
+            if keySource == .settings {
+                Button("Remove key", role: .destructive) {
+                    ElevenLabsVoice.storeKey("")
+                    keySource = ElevenLabsVoice.keySource
+                    note = keySource == .build ? "Removed. Using the key built into this app." : "Removed."
+                }
+            }
+            TextField("Voice ID", text: $voiceID)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onChange(of: voiceID) { _, id in ElevenLabsVoice.voiceID = id }
+            if let note {
+                Text(note).font(.footnote).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Natural voice")
+        } footer: {
+            Text("Replies are spoken by ElevenLabs, one sentence at a time, so speech starts while the answer is still being written. The reply text is sent to ElevenLabs. If it can't be reached, the iPhone voice takes over for that sentence. Leave Voice ID empty for the default voice.")
+        }
+    }
+
+    private var keyLabel: String {
+        switch keySource {
+        case .settings: return "Saved on this iPhone"
+        case .build: return "Built into this app"
+        case .none: return "Not set - using the iPhone voice"
         }
     }
 }

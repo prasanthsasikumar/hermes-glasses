@@ -12,6 +12,14 @@ every feature from the iPhone alone, with a simulated lens on screen.
 
 A standalone, MIT-licensed project.
 
+By GitHub stars (November 2026):
+
+- The most-starred open-source project built for
+  [Hermes Agent](https://github.com/NousResearch/hermes-agent) on smart glasses.
+- The most-starred open-source project for AiSee and Realtek-based smart glasses.
+- The only open-source project that brings Hermes Agent to both Meta Ray-Ban
+  and AiSee / Realtek-based glasses.
+
 ## Demo
 
 <p align="center">
@@ -92,6 +100,11 @@ A standalone, MIT-licensed project.
   optional reference photos). Critical-step mistakes are spoken at once and
   hold the run until fixed or overridden; everything is logged per step
   with a PDF report.
+- 🔧 **"Help me assemble this"** - the machine guide. Import one manual
+  (PDF) per machine; look at a machine and ask, and the glasses photograph
+  it, pick the matching manual and answer out loud from it, one step at a
+  time. Needs no display - works on Ray-Ban Meta Gen 1 / Gen 2. If the
+  camera can't tell the machines apart it asks, and you say the name.
 - 📛 **Badge reading** - name badges in snaps are read by on-device OCR and
   used to group sightings into a timeline per person; an opt-in AI pass can
   fill in badges the on-device reader missed

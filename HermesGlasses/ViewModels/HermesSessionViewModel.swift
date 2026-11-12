@@ -143,6 +143,16 @@ final class HermesSessionViewModel {
     @ObservationIgnored var onBuildKey: (@MainActor (GlassesKeyAction) -> Void)?
     /// The session is being torn down; a run must save itself.
     @ObservationIgnored var onSessionEnding: (@MainActor () -> Void)?
+    // MARK: Machine guide hooks (set by MachineGuideViewModel)
+
+    /// Offered every utterance that reaches the brain stage. True = the
+    /// guide took it (it is on, or the utterance turned it on) and will
+    /// answer through `finishExternalQuery`.
+    @ObservationIgnored var machineGuideClaimer: (@MainActor (String) -> Bool)?
+    /// The session is going away; the guide switches itself off. Unlike
+    /// `onSessionEnding` this is NOT cleared after firing - the guide view
+    /// model lives as long as the app does.
+    @ObservationIgnored var onMachineGuideSessionEnding: (@MainActor () -> Void)?
     @ObservationIgnored private var chimePlayer: AVAudioPlayer?
     /// Queued cues (`speakCue(_:queued: true)`) waiting for the current one
     /// to finish; drained one at a time by `speechSynthesizer.onFinished`.
@@ -1070,6 +1080,11 @@ final class HermesSessionViewModel {
 
         // On-device TTS finished (or was interrupted) - same completion
         // flow as bridge-audio playback
+        speechSynthesizer.onVoiceFallback = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.show(notice: "ElevenLabs voice is off, using the iPhone voice instead: \(message)")
+            }
+        }
         speechSynthesizer.onFinished = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -1362,6 +1377,14 @@ final class HermesSessionViewModel {
         // can't paint over this new query or navigation.
         definitionGeneration &+= 1
 
+        // The machine guide answers from an imported manual instead of the
+        // brain. While it is on it takes EVERY utterance ("go to step five"
+        // must not start a navigation); from cold it takes only its own
+        // start phrases.
+        if let claim = machineGuideClaimer, claim(trimmed) {
+            return
+        }
+
         // On-device intents run before the AI brain.
         switch IntentDetector.detect(trimmed) {
         case .rememberPerson where socialNotesEnabled:
@@ -1406,6 +1429,7 @@ final class HermesSessionViewModel {
             connectionState = .processing
             displayManager.showThinking(query: trimmed)
             speechRecognizer.isSuspended = true
+            ElevenLabsVoice.warmUp()
             Task { await askDirect(trimmed, context: context) }
         } else {
             guard apiClient?.isConnected == true else { return }
@@ -1418,7 +1442,9 @@ final class HermesSessionViewModel {
             let outgoing = context.map { "[Context: \($0)]\n\n\(trimmed)" } ?? trimmed
             apiClient?.sendQuery(
                 outgoing,
-                bridgeTTS: !useDeviceTTS && !displaySilentActive
+                // With the ElevenLabs voice on, the PHONE speaks the reply -
+                // asking the bridge for audio too would say it twice.
+                bridgeTTS: !useDeviceTTS && !ElevenLabsVoice.isActive && !displaySilentActive
             )
         }
     }
@@ -1448,16 +1474,141 @@ final class HermesSessionViewModel {
         }
 
         do {
-            let reply = try await directClient.ask(text, photoJPEG: photo, contextLine: context)
-            lastResponse = reply
-            addTurn(userText: text, agentText: reply)
-            completeTestOutcome(.success(()))
-            presentReply(reply)
+            let reply = try await speakStreaming(
+                directClient.askStream(text, photoJPEG: photo, contextLine: context))
+            completeReply(userText: text, reply)
         } catch {
             show(error.localizedDescription)
             connectionState = .listening
             speechRecognizer.isSuspended = false
             displayManager.clear()
+        }
+    }
+
+    // MARK: External brains (the machine guide)
+
+    /// A feature that answers a spoken question ITSELF - not through the
+    /// bridge or `askDirect` - enters and leaves the voice loop through
+    /// these three, so the state machine, the chat, the lens and TTS behave
+    /// exactly as they do for an ordinary answer.
+    func beginExternalQuery(_ text: String) {
+        ElevenLabsVoice.warmUp()
+        pendingDefinitionSubject = nil
+        if navigation.isActive { navigation.displaySuppressed = true }
+        liveTranscript = ""
+        lastTranscript = text
+        connectionState = .processing
+        displayManager.showThinking(query: text)
+        speechRecognizer.isSuspended = true
+    }
+
+    /// Speak and show `reply`. A no-op if the session ended (or moved on)
+    /// while the answer was being fetched - a reply must never be spoken
+    /// into a session that is no longer waiting for one.
+    func finishExternalQuery(userText: String, reply: String, photo: Data?) {
+        guard connectionState == .processing else { return }
+        pendingPhoto = photo
+        lastResponse = reply
+        addTurn(userText: userText, agentText: reply)
+        completeTestOutcome(.success(()))
+        presentReply(reply)
+    }
+
+    /// The streamed form: the reply went through `speakStreaming`, which
+    /// has usually started speaking it already.
+    func finishExternalQuery(userText: String, streamed reply: StreamedReply, photo: Data?) {
+        pendingPhoto = photo
+        completeReply(userText: userText, reply)
+    }
+
+    // MARK: Streamed replies
+
+    /// What `speakStreaming` produced.
+    struct StreamedReply {
+        /// Everything said: prefix + the model's words (+ a failure line).
+        let text: String
+        /// The model's words alone - what belongs in a conversation history.
+        let body: String
+        /// False = nothing was spoken (silent mode, or the session moved
+        /// on); the caller still has to present `text`.
+        let spoken: Bool
+        /// The stream broke after speech had begun; `text` ends in an apology.
+        let failed: Bool
+    }
+
+    /// Speak a reply WHILE it arrives: each sentence goes to the voice the
+    /// moment it is complete, so the wait is for the first sentence, not
+    /// the whole answer. `prefix` is spoken at once, before the model has
+    /// produced anything ("This is the K9 pump.").
+    ///
+    /// Throws only if the stream fails before anything was said - the
+    /// caller then reports the error its usual way. Once speech has begun a
+    /// failure is spoken instead, because the state machine has moved on.
+    func speakStreaming(
+        prefix: String = "", _ deltas: AsyncThrowingStream<String, Error>
+    ) async throws -> StreamedReply {
+        let audible = !displaySilentActive
+        var chunker = SentenceChunker()
+        var body = ""
+        var token: Int?
+
+        func say(_ piece: String) {
+            guard audible else { return }
+            if token == nil {
+                // The session ended or moved on while we waited: stay quiet.
+                guard connectionState == .processing else { return }
+                connectionState = .speaking
+                token = speechSynthesizer.beginStream()
+                if audioManager.isUsingBluetoothInput {
+                    // Glasses echo-cancel their own speaker - barge-in stays on
+                    speechRecognizer.isSuspended = false
+                }
+            }
+            speechSynthesizer.enqueue(piece, stream: token)
+        }
+
+        if !prefix.isEmpty { chunker.feed(prefix + " ").forEach(say) }
+        do {
+            for try await delta in deltas {
+                body += delta
+                chunker.feed(delta).forEach(say)
+            }
+        } catch {
+            guard token != nil else { throw error }
+            let line = "I couldn't finish that answer. \(error.localizedDescription)"
+            chunker.flush().forEach(say)
+            say(line)
+            speechSynthesizer.endStream(stream: token)
+            return StreamedReply(text: (prefix + body + " " + line).trimmingCharacters(in: .whitespaces),
+                                 body: body, spoken: true, failed: true)
+        }
+        chunker.flush().forEach(say)
+        if token != nil { speechSynthesizer.endStream(stream: token) }
+        return StreamedReply(text: prefix + body, body: body, spoken: token != nil, failed: false)
+    }
+
+    /// Chat, lens and bookkeeping for a reply that came through
+    /// `speakStreaming`. The speech itself is already under way.
+    private func completeReply(userText: String, _ reply: StreamedReply) {
+        lastResponse = reply.text
+        addTurn(userText: userText, agentText: reply.text)
+        completeTestOutcome(.success(()))
+        guard reply.spoken else {
+            // Silent mode shows it; a session that moved on gets nothing.
+            if connectionState == .processing { presentReply(reply.text) }
+            return
+        }
+        let shown = HermesDisplayLogic.truncateReply(reply.text)
+        let speaking = connectionState == .speaking
+        let subject = pendingDefinitionSubject
+        pendingDefinitionSubject = nil
+        if let subject {
+            showDefinitionReply(text: shown, subject: subject, speaking: speaking)
+        } else {
+            displayManager.showReply(
+                text: shown, speaking: speaking,
+                dwellSeconds: speaking ? nil : HermesDisplayLogic.readingDwellSeconds(charCount: shown.count)
+            )
         }
     }
 
@@ -2918,6 +3069,7 @@ final class HermesSessionViewModel {
         let ending = onSessionEnding
         onSessionEnding = nil
         ending?()
+        onMachineGuideSessionEnding?()
         // Unlike a half-finished "remember this person", a running
         // conversation capture is saved, not discarded - an hour of notes
         // must not vanish because the session dropped. Silent: the audio

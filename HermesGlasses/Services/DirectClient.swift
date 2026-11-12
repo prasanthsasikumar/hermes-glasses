@@ -168,6 +168,117 @@ final class DirectClient: @unchecked Sendable {
         return reply
     }
 
+    // MARK: - Streaming
+
+    /// The reply to `request` as it is written. A provider that streams
+    /// yields many small pieces; one that doesn't yields the whole reply as
+    /// a single piece - callers treat both the same. `onComplete` gets the
+    /// full text once, only on success.
+    private func deltas(
+        for request: AIRequest, provider: AIProvider, timeout: TimeInterval,
+        onComplete: (@Sendable (String) -> Void)? = nil
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var request = request
+                    request.stream = provider.supportsStreaming
+                    var urlRequest = try provider.buildRequest(request)
+                    urlRequest.timeoutInterval = timeout
+                    let started = Date()
+                    var full = ""
+
+                    if provider.supportsStreaming {
+                        let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
+                        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        guard status == 200 else {
+                            var body = Data()
+                            for try await byte in bytes { body.append(byte) }
+                            _ = try provider.parseReply(body, status: status)   // throws the provider's message
+                            throw AIProviderError.http(status: status, message: "API error \(status).")
+                        }
+                        var sawFirst = false
+                        for try await line in bytes.lines {
+                            guard line.hasPrefix("data:") else { continue }
+                            let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                            guard let text = provider.streamDelta(payload), !text.isEmpty else { continue }
+                            if !sawFirst {
+                                sawFirst = true
+                                let ms = Int(Date().timeIntervalSince(started) * 1000)
+                                Self.logger.info("First words from \(provider.id, privacy: .public) after \(ms) ms")
+                            }
+                            full += text
+                            continuation.yield(text)
+                        }
+                        guard !full.isEmpty else {
+                            throw AIProviderError.badResponse("The API sent an empty reply.")
+                        }
+                    } else {
+                        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+                        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        full = try provider.parseReply(data, status: status)
+                        continuation.yield(full)
+                    }
+                    let ms = Int(Date().timeIntervalSince(started) * 1000)
+                    Self.logger.info("Reply from \(provider.id, privacy: .public) complete after \(ms) ms (\(full.count) chars)")
+                    onComplete?(full)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// `ask`, streamed: same request, same history bookkeeping (written
+    /// once the reply is complete), but the words arrive as they are made.
+    func askStream(_ text: String, photoJPEG: Data?, contextLine: String? = nil) -> AsyncThrowingStream<String, Error> {
+        let provider = Self.provider
+        let key = Self.loadKey(for: provider.id)
+        if provider.requiresKey, (key ?? "").isEmpty {
+            return AsyncThrowingStream { $0.finish(throwing: AIProviderError.missingKey) }
+        }
+        let request = AIRequest(
+            systemPrompt: Self.systemPrompt,
+            contextLine: contextLine,
+            history: Self.loadHistory(),
+            userText: text,
+            imageJPEG: provider.supportsVision ? photoJPEG : nil,
+            model: Self.model(for: provider),
+            baseURL: Self.baseURL(for: provider),
+            apiKey: key)
+        Self.logger.info("Direct stream to \(provider.id, privacy: .public) (photo=\(photoJPEG != nil))")
+        return deltas(for: request, provider: provider, timeout: 60) { reply in
+            var history = Self.loadHistory()
+            history.append(Turn(role: "user", text: text))
+            history.append(Turn(role: "assistant", text: reply))
+            Self.storeHistory(history)
+        }
+    }
+
+    /// `askWithHistory`, streamed. Reads and writes nothing stored.
+    func askWithHistoryStream(
+        systemPrompt: String, history: [Turn], userText: String,
+        photoJPEG: Data?, timeout: TimeInterval = 60
+    ) -> AsyncThrowingStream<String, Error> {
+        let provider = Self.provider
+        let key = Self.loadKey(for: provider.id)
+        if provider.requiresKey, (key ?? "").isEmpty {
+            return AsyncThrowingStream { $0.finish(throwing: AIProviderError.missingKey) }
+        }
+        let request = AIRequest(
+            systemPrompt: systemPrompt,
+            contextLine: nil,
+            history: history,
+            userText: userText,
+            imageJPEG: provider.supportsVision ? photoJPEG : nil,
+            model: Self.model(for: provider),
+            baseURL: Self.baseURL(for: provider),
+            apiKey: key)
+        return deltas(for: request, provider: provider, timeout: timeout)
+    }
+
     /// One question that must NOT touch conversation memory. `ask` splices
     /// its query and reply into the stored same-day history; a badge photo
     /// has no business in the user's chat. Reads nothing, writes nothing.
@@ -203,6 +314,39 @@ final class DirectClient: @unchecked Sendable {
 
         var urlRequest = try provider.buildRequest(request)
         urlRequest.timeoutInterval = timeout
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        return try provider.parseReply(data, status: status)
+    }
+
+    /// A conversation whose memory the CALLER owns. Like `askOneShot` it
+    /// reads and writes nothing stored - the machine guide keeps its own
+    /// short history per machine, so an afternoon of torque questions never
+    /// lands in the user's chat memory and the chat never leaks into the
+    /// guide. The system prompt carries the manual; on Anthropic that block
+    /// is cached, so follow-up questions about one machine are cheap.
+    func askWithHistory(
+        systemPrompt: String, history: [Turn], userText: String,
+        photoJPEG: Data?, maxTokens: Int? = nil, timeout: TimeInterval = 60
+    ) async throws -> String {
+        let provider = Self.provider
+        let key = Self.loadKey(for: provider.id)
+        if provider.requiresKey, (key ?? "").isEmpty { throw AIProviderError.missingKey }
+
+        var request = AIRequest(
+            systemPrompt: systemPrompt,
+            contextLine: nil,
+            history: history,
+            userText: userText,
+            imageJPEG: provider.supportsVision ? photoJPEG : nil,
+            model: Self.model(for: provider),
+            baseURL: Self.baseURL(for: provider),
+            apiKey: key)
+        request.maxTokens = maxTokens
+
+        var urlRequest = try provider.buildRequest(request)
+        urlRequest.timeoutInterval = timeout
+        Self.logger.info("History request to \(provider.id, privacy: .public) (turns=\(history.count), photo=\(photoJPEG != nil))")
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         return try provider.parseReply(data, status: status)

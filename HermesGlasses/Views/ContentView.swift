@@ -55,6 +55,7 @@ struct ContentView: View {
     let wearablesVM: WearablesViewModel
     let hermesVM: HermesSessionViewModel
     let buildCheckVM: BuildCheckViewModel
+    let machineGuideVM: MachineGuideViewModel
 
     @State private var showSettings: Bool = false
     @State private var showPeople: Bool = false
@@ -63,6 +64,7 @@ struct ContentView: View {
     @State private var showMap: Bool = false
     @State private var showLookup: Bool = false
     @State private var showBuildCheck: Bool = false
+    @State private var showManuals: Bool = false
     /// In phone mode the 5b camera view is the session screen; this flips to
     /// the chat transcript so the conversation is never unreachable.
     @State private var showTranscript: Bool = false
@@ -164,6 +166,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showBuildCheck) {
             BuildCheckView(vm: buildCheckVM)
+        }
+        .sheet(isPresented: $showManuals) {
+            ManualsView(vm: machineGuideVM, hermesVM: hermesVM)
         }
         .task {
             hermesVM.logVisionDiagnostics("app-launch")
@@ -795,6 +800,7 @@ struct ContentView: View {
         case "log": showObjectLog = true
         case "lookup": showLookup = true
         case "buildcheck": showBuildCheck = true
+        case "manuals": showManuals = true
         default: break
         }
     }
