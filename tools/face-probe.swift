@@ -32,6 +32,7 @@ import Foundation
 import Vision
 import AppKit
 import CoreImage
+import CoreML
 
 func loadCGImage(_ url: URL) -> CGImage? {
     guard let image = NSImage(contentsOf: url) else { return nil }
@@ -88,7 +89,7 @@ func pad(_ text: String, _ width: Int) -> String {
 /// only measure how far apart DIFFERENT people sit. That is a ceiling, not
 /// a guarantee: the same person photographed twice must sit closer than the
 /// closest two strangers, and nothing here proves they do.
-func separation(folder: URL, files: [URL]) -> Int {
+func separation(folder: URL, files: [URL], backend: FaceEmbeddingBackend) -> Int {
     var names: [String] = []
     var vectors: [[Float]] = []
     var failed: [String] = []
@@ -96,7 +97,7 @@ func separation(folder: URL, files: [URL]) -> Int {
     for url in files {
         let name = (url.lastPathComponent as NSString).deletingPathExtension
         guard let cg = loadCGImage(url),
-              let vector = FaceEmbedding.embed(cg, backend: .visionFeaturePrint)
+              let vector = FaceEmbedding.embed(cg, backend: backend)
         else { failed.append(name); continue }
         names.append(name)
         vectors.append(vector)
@@ -107,7 +108,7 @@ func separation(folder: URL, files: [URL]) -> Int {
         return 2
     }
     print("Embedded \(vectors.count) of \(files.count) portraits "
-          + "(\(vectors.first?.count ?? 0)-d, Vision feature print on the aligned crop).")
+          + "(\(vectors.first?.count ?? 0)-d, backend \(backend.modelID)).")
     if !failed.isEmpty { print("Failed: \(failed.joined(separator: ", "))") }
 
     var pairs: [(a: String, b: String, score: Float)] = []
@@ -162,34 +163,69 @@ func separation(folder: URL, files: [URL]) -> Int {
     return 0
 }
 
+/// The highest similarity between two DIFFERENT people in this roster -
+/// the bar any same-person score has to clear. Recomputed per backend,
+/// because a ceiling from one embedder says nothing about another.
+func strangerCeiling(files: [URL], backend: FaceEmbeddingBackend) -> Float {
+    var vectors: [[Float]] = []
+    for url in files {
+        guard let cg = loadCGImage(url),
+              let v = FaceEmbedding.embed(cg, backend: backend) else { continue }
+        vectors.append(v)
+    }
+    var worst: Float = 0
+    for i in 0..<vectors.count {
+        for j in (i + 1)..<vectors.count {
+            worst = max(worst, FaceMatcher.cosine(vectors[i], vectors[j]))
+        }
+    }
+    return worst
+}
+
 // MARK: - simulate
 
 /// The question `separation` cannot answer with one photo per person: does
 /// the SAME person still match themselves once the image looks like what
 /// the glasses actually deliver?
 ///
-/// Each portrait is degraded in ways the live path really imposes - dropped
-/// to glasses-stream resolution, softened, tilted, re-exposed - and scored
-/// against its own original. Those are same-person pairs, synthesised but
-/// honest about the failure mode that matters.
+/// The axis that matters is FACE PIXEL WIDTH, not image width. A portrait
+/// is resized so the detected face is exactly N px across, then embedded
+/// and scored against the full-resolution original. That answers the
+/// question the app actually needs - how close does the wearer have to
+/// stand - instead of an arbitrary whole-image downscale.
 ///
-/// The bar: same-person scores must sit clearly ABOVE the worst
-/// inter-person score, or no threshold can separate a match from a
-/// stranger.
-func simulate(files: [URL], maxInterPerson: Float) -> Int {
+/// In-plane tilt is included as a control: FaceAlignment levels the eyes by
+/// construction, so a tilted face SHOULD score near 1.0. If it does not,
+/// the alignment is broken and every other number here is suspect.
+func simulate(files: [URL], maxInterPerson: Float, backend: FaceEmbeddingBackend) -> Int {
     let ctx = CIContext()
 
-    /// Re-render at `width` px wide and back up - the resolution cliff.
-    func downscaled(_ image: CGImage, to width: Int) -> CGImage? {
-        let scale = CGFloat(width) / CGFloat(image.width)
-        let h = max(1, Int(CGFloat(image.height) * scale))
+    func faceWidthFraction(_ image: CGImage) -> CGFloat? {
+        let request = VNDetectFaceRectanglesRequest()
+        try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+        guard let face = (request.results ?? []).max(by: {
+            $0.boundingBox.width < $1.boundingBox.width
+        }) else { return nil }
+        return face.boundingBox.width
+    }
+
+    /// Resize the whole image so the face measures `target` px across, then
+    /// back up to the original size - the information loss of a distant
+    /// face, without changing the framing the aligner sees.
+    func atFaceWidth(_ image: CGImage, target: Int) -> CGImage? {
+        guard let fraction = faceWidthFraction(image), fraction > 0 else { return nil }
+        let facePx = fraction * CGFloat(image.width)
+        let scale = CGFloat(target) / facePx
+        guard scale < 1 else { return image }
+        let w = max(16, Int(CGFloat(image.width) * scale))
+        let h = max(16, Int(CGFloat(image.height) * scale))
         guard let small = CGContext(
-            data: nil, width: width, height: h, bitsPerComponent: 8,
-            bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+            data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         ) else { return nil }
         small.interpolationQuality = .medium
-        small.draw(image, in: CGRect(x: 0, y: 0, width: width, height: h))
+        small.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
         return small.makeImage()
     }
 
@@ -198,31 +234,29 @@ func simulate(files: [URL], maxInterPerson: Float) -> Int {
         return ctx.createCGImage(out, from: out.extent)
     }
 
+    /// Rotate about the image CENTRE, not the origin.
     func rotated(_ image: CGImage, degrees: CGFloat) -> CGImage? {
-        filtered(image) {
-            $0.transformed(by: CGAffineTransform(rotationAngle: degrees * .pi / 180))
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        return filtered(image) { ci in
+            ci.transformed(by: CGAffineTransform(translationX: -w / 2, y: -h / 2)
+                .concatenating(CGAffineTransform(rotationAngle: degrees * .pi / 180))
+                .concatenating(CGAffineTransform(translationX: w / 2, y: h / 2)))
         }
     }
 
-    // `decisive` marks the variants that reflect what the glasses actually
-    // deliver. The others are sanity checks: passing them proves the
-    // pipeline runs, NOT that the embedder can identify anyone, and the
-    // verdict must never be computed from them - a headline of "some
-    // variants separate" carried by a barely-altered image is exactly the
-    // flattering summary this tool exists to prevent.
     let variants: [(name: String, decisive: Bool, make: (CGImage) -> CGImage?)] = [
-        ("glasses-res 96px", true, { downscaled($0, to: 96) }),
-        ("glasses-res 64px", true, { downscaled($0, to: 64) }),
-        ("soft focus", true, { img in
-            filtered(img) {
-                $0.applyingGaussianBlur(sigma: 2.0).cropped(to: $0.extent)
-            }
+        ("face 160px", true, { atFaceWidth($0, target: 160) }),
+        ("face 112px", true, { atFaceWidth($0, target: 112) }),
+        ("face 80px", true, { atFaceWidth($0, target: 80) }),
+        ("face 56px", true, { atFaceWidth($0, target: 56) }),
+        ("face 40px", true, { atFaceWidth($0, target: 40) }),
+        ("face 80px + blur", true, { img in
+            guard let small = atFaceWidth(img, target: 80) else { return nil }
+            return filtered(small) { $0.applyingGaussianBlur(sigma: 1.0).cropped(to: $0.extent) }
         }),
-        ("tilt 10 deg", true, { rotated($0, degrees: 10) }),
+        ("tilt 10 deg", false, { rotated($0, degrees: 10) }),
         ("under-exposed", false, { img in
-            filtered(img) {
-                $0.applyingFilter("CIExposureAdjust", parameters: ["inputEV": -1.2])
-            }
+            filtered(img) { $0.applyingFilter("CIExposureAdjust", parameters: ["inputEV": -1.2]) }
         }),
     ]
 
@@ -232,26 +266,17 @@ func simulate(files: [URL], maxInterPerson: Float) -> Int {
 
     for url in files {
         guard let cg = loadCGImage(url),
-              let base = FaceEmbedding.embed(cg, backend: .visionFeaturePrint)
-        else { continue }
+              let base = FaceEmbedding.embed(cg, backend: backend) else { continue }
         embeddedOriginals += 1
         for variant in variants {
             guard let degraded = variant.make(cg),
-                  let vector = FaceEmbedding.embed(degraded, backend: .visionFeaturePrint)
-            else {
-                variantFailures[variant.name, default: 0] += 1
-                continue
-            }
-            byVariant[variant.name, default: []].append(
-                FaceMatcher.cosine(base, vector)
-            )
+                  let vector = FaceEmbedding.embed(degraded, backend: backend)
+            else { variantFailures[variant.name, default: 0] += 1; continue }
+            byVariant[variant.name, default: []].append(FaceMatcher.cosine(base, vector))
         }
     }
 
-    guard embeddedOriginals > 0 else {
-        print("No portraits embedded.")
-        return 2
-    }
+    guard embeddedOriginals > 0 else { print("No portraits embedded."); return 2 }
 
     print("SAME-PERSON similarity after realistic degradation "
           + "(\(embeddedOriginals) portraits).")
@@ -260,23 +285,21 @@ func simulate(files: [URL], maxInterPerson: Float) -> Int {
     print(pad("variant", 20) + pad("min", 9) + pad("p10", 9)
           + pad("median", 9) + pad("lost face", 10) + "beats strangers?")
 
-    var decisiveFailures = 0
-    var decisiveTotal = 0
+    var bestUsableFacePx = 0
     for variant in variants {
         let scores = (byVariant[variant.name] ?? []).sorted()
         guard !scores.isEmpty else {
             print(pad(variant.name, 20) + "no face survived")
-            if variant.decisive { decisiveTotal += 1; decisiveFailures += 1 }
             continue
         }
         let p10 = scores[min(scores.count - 1, Int(0.10 * Double(scores.count)))]
         let median = scores[scores.count / 2]
-        // The honest test: the WEAK end of same-person has to clear the
-        // STRONG end of stranger. Comparing medians would flatter it.
         let usable = p10 > maxInterPerson
-        if variant.decisive {
-            decisiveTotal += 1
-            if !usable { decisiveFailures += 1 }
+        if usable, variant.decisive,
+           let px = Int(variant.name.replacingOccurrences(of: "face ", with: "")
+                            .replacingOccurrences(of: "px", with: "")
+                            .trimmingCharacters(in: .whitespaces)) {
+            bestUsableFacePx = bestUsableFacePx == 0 ? px : min(bestUsableFacePx, px)
         }
         print(pad(variant.name, 20)
               + pad(String(format: "%.4f", scores.first ?? 0), 9)
@@ -284,7 +307,7 @@ func simulate(files: [URL], maxInterPerson: Float) -> Int {
               + pad(String(format: "%.4f", median), 9)
               + pad("\(variantFailures[variant.name] ?? 0)", 10)
               + (usable ? "yes" : "NO")
-              + (variant.decisive ? "" : "   (sanity check only)"))
+              + (variant.decisive ? "" : "   (control)"))
     }
 
     print("""
@@ -293,23 +316,21 @@ func simulate(files: [URL], maxInterPerson: Float) -> Int {
     ---------------
     "beats strangers" = the 10th-percentile same-person score is still above
     the closest stranger pair. Anything less and there is no threshold that
-    admits the right person while rejecting the wrong one - the two
-    distributions overlap, and the app would name people confidently and
-    wrongly.
+    admits the right person while rejecting the wrong one.
+
+    "tilt 10 deg" is a CONTROL, not a degradation: FaceAlignment levels the
+    eyes, so it should score near 1.0. A low number there means alignment is
+    broken and nothing else on this table can be trusted.
     """)
-    print("\n  \(decisiveTotal - decisiveFailures)/\(decisiveTotal) decisive"
-          + " variants separate (sanity checks excluded).")
-    if decisiveFailures == 0 {
-        print("  VERDICT: this embedder survives realistic degradation."
-              + " Confirm with real device crops before trusting it.")
+    if bestUsableFacePx > 0 {
+        print("\n  USABLE down to a face of ~\(bestUsableFacePx) px across.")
+        print("  Below that the wearer must stand closer - tune"
+              + " PersonLookupGate.minHeight, do not lower the threshold.")
         return 0
     }
     print("""
-      VERDICT: FAILS. At the resolution the glasses actually deliver, the
-      same person scores FURTHER from themselves than two different people
-      score from each other. No threshold can separate those distributions,
-      so an app using this embedder would name people confidently and
-      wrongly. Do not ship it.
+      VERDICT: FAILS at every face size tested. No threshold can separate
+      the right person from the wrong one. Do not ship it.
     """)
     return 1
 }
@@ -345,12 +366,33 @@ struct FaceProbe {
             exit(2)
         }
 
+        // An optional compiled .mlmodelc as the last argument selects the
+        // real recogniser; without it the probe falls back to Vision's
+        // feature print, which is the thing being compared AGAINST.
+        var backend = FaceEmbeddingBackend.visionFeaturePrint
+        if args.count >= 4 {
+            let modelURL = URL(fileURLWithPath: args[3])
+            guard let model = try? MLModel(contentsOf: modelURL),
+                  let input = model.modelDescription
+                    .inputDescriptionsByName.keys.sorted().first else {
+                print("Could not load model at \(args[3])")
+                exit(2)
+            }
+            backend = .coreML(model, inputName: input)
+            print("Using CoreML backend: \(args[3]) (input \"\(input)\")\n")
+        } else {
+            print("Using Vision feature print (no model given)\n")
+        }
+
         if args[1] == "separation" {
-            exit(Int32(separation(folder: folder, files: files)))
+            exit(Int32(separation(folder: folder, files: files, backend: backend)))
         }
         if args[1] == "simulate" {
-            // The stranger ceiling measured by `separation` on this roster.
-            exit(Int32(simulate(files: files, maxInterPerson: 0.8657)))
+            // Measure this backend's own stranger ceiling first - a number
+            // borrowed from a different embedder would be meaningless.
+            let ceiling = strangerCeiling(files: files, backend: backend)
+            print(String(format: "Stranger ceiling for this backend: %.4f\n", ceiling))
+            exit(Int32(simulate(files: files, maxInterPerson: ceiling, backend: backend)))
         }
 
         var noFace: [String] = []

@@ -1,7 +1,7 @@
 # Hermes Glasses
 
 Talk to your own AI through smart glasses - **Meta Ray-Ban**, or **AiSee**
-and other sub-$100 Realtek-based AI glasses (RTL8773D + RTL8735B reference
+and other sub-$50 Realtek-based AI glasses (RTL8773D + RTL8735B reference
 design) - with hands-free voice conversations, live on-device transcription,
 computer vision through the glasses camera ("what am I looking at?"),
 voice-started navigation on the lens, and a private, on-device memory of the

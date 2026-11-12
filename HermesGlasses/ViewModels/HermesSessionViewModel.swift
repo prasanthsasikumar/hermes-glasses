@@ -58,6 +58,13 @@ enum MicSource: String, CaseIterable {
     /// The microphone on your AiSee glasses. Closed briefly around each photo.
     case aiseeGlasses
 
+    /// The call-screen caveat only applies to glasses with a lens (Ray-Ban
+    /// Display); on display-less glasses it is simply untrue.
+    func label(glassesHaveDisplay: Bool) -> String {
+        if self == .glasses && !glassesHaveDisplay { return "Glasses Mic" }
+        return label
+    }
+
     var label: String {
         switch self {
         case .phone: return "iPhone Mic"
@@ -169,7 +176,7 @@ final class HermesSessionViewModel {
             if !displayHUDEnabled {
                 displayManager.stop()
             } else if let session = deviceSession {
-                if lensBlockedByCallScreen {
+                if lensBlockedByCallScreen && activeGlassesHaveDisplay {
                     // HUD and the glasses' HFP mic are mutually exclusive
                     // (their call screen covers the lens). HUD wins: hop
                     // back to the iPhone mic, which re-attaches the
@@ -576,6 +583,14 @@ final class HermesSessionViewModel {
     /// the eye to Phone and back, which is exactly how this was spotted).
     private(set) var activeGlassesDevice: DeviceIdentifier?
 
+    /// Meta glasses in range and session-able right now, or already held by
+    /// a session. Status UI only - "paired" is not this (see
+    /// `glassesAvailable`), and neither is `isGlassesConnected`, which stays
+    /// false until a session claims the glasses.
+    var metaGlassesReachable: Bool {
+        activeGlassesDevice != nil || isGlassesConnected
+    }
+
     @ObservationIgnored private var activeDeviceTask: Task<Void, Never>?
 
     /// Can a glasses session actually be created right now?
@@ -701,6 +716,19 @@ final class HermesSessionViewModel {
     }
 
     var glassesSupportsDisplay: Bool { glassesVendor.supportsDisplay }
+
+    /// Does the pair in use actually have a lens? `glassesSupportsDisplay` is
+    /// the VENDOR answer (Meta can); this is the DEVICE answer - Ray-Ban Meta
+    /// without Display has no HUD for the hands-free call screen to cover, so
+    /// the glasses mic must neither pause a HUD nor be switched away from.
+    /// Unknown device counts as Display, so the HUD rule is never skipped
+    /// for glasses it applies to.
+    var activeGlassesHaveDisplay: Bool {
+        guard glassesVendor.supportsDisplay else { return false }
+        guard let id = activeGlassesDevice,
+              let device = wearables.deviceForIdentifier(id) else { return true }
+        return device.supportsDisplay()
+    }
 
     init(wearables: WearablesInterface) {
         self.wearables = wearables
@@ -2713,6 +2741,9 @@ final class HermesSessionViewModel {
         guard displayHUDEnabled, let session = deviceSession else { return }
         if lensBlockedByCallScreen {
             displayManager.stop()
+            // Glasses without a lens have no HUD to pause - the notice would
+            // be news about a screen that doesn't exist.
+            guard activeGlassesHaveDisplay else { return }
             show(notice: "Lens HUD paused - the glasses show their call screen while their hands-free mic is on. The iPhone or a headset mic keeps the HUD visible.")
         } else if displayManager.status == .off {
             displayManager.start(session: session)

@@ -86,16 +86,27 @@ final class LookupViewModel {
     @ObservationIgnored private let embedder = FaceEmbedder()
     @ObservationIgnored private var didStop = false
 
-    /// PROVISIONAL - not yet measured on this roster. `tools/face-probe.swift`
-    /// `separation` and `live` set these for real once a model is bundled;
-    /// see tools/export-face.md. Deliberately conservative: too high costs a
-    /// recognition the wearer retries, too low puts a real name on the wrong
-    /// face while that person is standing in front of them.
+    /// Measured on the real roster with the bundled MobileFaceNet
+    /// (`face-probe separation` + `simulate`, 2026-08-16):
     ///
-    /// They are inert until then - with no model, `embedder` is nil and the
-    /// matcher is never reached.
+    ///   worst stranger pair            0.408
+    ///   same person, face 40 px wide   0.849 (p10), 0.755 (min)
+    ///   same person, face 80 px + blur 0.883 (p10)
+    ///
+    /// 0.50 sits clearly above every stranger pair in this roster while
+    /// leaving room below the weakest genuine match. The asymmetry is
+    /// deliberate: too high costs a recognition the wearer simply retries,
+    /// too low puts a real name on the wrong face while that person is
+    /// standing in front of them.
+    ///
+    /// STILL UNVERIFIED: those same-person numbers come from degraded
+    /// copies of the SAME source photo, so they overstate what a genuinely
+    /// different photo scores. Confirm against real device crops before
+    /// trusting this at the conference - and if it misses, raise
+    /// `PersonLookupGate`'s proximity requirement so the face is bigger,
+    /// rather than lowering this.
     @ObservationIgnored private let matcher = FaceMatcher(
-        acceptThreshold: 0.55, margin: 0.10
+        acceptThreshold: 0.50, margin: 0.10
     )
 
     /// True when the app cannot identify anyone at all, whatever it sees.

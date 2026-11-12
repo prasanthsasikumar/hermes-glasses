@@ -188,12 +188,26 @@ enum FaceEmbedding {
             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         ) else { return nil }
         context.interpolationQuality = .high
-        // CGContext is bottom-left origin and FaceAlignment is top-left. The
-        // flip lives here, at the boundary, so the transform itself stays in
-        // the app-wide convention.
+        // TWO flips, and both are load-bearing.
+        //
+        // The first puts user space in the app-wide top-left convention, so
+        // `transform` (computed from top-left pixel coordinates) applies
+        // directly. The second is because `CGContext.draw` places an image's
+        // TOP row at the rect's maxY - right-side-up in a bottom-left space,
+        // and therefore upside down in the space the first flip just created.
+        //
+        // Drop the second flip and every crop is vertically mirrored. That
+        // does NOT look broken: both the roster and the live snap are
+        // mirrored identically, so same-person scores stay high and the bug
+        // hides. What gives it away is a tilted face, because the aligner
+        // then rotates the wrong way and doubles the tilt instead of
+        // removing it - which is exactly what `face-probe simulate`'s
+        // "tilt 10 deg" control is for. It caught this.
         context.translateBy(x: 0, y: CGFloat(edge))
         context.scaleBy(x: 1, y: -1)
         context.concatenate(transform)
+        context.translateBy(x: 0, y: CGFloat(image.height))
+        context.scaleBy(x: 1, y: -1)
         context.draw(image, in: CGRect(x: 0, y: 0,
                                        width: image.width, height: image.height))
         return context.makeImage()
