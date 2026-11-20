@@ -3025,6 +3025,26 @@ final class HermesSessionViewModel {
         }
     }
 
+    /// Translate's form: one word in a chosen language (BCP-47), spoken by
+    /// the iPhone voice for it. Same gating as `speakCue(_:)`. Returns
+    /// false when the cue was dropped because Hermes is mid-answer - the
+    /// caller still shows the word.
+    @discardableResult
+    func speakCue(_ text: String, language: String) -> Bool {
+        switch connectionState {
+        case .listening:
+            connectionState = .speaking
+            speechRecognizer.isSuspended = true
+            speechSynthesizer.speak(text, language: language)
+            return true
+        case .disconnected:
+            speechSynthesizer.speak(text, language: language)
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Build Check's form: while another cue is speaking the line waits its
     /// turn (FIFO, drained by onFinished) instead of being dropped - a run's
     /// warnings and step prompts must all be heard.

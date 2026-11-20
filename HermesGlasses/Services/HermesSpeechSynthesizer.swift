@@ -44,6 +44,9 @@ final class HermesSpeechSynthesizer: NSObject, @unchecked Sendable {
         var audio: Data?
         var loading = false
         var failed = false
+        /// BCP-47 code. Set = this piece is ALWAYS spoken by the iPhone
+        /// voice for that language and never fetched from ElevenLabs.
+        var language: String?
     }
 
     /// More than this and a rate-limited ElevenLabs plan starts refusing.
@@ -97,6 +100,39 @@ final class HermesSpeechSynthesizer: NSObject, @unchecked Sendable {
         beginStream()
         for piece in SentenceChunker.pieces(of: text) { enqueue(piece) }
         endStream()
+    }
+
+    /// Speak a short piece in a specific language (BCP-47, e.g. "zh-CN")
+    /// with the iPhone's own voice for it - the Translate app's words.
+    /// Deliberately never ElevenLabs: a network fetch per word would undo
+    /// the point of an instant, offline answer, and the configured cloud
+    /// voice is an English one. Same queue as everything else, so
+    /// `onFinished` and the recognizer suspension behave as for any cue.
+    /// Replaces anything already being spoken.
+    func speak(_ text: String, language: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        beginStream()
+        if !trimmed.isEmpty {
+            nextID += 1
+            queue.append(Segment(id: nextID, text: trimmed, language: language))
+        }
+        endStream()
+    }
+
+    /// Whether this iPhone can speak `language` at all.
+    static func hasVoice(for language: String) -> Bool {
+        bestVoice(for: language) != nil
+    }
+
+    /// Best installed voice for a language: premium > enhanced > default,
+    /// exact region first, then any voice sharing the language.
+    private static func bestVoice(for language: String) -> AVSpeechSynthesisVoice? {
+        let all = AVSpeechSynthesisVoice.speechVoices()
+        let exact = all.filter { $0.language == language }
+        let base = language.split(separator: "-").first.map(String.init) ?? language
+        let pool = exact.isEmpty ? all.filter { $0.language.hasPrefix(base) } : exact
+        return pool.max { $0.quality.rawValue < $1.quality.rawValue }
+            ?? AVSpeechSynthesisVoice(language: language)
     }
 
     /// Start a reply whose text will arrive in pieces. Replaces anything
@@ -173,6 +209,7 @@ final class HermesSpeechSynthesizer: NSObject, @unchecked Sendable {
         if useCloud {
             var loading = queue.filter(\.loading).count
             for i in queue.indices where loading < Self.maxConcurrentFetches {
+                guard queue[i].language == nil else { continue }
                 guard queue[i].audio == nil, !queue[i].failed, !queue[i].loading else { continue }
                 queue[i].loading = true
                 loading += 1
@@ -188,7 +225,9 @@ final class HermesSpeechSynthesizer: NSObject, @unchecked Sendable {
             }
             return
         }
-        if useCloud, !head.failed {
+        if let language = head.language {
+            speakOnDevice(head.text, language: language)
+        } else if useCloud, !head.failed {
             guard let audio = head.audio else { return }   // still on its way
             if !play(audio) { speakOnDevice(head.text) }
         } else {
@@ -257,9 +296,9 @@ final class HermesSpeechSynthesizer: NSObject, @unchecked Sendable {
         return true
     }
 
-    private func speakOnDevice(_ text: String) {
+    private func speakOnDevice(_ text: String, language: String? = nil) {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = voice
+        utterance.voice = language.flatMap(Self.bestVoice(for:)) ?? voice
         currentUtterance = utterance
         headPlaying = true
         noteFirstAudio("iPhone voice")
