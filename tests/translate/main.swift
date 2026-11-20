@@ -278,5 +278,35 @@ _ = forgotten.update(probe: spot, at: 0.9)
 forgotten.reset()
 expect(forgotten.update(probe: spot, at: 1.0).fired == false, "reset() forgets a hold in progress")
 
+
+// MARK: - Phrases
+
+expect(TranslatePhrases.all.count == 6, "six phrases")
+expect(Set(TranslatePhrases.all.map(\.id)).count == 6, "phrase ids unique")
+expect(TranslatePhrases.all.map(\.english) == [
+    "What is this?", "How much is this?", "I'd like this one",
+    "Too expensive", "Can it be cheaper?", "No, thank you",
+], "phrases in the order the design gives")
+for phrase in TranslatePhrases.all {
+    expect(TranslatePhrases.term(for: phrase, in: .english) == nil, "\(phrase.id): no button in English mode")
+    for lang in [TranslateLanguage.french, .chinese, .spanish] {
+        let term = TranslatePhrases.term(for: phrase, in: lang)
+        expect(term.map { !$0.word.isEmpty && $0.english == phrase.english && $0.language == lang } == true,
+               "\(phrase.id)/\(lang) has a phrase")
+        expect((term?.romanized?.isEmpty == false) == lang.needsRomanization,
+               "\(phrase.id)/\(lang) pinyin only where the script needs it")
+    }
+}
+let howMuch = TranslatePhrases.all[1]
+expect(TranslatePhrases.term(for: howMuch, in: .chinese)?.word == "这个多少钱？", "how much, in Chinese")
+expect(TranslatePhrases.term(for: howMuch, in: .chinese)?.romanized == "zhège duōshao qián", "how much, pinyin")
+
+expect(TranslatePrompt.system(for: .chinese, pointing: false) == TranslatePrompt.system(for: .chinese),
+       "the tap prompt is unchanged")
+let pointingPrompt = TranslatePrompt.system(for: .chinese, pointing: true)
+expect(pointingPrompt.lowercased().contains("finger"), "the pointing prompt mentions the finger")
+expect(pointingPrompt.contains(#"{"none":true}"#), "the pointing prompt keeps the nothing-recognisable reply")
+expect(!TranslatePrompt.system(for: .chinese).lowercased().contains("finger"), "the tap prompt does not mention a finger")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")
