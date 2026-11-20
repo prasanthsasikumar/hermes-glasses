@@ -189,5 +189,18 @@ expectEqual(flagged.body, "3 bolts, expected 4", "flag replaces the body")
 expectEqual(flagged.statusLine, "confirmed · ignore · fixed", "flag hint")
 expect(bc.isLive, "build check is live")
 
+// MARK: - Translate card
+
+let tr = LensContent.translation(word: "香蕉", romanized: "xiāngjiāo", english: "banana", language: "中文")
+expect(tr.label == "中文", "translation label is the language")
+expect(tr.body == "香蕉", "translation body is the word")
+expect(tr.statusLine == "xiāngjiāo · banana", "translation status: romanized · english")
+let frCard = LensContent.translation(word: "banane", romanized: nil, english: "banana", language: "Français")
+expect(frCard.label == "FRANÇAIS", "translation label uppercased")
+expect(frCard.statusLine == "banana", "translation status without romanization")
+expect(!tr.isBlank, "translation is not blank")
+expect(!tr.isLive, "translation is a card, not a live state")
+expect(tr.imageURL == nil, "translation has no image")
+
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURE(S)")
 exit(failures == 0 ? 0 : 1)

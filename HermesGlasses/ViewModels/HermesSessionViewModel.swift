@@ -3277,6 +3277,19 @@ final class HermesSessionViewModel {
         displayManager.showThinking(query: "Matching…")
     }
 
+    /// Translate's word on the lens (real or simulated). Best-effort.
+    func showTranslationOnLens(_ term: TranslatedTerm) {
+        displayManager.showTranslation(
+            word: term.word, romanized: term.romanized,
+            english: term.english, language: term.language.displayName
+        )
+    }
+
+    /// Translate's tap path is waiting on the AI.
+    func showTranslationPendingOnLens() {
+        displayManager.showThinking(query: "Looking…")
+    }
+
     /// Lookup's finished card: name + roster details.
     func showPersonLookupOnLens(name: String, info: String) {
         displayManager.showPersonLookup(name: name, info: info)
