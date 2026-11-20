@@ -3290,6 +3290,14 @@ final class HermesSessionViewModel {
         displayManager.showThinking(query: "Looking…")
     }
 
+    /// The tap path gave up: take "Looking…" off the lens, but only if it
+    /// is still what is showing.
+    func clearTranslationPendingOnLens() {
+        if displayManager.content == .thinking(query: "Looking…") {
+            displayManager.clear()
+        }
+    }
+
     /// Lookup's finished card: name + roster details.
     func showPersonLookupOnLens(name: String, info: String) {
         displayManager.showPersonLookup(name: name, info: info)

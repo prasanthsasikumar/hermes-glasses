@@ -63,6 +63,7 @@ struct ContentView: View {
     @State private var showObjectLog: Bool = false
     @State private var showMap: Bool = false
     @State private var showLookup: Bool = false
+    @State private var showTranslate: Bool = false
     @State private var showBuildCheck: Bool = false
     @State private var showManuals: Bool = false
     /// In phone mode the 5b camera view is the session screen; this flips to
@@ -163,6 +164,9 @@ struct ContentView: View {
         }
         .fullScreenCover(isPresented: $showLookup) {
             LookupView(hermesVM: hermesVM)
+        }
+        .fullScreenCover(isPresented: $showTranslate) {
+            TranslateView(hermesVM: hermesVM)
         }
         .sheet(isPresented: $showBuildCheck) {
             BuildCheckView(vm: buildCheckVM)
@@ -778,8 +782,8 @@ struct ContentView: View {
         return nil
     }
 
-    /// The one choke point for the drawer and the quick actions. Lens and
-    /// Lookup open their own camera stream; during a Build Check run the
+    /// The one choke point for the drawer and the quick actions. Lens,
+    /// Lookup and Translate open their own camera stream; during a Build Check run the
     /// run owns the camera, so they are refused rather than left to take
     /// it (the run would log a frozen frame).
     private func open(_ app: HermesApp) {
@@ -788,9 +792,9 @@ struct ContentView: View {
         if opened.insert(app.id).inserted {
             appsOpenedRaw = HermesAppRegistry.idString(opened)
         }
-        if hermesVM.buildRunClaimer != nil, app.id == "lens" || app.id == "lookup" {
+        if hermesVM.buildRunClaimer != nil, ["lens", "lookup", "translate"].contains(app.id) {
             hermesVM.showNoticeMessage(
-                "End the build check before opening \(app.id == "lens" ? "Lens" : "Lookup").")
+                "End the build check before opening \(app.title).")
             return
         }
         switch app.id {
@@ -799,6 +803,7 @@ struct ContentView: View {
         case "map": showMap = true
         case "log": showObjectLog = true
         case "lookup": showLookup = true
+        case "translate": showTranslate = true
         case "buildcheck": showBuildCheck = true
         case "manuals": showManuals = true
         default: break

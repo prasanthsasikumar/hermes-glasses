@@ -83,7 +83,7 @@ struct HermesApp: Identifiable, Equatable {
 
 enum HermesAppRegistry {
     /// Every app the app knows about. Order is the order they appear.
-    static let all: [HermesApp] = [lens, people, map, log, lookup, buildCheck, manuals]
+    static let all: [HermesApp] = [lens, people, map, log, lookup, buildCheck, manuals, translate]
 
     /// Shown as the quick-action row under the conversation. The rest live
     /// in the drawer - the row scrolls horizontally, so it holds all five.
@@ -106,7 +106,7 @@ enum HermesAppRegistry {
     /// living in the drawer is otherwise invisible to anyone who never pulls
     /// the drawer up - this is how it gets found. Remove an id once the
     /// feature is no longer news.
-    static let newAppIDs: [String] = ["manuals", "buildcheck"]
+    static let newAppIDs: [String] = ["translate", "manuals", "buildcheck"]
 
     static func unseenNew(opened: Set<String>) -> [HermesApp] {
         newAppIDs.compactMap(app(id:)).filter { !opened.contains($0.id) }
@@ -182,6 +182,20 @@ enum HermesAppRegistry {
         title: "Lookup",
         systemImage: "person.text.rectangle",
         summary: "Face someone nearby to see who they are from your roster.",
+        capabilities: [.vision, .lens],
+        presentation: .fullScreen,
+        voiceGroupIDs: [],
+        requiresGlasses: false
+    )
+
+    /// Aim at a thing and hear what it is called in another language.
+    /// Known objects come off a bundled table at once; a tap asks the AI
+    /// about anything else. No voice trigger, and nothing is stored.
+    static let translate = HermesApp(
+        id: "translate",
+        title: "Translate",
+        systemImage: "character.bubble",
+        summary: "Aim at a thing to hear its name in another language.",
         capabilities: [.vision, .lens],
         presentation: .fullScreen,
         voiceGroupIDs: [],

@@ -69,9 +69,11 @@
 		AAAA0000000000000000889 /* RosterImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000890 /* RosterImport.swift */; };
 		AAAA0000000000000000891 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000892 /* RosterView.swift */; };
 		AAAA00000000000000000873 /* LookupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000874 /* LookupViewModel.swift */; };
+		AAAA00000000000000000C0B /* TranslateViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C0C /* TranslateViewModel.swift */; };
 		AAAA00000000000000000A77 /* BuildCheckViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A78 /* BuildCheckViewModel.swift */; };
 		AAAA00000000000000000A98 /* MachineGuideViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A99 /* MachineGuideViewModel.swift */; };
 		AAAA00000000000000000875 /* LookupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000876 /* LookupView.swift */; };
+		AAAA00000000000000000C0D /* TranslateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C0E /* TranslateView.swift */; };
 		AAAA00000000000000000A7F /* BuildRunReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A80 /* BuildRunReviewView.swift */; };
 		AAAA00000000000000000A7D /* BuildRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7E /* BuildRunView.swift */; };
 		AAAA00000000000000000A7B /* ProcedureEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7C /* ProcedureEditorView.swift */; };
@@ -251,9 +253,11 @@
 		AAAA0000000000000000890 /* RosterImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterImport.swift; sourceTree = "<group>"; };
 		AAAA0000000000000000892 /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000874 /* LookupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupViewModel.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C0C /* TranslateViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A78 /* BuildCheckViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheckViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A99 /* MachineGuideViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineGuideViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000876 /* LookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupView.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C0E /* TranslateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A80 /* BuildRunReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunReviewView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7E /* BuildRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7C /* ProcedureEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureEditorView.swift; sourceTree = "<group>"; };
@@ -396,6 +400,7 @@
 				AAAA00000000000000000834 /* PhoneModeSessionView.swift */,
 				AAAA00000000000000000846 /* AppDrawerView.swift */,
 				AAAA00000000000000000876 /* LookupView.swift */,
+				AAAA00000000000000000C0E /* TranslateView.swift */,
 				AAAA00000000000000000A80 /* BuildRunReviewView.swift */,
 				AAAA00000000000000000A7E /* BuildRunView.swift */,
 				AAAA00000000000000000A7C /* ProcedureEditorView.swift */,
@@ -413,6 +418,7 @@
 				AAAA00000000000000000105 /* HermesSessionViewModel.swift */,
 				AAAA00000000000000000139 /* LensViewModel.swift */,
 				AAAA00000000000000000874 /* LookupViewModel.swift */,
+				AAAA00000000000000000C0C /* TranslateViewModel.swift */,
 				AAAA00000000000000000A78 /* BuildCheckViewModel.swift */,
 				AAAA00000000000000000A99 /* MachineGuideViewModel.swift */,
 			);
@@ -701,9 +707,11 @@
 				AAAA0000000000000000889 /* RosterImport.swift in Sources */,
 				AAAA0000000000000000891 /* RosterView.swift in Sources */,
 				AAAA00000000000000000873 /* LookupViewModel.swift in Sources */,
+				AAAA00000000000000000C0B /* TranslateViewModel.swift in Sources */,
 				AAAA00000000000000000A77 /* BuildCheckViewModel.swift in Sources */,
 				AAAA00000000000000000A98 /* MachineGuideViewModel.swift in Sources */,
 				AAAA00000000000000000875 /* LookupView.swift in Sources */,
+				AAAA00000000000000000C0D /* TranslateView.swift in Sources */,
 				AAAA00000000000000000A7F /* BuildRunReviewView.swift in Sources */,
 				AAAA00000000000000000A7D /* BuildRunView.swift in Sources */,
 				AAAA00000000000000000A7B /* ProcedureEditorView.swift in Sources */,
