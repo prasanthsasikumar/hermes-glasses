@@ -163,6 +163,40 @@ final class PhoneCameraManager: NSObject, @unchecked Sendable, VisionSource {
         return image.jpegData(compressionQuality: HermesCameraManager.jpegQuality)
     }
 
+    // MARK: - Focus
+
+    /// Aim continuous autofocus (and exposure) at a point in the portrait
+    /// frame - normalised, TOP-LEFT origin - or back at the centre with
+    /// nil. Translate uses it so a pointing hand in front of the lens is
+    /// not what the camera focuses on. Best-effort: a device that can't do
+    /// it is left as it was.
+    func focus(at point: CGPoint?) {
+        outputQueue.async { [weak self] in
+            guard let self,
+                  let device = (self.session.inputs.first as? AVCaptureDeviceInput)?.device
+            else { return }
+            let target = FocusSteer.devicePoint(
+                forPortrait: point ?? CGPoint(x: 0.5, y: 0.5)
+            )
+            do {
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+                if device.isFocusPointOfInterestSupported,
+                   device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusPointOfInterest = target
+                    device.focusMode = .continuousAutoFocus
+                }
+                if device.isExposurePointOfInterestSupported,
+                   device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposurePointOfInterest = target
+                    device.exposureMode = .continuousAutoExposure
+                }
+            } catch {
+                self.logger.error("focus change failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     // MARK: - Permission
 
     /// Already granted? Never prompts - for the non-interactive gates on the
@@ -208,6 +242,15 @@ final class PhoneCameraManager: NSObject, @unchecked Sendable, VisionSource {
             throw PhoneCameraError.configurationFailed
         }
         session.addInput(input)
+
+        // The default autofocus snaps, and a live feed with things moving
+        // through it (a hand, a passer-by) visibly pumps in and out. The
+        // smooth variant is the one meant for video.
+        if device.isSmoothAutoFocusSupported,
+           (try? device.lockForConfiguration()) != nil {
+            device.isSmoothAutoFocusEnabled = true
+            device.unlockForConfiguration()
+        }
 
         let output = AVCaptureVideoDataOutput()
         output.videoSettings = [

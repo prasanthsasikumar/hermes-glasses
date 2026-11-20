@@ -355,5 +355,27 @@ expect(pointingPrompt.contains("index finger"), "the pointing prompt names the i
 expect(!pointingPrompt.contains("at the centre"), "the pointing prompt never falls back to the centre of a whole frame")
 expect(pointingPrompt.lowercased().contains("specific"), "the pointing prompt asks for the specific name, not a category guess")
 
+// MARK: - Focus follows the finger
+
+func near(_ a: CGPoint, _ b: CGPoint) -> Bool { abs(a.x - b.x) < 1e-9 && abs(a.y - b.y) < 1e-9 }
+
+// Portrait frame (top-left origin) -> the sensor's landscape space.
+expect(near(FocusSteer.devicePoint(forPortrait: CGPoint(x: 0, y: 0)), CGPoint(x: 0, y: 1)), "portrait top-left is the sensor's bottom-left")
+expect(near(FocusSteer.devicePoint(forPortrait: CGPoint(x: 1, y: 0)), CGPoint(x: 0, y: 0)), "portrait top-right is the sensor's top-left")
+expect(near(FocusSteer.devicePoint(forPortrait: CGPoint(x: 0.5, y: 0.5)), CGPoint(x: 0.5, y: 0.5)), "the centre stays the centre")
+expect(near(FocusSteer.devicePoint(forPortrait: CGPoint(x: 1.4, y: -0.2)), CGPoint(x: 0, y: 0)), "a probe past the frame edge is clamped inside it")
+
+var steer = FocusSteer()
+expect(steer.update(probe: nil) == nil, "no finger and nothing steered: the camera is left alone")
+expect(steer.update(probe: CGPoint(x: 0.3, y: 0.4)) == .point(CGPoint(x: 0.3, y: 0.4)), "a finger appears: focus goes to what it points at")
+expect(steer.update(probe: CGPoint(x: 0.32, y: 0.41)) == nil, "a trembling finger does not refocus the camera")
+expect(steer.update(probe: CGPoint(x: 0.6, y: 0.4)) == .point(CGPoint(x: 0.6, y: 0.4)), "a finger moved to another thing refocuses there")
+expect(steer.update(probe: nil) == .centre, "the finger is gone: focus returns to the centre")
+expect(steer.update(probe: nil) == nil, "the centre is restored once, not on every frame")
+steer = FocusSteer()
+_ = steer.update(probe: CGPoint(x: 0.3, y: 0.4))
+expect(steer.release() == .centre, "closing the screen hands the camera back centred")
+expect(steer.release() == nil, "releasing twice changes nothing")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")

@@ -128,6 +128,7 @@ final class TranslateViewModel {
     @ObservationIgnored private var lastDetections: [Detection] = []
     @ObservationIgnored private var lastPointingAt: TimeInterval?
     @ObservationIgnored private var lastAutoSend: TimeInterval?
+    @ObservationIgnored private var focusSteer = FocusSteer()
     /// Set by a key / provider error: pointing stops sending until the
     /// screen is reopened, instead of failing the same way every hold.
     @ObservationIgnored private var autoSendOff = false
@@ -322,6 +323,8 @@ final class TranslateViewModel {
     /// that was still awaiting when the screen closed calls it again for
     /// whatever it acquired late.
     private func teardown() {
+        // The camera may be the voice session's too: hand it back centred.
+        steerFocus(focusSteer.release())
         if sharesSessionStream {
             hermesVM.removeVisionFrameObserver(Self.observerKey)
         } else {
@@ -411,6 +414,10 @@ final class TranslateViewModel {
             pointProgress = 0
         }
 
+        // Focus follows the point, not the hand in front of it. `pointing`
+        // (not `found`) so one missed pose frame doesn't swing focus away.
+        steerFocus(focusSteer.update(probe: pointing?.probe))
+
         let update = pointHold.update(probe: found?.probe, at: now)
         guard let found else { return }
         pointProgress = update.progress
@@ -470,6 +477,15 @@ final class TranslateViewModel {
         lastPointingAt = nil
         pointProgress = 0
         pointHold.reset()
+        steerFocus(focusSteer.release())
+    }
+
+    private func steerFocus(_ change: FocusSteer.Change?) {
+        guard let change, fingerAvailable else { return }
+        switch change {
+        case .point(let point): hermesVM.phoneCamera.focus(at: point)
+        case .centre: hermesVM.phoneCamera.focus(at: nil)
+        }
     }
 
     // MARK: - Phrases

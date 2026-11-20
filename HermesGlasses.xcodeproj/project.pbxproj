@@ -58,6 +58,7 @@
 		AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C04 /* ObjectVocabulary.swift */; };
 		AAAA00000000000000000C13 /* TranslatePhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C14 /* TranslatePhrases.swift */; };
 		AAAA00000000000000000C11 /* PointHold.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C12 /* PointHold.swift */; };
+		AAAA00000000000000000C17 /* FocusSteer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C18 /* FocusSteer.swift */; };
 		AAAA00000000000000000C0F /* FingerPointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C10 /* FingerPointer.swift */; };
 		AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */; };
 		AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */; };
@@ -246,6 +247,7 @@
 		AAAA00000000000000000C04 /* ObjectVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabulary.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C14 /* TranslatePhrases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslatePhrases.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C12 /* PointHold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/PointHold.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C18 /* FocusSteer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/FocusSteer.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C10 /* FingerPointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/FingerPointer.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabularyTable.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateSpeakPolicy.swift; sourceTree = "<group>"; };
@@ -481,6 +483,7 @@
 				AAAA00000000000000000C04 /* ObjectVocabulary.swift */,
 				AAAA00000000000000000C14 /* TranslatePhrases.swift */,
 				AAAA00000000000000000C12 /* PointHold.swift */,
+				AAAA00000000000000000C18 /* FocusSteer.swift */,
 				AAAA00000000000000000C10 /* FingerPointer.swift */,
 				AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */,
 				AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */,
@@ -708,6 +711,7 @@
 				AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */,
 				AAAA00000000000000000C13 /* TranslatePhrases.swift in Sources */,
 				AAAA00000000000000000C11 /* PointHold.swift in Sources */,
+				AAAA00000000000000000C17 /* FocusSteer.swift in Sources */,
 				AAAA00000000000000000C0F /* FingerPointer.swift in Sources */,
 				AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */,
 				AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */,

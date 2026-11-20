@@ -606,6 +606,18 @@ photo via the DAT camera API.
   sends are off, and always under "this is the phone's own guess". Never
   after the AI answered "couldn't tell". Don't reintroduce a
   detector-first shortcut to save a request.
+- **Focus follows the point, not the hand.** The phone camera's default
+  autofocus measures the frame centre, and a pointing hand held in front
+  of the lens passes through it - the owner saw the picture pump in and
+  out of focus. `FocusSteer` (pure, `tests/translate`) aims
+  `PhoneCameraManager.focus(at:)` at the probe just past the fingertip,
+  moves it only when the probe has travelled 0.1 (every focus change is
+  itself a visible refocus), and hands the camera back centred when the
+  finger leaves or the screen closes - the camera can be the voice
+  session's too. The phone camera also runs smooth autofocus for every
+  consumer. `focusPointOfInterest` is in the SENSOR's landscape space:
+  convert with `FocusSteer.devicePoint(forPortrait:)`, never pass a
+  portrait point. Unverified on device as of 2026-11-20.
 - **A Translate phrase pins the card.** `TranslatePhrases` is six bundled
   offline phrases (builder-written, not native-reviewed). Tapping one
   speaks it and sets `pinnedPhrase`, which pauses the reticle, the finger
