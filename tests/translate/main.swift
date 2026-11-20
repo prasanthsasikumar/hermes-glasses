@@ -220,5 +220,63 @@ let clamped = FingerPointer.region(for: corner)
 expect(clamped.minX >= 0 && clamped.minY >= 0 && clamped.maxX <= 1 && clamped.maxY <= 1
        && abs(clamped.width - 0.4) < 0.001, "region is clamped inside the frame at full size")
 
+
+// MARK: - Point hold
+
+let spot = CGPoint(x: 0.5, y: 0.5)
+var hold = PointHold()
+expect(hold.update(probe: spot, at: 0) == .init(progress: 0, fired: false), "hold starts at zero")
+expect(abs(hold.update(probe: spot, at: 0.5).progress - 0.5) < 0.001, "progress grows with time held")
+expect(hold.update(probe: CGPoint(x: 0.52, y: 0.5), at: 0.9).fired == false, "not yet at 0.9 s")
+expect(hold.update(probe: spot, at: 1.0) == .init(progress: 1, fired: true), "fires at 1.0 s held")
+expect(hold.update(probe: spot, at: 1.1).fired == false, "does not fire again while still")
+expect(hold.update(probe: spot, at: 5.0).fired == false, "a finger resting for seconds fires once")
+expect(hold.update(probe: CGPoint(x: 0.58, y: 0.5), at: 5.1).fired == false, "a small move does not re-arm")
+expect(hold.update(probe: CGPoint(x: 0.58, y: 0.5), at: 6.5).fired == false, "still spent after a small move")
+let elsewhere = CGPoint(x: 0.7, y: 0.5)
+expect(hold.update(probe: elsewhere, at: 7.0) == .init(progress: 0, fired: false), "moving 0.12 away re-arms")
+expect(hold.update(probe: elsewhere, at: 8.0).fired, "and the new place fires after its own hold")
+
+var moving = PointHold()
+_ = moving.update(probe: spot, at: 0)
+_ = moving.update(probe: spot, at: 0.8)
+expect(moving.update(probe: CGPoint(x: 0.6, y: 0.5), at: 0.9).progress == 0, "moving before firing restarts the hold")
+expect(moving.update(probe: CGPoint(x: 0.6, y: 0.5), at: 1.5).fired == false, "the restart costs a full hold")
+expect(moving.update(probe: CGPoint(x: 0.6, y: 0.5), at: 1.9).fired, "fires 1.0 s after the restart")
+
+var flicker = PointHold()
+_ = flicker.update(probe: spot, at: 0)
+_ = flicker.update(probe: spot, at: 0.5)
+_ = flicker.update(probe: nil, at: 0.6)
+expect(flicker.update(probe: spot, at: 0.7).progress > 0.6, "a 0.2 s dropout keeps the hold")
+_ = flicker.update(probe: nil, at: 0.75)
+_ = flicker.update(probe: nil, at: 1.15)
+expect(flicker.update(probe: spot, at: 1.2).progress == 0, "a 0.4 s dropout restarts it")
+expect(flicker.update(probe: nil, at: 1.3).fired == false, "nothing fires with no finger")
+
+var lost = PointHold()
+_ = lost.update(probe: spot, at: 0)
+expect(lost.update(probe: spot, at: 1.0).fired, "lost: first fire")
+_ = lost.update(probe: nil, at: 1.5)
+expect(lost.update(probe: spot, at: 1.6).fired == false, "hand gone 0.6 s: still spent on return")
+_ = lost.update(probe: spot, at: 3.0)
+_ = lost.update(probe: nil, at: 3.1)
+_ = lost.update(probe: nil, at: 4.1)
+expect(lost.update(probe: spot, at: 4.2).progress == 0, "hand gone 1.0 s re-arms the same place")
+expect(lost.update(probe: spot, at: 5.2).fired, "and it fires again")
+
+var blocked = PointHold()
+_ = blocked.update(probe: spot, at: 0)
+expect(blocked.update(probe: spot, at: 1.0).fired, "blocked: first fire")
+blocked.restart()
+expect(blocked.update(probe: spot, at: 1.1).progress == 0, "restart() un-spends the hold")
+expect(blocked.update(probe: spot, at: 2.1).fired, "a blocked hold fires again from the same place")
+
+var forgotten = PointHold()
+_ = forgotten.update(probe: spot, at: 0)
+_ = forgotten.update(probe: spot, at: 0.9)
+forgotten.reset()
+expect(forgotten.update(probe: spot, at: 1.0).fired == false, "reset() forgets a hold in progress")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")
