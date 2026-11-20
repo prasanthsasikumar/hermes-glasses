@@ -62,8 +62,11 @@ enum FingerPointer {
     static let minJointConfidence = 0.5
     /// End-to-end length over joint-to-joint length; 1 is perfectly straight.
     static let straightness: CGFloat = 0.9
-    /// A middle finger shorter than this share of the index is folded
-    /// towards the camera, not extended.
+    /// The middle finger is believed at a lower confidence than the index:
+    /// it only ever argues AGAINST a point.
+    static let middleSeenConfidence = 0.3
+    /// A middle finger reaching less than this share of the index is
+    /// folded, not extended.
     static let middleLengthShare: CGFloat = 0.6
     /// Shorter than this the "finger" is noise.
     static let minFingerLength: CGFloat = 0.04
@@ -86,13 +89,13 @@ enum FingerPointer {
         let indexLength = span(index, aspect)
         guard indexLength >= minFingerLength, isStraight(index, aspect) else { return nil }
 
-        if let mMCP = sure(joints.middleMCP), let mPIP = sure(joints.middlePIP),
-           let mDIP = sure(joints.middleDIP), let mTip = sure(joints.middleTip) {
-            let middle = [mMCP, mPIP, mDIP, mTip]
-            if isStraight(middle, aspect),
-               span(middle, aspect) >= indexLength * middleLengthShare {
-                return nil
-            }
+        // The veto is deliberately loose: knuckle-to-tip reach alone, read
+        // at a lower confidence. A relaxed open hand, or one with an
+        // unsure joint, must not pass as a point. Only a middle fingertip
+        // that is folded back or not visible at all lets the point stand.
+        if let mMCP = seen(joints.middleMCP), let mTip = seen(joints.middleTip),
+           distance(mMCP, mTip, aspect) >= indexLength * middleLengthShare {
+            return nil
         }
 
         let dx = tip.x - pip.x, dy = tip.y - pip.y
@@ -138,6 +141,11 @@ enum FingerPointer {
 
     private static func sure(_ joint: HandJoint?) -> CGPoint? {
         guard let joint, joint.confidence >= minJointConfidence else { return nil }
+        return joint.point
+    }
+
+    private static func seen(_ joint: HandJoint?) -> CGPoint? {
+        guard let joint, joint.confidence >= middleSeenConfidence else { return nil }
         return joint.point
     }
 

@@ -542,6 +542,10 @@ final class TranslateViewModel {
         guard !didStop, pinnedPhrase == nil, aiState != .looking else { return }
         if fingerActive, let pointing {
             let (target, detection) = fingerTarget(pointing)
+            // The tap is the send for this spot: the hold must not send
+            // it a second time, or speak the instant word over the answer.
+            pointHold.spend(at: pointing.probe)
+            lastAutoSend = CACurrentMediaTime()
             send(Self.crop(for: target, detection), pointing: true)
         } else {
             send(targetBox.map { .box($0) } ?? .region(Self.centreCrop), pointing: false)
@@ -559,7 +563,10 @@ final class TranslateViewModel {
         case .box(let rect): cropped = LensViewModel.crop(frame, to: rect)
         case .region(let rect): cropped = LensViewModel.crop(frame, to: rect, padding: 0)
         }
-        guard let jpeg = Self.jpeg(cropped ?? frame) else {
+        let image = cropped
+            ?? LensViewModel.crop(frame, to: Self.centreCrop, padding: 0)
+            ?? frame
+        guard let jpeg = Self.jpeg(image) else {
             aiState = .failed("Couldn't read the camera frame")
             return
         }
@@ -619,7 +626,8 @@ final class TranslateViewModel {
         case .missingKey:
             return true
         case .http(let status, _):
-            return status == 401 || status == 403
+            // 400 is how Gemini rejects a bad key; 402 is no credit left.
+            return [400, 401, 402, 403].contains(status)
         case .badResponse(let message):
             return message.hasSuffix("cannot read images.")
         default:
@@ -634,6 +642,10 @@ final class TranslateViewModel {
             return "Add an AI key in Settings to name things the detector doesn't know."
         case .http(let status, _) where status == 401 || status == 403:
             return "The AI key was rejected. Check it in Settings."
+        case .http(let status, _) where status == 400 || status == 402:
+            return "The AI refused the request. Check the key and plan in Settings."
+        case .http(429, _):
+            return "The AI is rate-limiting requests. Try again in a moment."
         case .badResponse(let message) where message.hasSuffix("cannot read images."):
             return "\(message) Pick a provider with vision in Settings."
         default:

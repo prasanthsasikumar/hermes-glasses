@@ -234,8 +234,9 @@ expect(hold.update(probe: spot, at: 5.0).fired == false, "a finger resting for s
 expect(hold.update(probe: CGPoint(x: 0.58, y: 0.5), at: 5.1).fired == false, "a small move does not re-arm")
 expect(hold.update(probe: CGPoint(x: 0.58, y: 0.5), at: 6.5).fired == false, "still spent after a small move")
 let elsewhere = CGPoint(x: 0.7, y: 0.5)
-expect(hold.update(probe: elsewhere, at: 7.0) == .init(progress: 0, fired: false), "moving 0.12 away re-arms")
-expect(hold.update(probe: elsewhere, at: 8.0).fired, "and the new place fires after its own hold")
+expect(hold.update(probe: elsewhere, at: 7.0).fired == false, "first sample away: not re-armed yet")
+expect(hold.update(probe: elsewhere, at: 7.3) == .init(progress: 0, fired: false), "staying 0.12 away for 0.3 s re-arms")
+expect(hold.update(probe: elsewhere, at: 8.3).fired, "and the new place fires after its own hold")
 
 var moving = PointHold()
 _ = moving.update(probe: spot, at: 0)
@@ -307,6 +308,45 @@ let pointingPrompt = TranslatePrompt.system(for: .chinese, pointing: true)
 expect(pointingPrompt.lowercased().contains("finger"), "the pointing prompt mentions the finger")
 expect(pointingPrompt.contains(#"{"none":true}"#), "the pointing prompt keeps the nothing-recognisable reply")
 expect(!TranslatePrompt.system(for: .chinese).lowercased().contains("finger"), "the tap prompt does not mention a finger")
+
+
+// MARK: - Review fixes: unintended sends
+
+// One stray pose frame (another hand, a jumping fingertip) must not
+// re-arm a spent hold - the same thing would be sent again.
+var glitch = PointHold()
+_ = glitch.update(probe: spot, at: 0)
+expect(glitch.update(probe: spot, at: 1.0).fired, "glitch: first fire")
+_ = glitch.update(probe: CGPoint(x: 0.9, y: 0.1), at: 1.1)
+var refired = false
+for step in 2...40 { refired = glitch.update(probe: spot, at: 1.0 + Double(step) * 0.1).fired || refired }
+expect(!refired, "one outlier frame does not re-arm a spent hold")
+
+// A tap while pointing sends the finger's target itself; the hold must
+// not send it a second time.
+var tappedHold = PointHold()
+_ = tappedHold.update(probe: spot, at: 0)
+_ = tappedHold.update(probe: spot, at: 0.5)
+tappedHold.spend(at: spot)
+var firedAfterTap = false
+for step in 6...40 { firedAfterTap = tappedHold.update(probe: spot, at: Double(step) * 0.1).fired || firedAfterTap }
+expect(!firedAfterTap, "spend(at:) stops the hold firing for the same spot")
+expect(tappedHold.update(probe: elsewhere, at: 4.1).fired == false, "spent by tap: away, not yet re-armed")
+_ = tappedHold.update(probe: elsewhere, at: 4.4)
+expect(tappedHold.update(probe: elsewhere, at: 5.4).fired, "spent by tap: a new place still fires")
+
+// The middle finger vetoes loosely: an open hand must not be a point
+// just because one joint was unsure or the finger was relaxed.
+var relaxed = straightIndex()
+relaxed.middleMCP = joint(0.55, 0.8); relaxed.middlePIP = joint(0.55, 0.71)
+relaxed.middleDIP = joint(0.60, 0.65); relaxed.middleTip = joint(0.67, 0.63)
+expect(FingerPointer.pointing(from: relaxed, aspect: 1) == nil, "a relaxed, curved middle finger is still an open hand")
+var hazyPalm = straightIndex(); straightenMiddle(&hazyPalm)
+hazyPalm.middlePIP = joint(0.55, 0.69, 0.45)
+expect(FingerPointer.pointing(from: hazyPalm, aspect: 1) == nil, "one unsure middle joint does not turn a palm into a point")
+var halfSure = straightIndex(); straightenMiddle(&halfSure)
+halfSure.middleTip = joint(0.55, 0.58, 0.4)
+expect(FingerPointer.pointing(from: halfSure, aspect: 1) == nil, "a half-sure extended middle finger still vetoes")
 
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")

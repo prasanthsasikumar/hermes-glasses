@@ -21,6 +21,8 @@ struct PointHold {
     static let stillRadius: CGFloat = 0.05
     /// After firing, the probe must move this far to arm again.
     static let rearmDistance: CGFloat = 0.12
+    /// ...and stay there this long.
+    static let rearmSeconds: TimeInterval = 0.3
     /// Hand-pose detection flickers; a gap shorter than this is ignored.
     static let flickerGrace: TimeInterval = 0.3
     /// No pointing hand for this long arms the same spot again.
@@ -37,6 +39,8 @@ struct PointHold {
     /// When the pointing hand was first reported gone; nil while seen.
     private var missingSince: TimeInterval?
     private var spentAt: CGPoint?
+    /// When the probe was first seen beyond re-arm distance; nil while near.
+    private var awaySince: TimeInterval?
 
     /// `probe` is nil when no pointing hand is in the frame.
     mutating func update(probe: CGPoint?, at time: TimeInterval) -> Update {
@@ -50,9 +54,18 @@ struct PointHold {
 
         if let spent = spentAt {
             guard Self.distance(probe, spent) > Self.rearmDistance else {
+                awaySince = nil
+                return Update(progress: 1, fired: false)
+            }
+            // One stray pose frame (another hand, a jumping fingertip)
+            // must not re-arm: the finger has to STAY away.
+            let since = awaySince ?? time
+            awaySince = since
+            guard time - since >= Self.rearmSeconds - 1e-9 else {
                 return Update(progress: 1, fired: false)
             }
             spentAt = nil
+            awaySince = nil
             anchor = nil
         }
 
@@ -75,12 +88,22 @@ struct PointHold {
     /// resting there fires again after another full hold.
     mutating func restart() {
         spentAt = nil
+        awaySince = nil
         anchor = nil
+    }
+
+    /// Something else already acted on this spot (a tap sent it): the
+    /// hold is spent there without having fired.
+    mutating func spend(at probe: CGPoint) {
+        spentAt = probe
+        anchor = nil
+        awaySince = nil
     }
 
     mutating func reset() {
         anchor = nil
         spentAt = nil
+        awaySince = nil
         missingSince = nil
     }
 
@@ -88,7 +111,7 @@ struct PointHold {
         guard let missingSince else { return }
         let gap = time - missingSince
         if gap >= Self.flickerGrace { anchor = nil }
-        if gap >= Self.lostReset { spentAt = nil }
+        if gap >= Self.lostReset { spentAt = nil; awaySince = nil }
     }
 
     private static func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
