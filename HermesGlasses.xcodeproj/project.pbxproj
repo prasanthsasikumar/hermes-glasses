@@ -56,6 +56,9 @@
 		AAAA00000000000000000869 /* PersonLookupGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000870 /* PersonLookupGate.swift */; };
 		AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C02 /* TranslateLanguage.swift */; };
 		AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C04 /* ObjectVocabulary.swift */; };
+		AAAA00000000000000000C13 /* TranslatePhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C14 /* TranslatePhrases.swift */; };
+		AAAA00000000000000000C11 /* PointHold.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C12 /* PointHold.swift */; };
+		AAAA00000000000000000C0F /* FingerPointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C10 /* FingerPointer.swift */; };
 		AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */; };
 		AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */; };
 		AAAA00000000000000000C09 /* TranslateAnswerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C0A /* TranslateAnswerParser.swift */; };
@@ -95,6 +98,7 @@
 		AAAA00000000000000000038 /* yolo11n.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000141 /* yolo11n.mlpackage */; };
 		AAAA0000000000000000895 /* faceid.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000896 /* faceid.mlpackage */; };
 		AAAA00000000000000000035 /* ObjectDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000138 /* ObjectDetector.swift */; };
+		AAAA00000000000000000C15 /* HandPoseDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C16 /* HandPoseDetector.swift */; };
 		AAAA00000000000000000036 /* LensViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000139 /* LensViewModel.swift */; };
 		AAAA00000000000000000037 /* LensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000140 /* LensView.swift */; };
 		AAAA00000000000000000815 /* ObjectLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000816 /* ObjectLogView.swift */; };
@@ -240,6 +244,9 @@
 		AAAA00000000000000000870 /* PersonLookupGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonLookupGate.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C02 /* TranslateLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateLanguage.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C04 /* ObjectVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabulary.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C14 /* TranslatePhrases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslatePhrases.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C12 /* PointHold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/PointHold.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C10 /* FingerPointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/FingerPointer.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabularyTable.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateSpeakPolicy.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C0A /* TranslateAnswerParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateAnswerParser.swift; sourceTree = "<group>"; };
@@ -279,6 +286,7 @@
 		AAAA00000000000000000141 /* yolo11n.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = yolo11n.mlpackage; sourceTree = "<group>"; };
 		AAAA0000000000000000896 /* faceid.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = faceid.mlpackage; sourceTree = "<group>"; };
 		AAAA00000000000000000138 /* ObjectDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lens/ObjectDetector.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C16 /* HandPoseDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lens/HandPoseDetector.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000139 /* LensViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000140 /* LensView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000816 /* ObjectLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectLogView.swift; sourceTree = "<group>"; };
@@ -471,6 +479,9 @@
 				AAAA00000000000000000870 /* PersonLookupGate.swift */,
 				AAAA00000000000000000C02 /* TranslateLanguage.swift */,
 				AAAA00000000000000000C04 /* ObjectVocabulary.swift */,
+				AAAA00000000000000000C14 /* TranslatePhrases.swift */,
+				AAAA00000000000000000C12 /* PointHold.swift */,
+				AAAA00000000000000000C10 /* FingerPointer.swift */,
 				AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */,
 				AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */,
 				AAAA00000000000000000C0A /* TranslateAnswerParser.swift */,
@@ -490,6 +501,7 @@
 				AAAA00000000000000000828 /* PermissionsCoordinator.swift */,
 				AAAA00000000000000000137 /* DwellTracker.swift */,
 				AAAA00000000000000000138 /* ObjectDetector.swift */,
+				AAAA00000000000000000C16 /* HandPoseDetector.swift */,
 				AAAA00000000000000000812 /* LensPDFRenderer.swift */,
 				AAAA00000000000000000806 /* LensLogAggregator.swift */,
 				AAAA00000000000000000808 /* LensSession.swift */,
@@ -694,6 +706,9 @@
 				AAAA00000000000000000869 /* PersonLookupGate.swift in Sources */,
 				AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */,
 				AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */,
+				AAAA00000000000000000C13 /* TranslatePhrases.swift in Sources */,
+				AAAA00000000000000000C11 /* PointHold.swift in Sources */,
+				AAAA00000000000000000C0F /* FingerPointer.swift in Sources */,
 				AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */,
 				AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */,
 				AAAA00000000000000000C09 /* TranslateAnswerParser.swift in Sources */,
@@ -732,6 +747,7 @@
 				AAAA00000000000000000038 /* yolo11n.mlpackage in Sources */,
 				AAAA0000000000000000895 /* faceid.mlpackage in Sources */,
 				AAAA00000000000000000035 /* ObjectDetector.swift in Sources */,
+				AAAA00000000000000000C15 /* HandPoseDetector.swift in Sources */,
 				AAAA00000000000000000036 /* LensViewModel.swift in Sources */,
 				AAAA00000000000000000037 /* LensView.swift in Sources */,
 				AAAA00000000000000000815 /* ObjectLogView.swift in Sources */,
