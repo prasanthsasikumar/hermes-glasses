@@ -108,5 +108,38 @@ expect(TranslatePrompt.system(for: .french).contains("French"), "prompt names th
 expect(TranslatePrompt.system(for: .chinese).contains("pinyin"), "Chinese prompt asks for pinyin")
 expect(!TranslatePrompt.system(for: .french).contains("pinyin"), "French prompt does not")
 
+// MARK: - Final review fixes
+
+// A short sentence or a placeholder in `word` is not a name.
+expect(parse(#"{"english":"unknown","word":"Je ne sais pas."}"#, .french) == .malformed, "short sentence with a full stop")
+expect(parse(#"{"english":"banana","word":"It is a banana"}"#, .english) == .malformed, "four-word phrase is prose")
+expect(parse(#"{"english":"N/A","word":"N/A"}"#, .french) == .malformed, "placeholder N/A")
+expect(parse(#"{"english":"unknown","word":"inconnu"}"#, .french) == .malformed, "placeholder english 'unknown'")
+expect(parse(#"{"english":"cup","word":"这是什么？"}"#) == .malformed, "Chinese question mark")
+expect(parse(#"{"english":"cup","word":"杯子","romanized":"This is the pinyin for the word cup, which is bēizi."}"#) ==
+       .term(TranslatedTerm(word: "杯子", romanized: nil, english: "cup", language: .chinese)),
+       "a sentence in romanized is dropped, the word kept")
+expect(parse(#"{"english":"fire hydrant","word":"boca de incendios"}"#, .spanish) ==
+       .term(TranslatedTerm(word: "boca de incendios", romanized: nil, english: "fire hydrant", language: .spanish)),
+       "three-word noun still accepted")
+
+// The policy says WHY it is silent: an uncertain snap is retried, a quiet one is not.
+var v = TranslateSpeakPolicy()
+expect(v.verdict(fr, confidence: 0.58, at: 0) == .uncertain, "low confidence is uncertain")
+expect(v.verdict(fr, confidence: 0.8, at: 1) == .speak, "then speaks once confident")
+expect(v.verdict(fr, confidence: 0.8, at: 2) == .quiet, "then quiet")
+expect(v.verdict(fr, confidence: 0.3, at: 3) == .uncertain, "uncertain wins over quiet - nothing to repeat")
+
+// Only labels with a word in this language may hold the reticle.
+expect(ObjectVocabulary.isSpeakable("banana", in: .french), "banana holds the reticle")
+expect(!ObjectVocabulary.isSpeakable("person", in: .french), "person never holds the reticle")
+expect(!ObjectVocabulary.isSpeakable("sink", in: .french), "a silent label does not hold the reticle")
+expect(!ObjectVocabulary.isSpeakable("unicorn", in: .french), "unknown label")
+
+// Table corrections from review.
+expect(ObjectVocabulary.entry(for: "sports ball", in: .french) == .silent, "sports ball fr: ballon is wrong for a tennis ball")
+expect(ObjectVocabulary.term(for: "donut", in: .french)?.word == "donut", "donut fr is not a beignet")
+expect(ObjectVocabulary.entry(for: "sink", in: .chinese) == .silent, "sink is silent in every translated language")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")

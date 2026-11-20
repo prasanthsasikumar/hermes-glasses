@@ -15,7 +15,8 @@
 //  - Where a label covers several things, the generic word ("cup" ->
 //    tasse). Where NO single word is safe, `nil` = stay silent rather than
 //    guess: "sink" is évier/fregadero in a kitchen but lavabo in a
-//    bathroom, and the detector cannot tell which.
+//    bathroom, and the detector cannot tell which; "sports ball" is
+//    ballon for a football but balle for a tennis ball.
 //  - `en:` overrides the spoken English only where the label is an
 //    abbreviation or an odd spelling ("tv", "hair drier").
 //
@@ -78,7 +79,7 @@ enum ObjectVocabularyTable {
         Row("frisbee", fr: "frisbee", zh: "飞盘", pinyin: "fēipán", es: "frisbee"),
         Row("skis", fr: "skis", zh: "滑雪板", pinyin: "huáxuěbǎn", es: "esquís"),
         Row("snowboard", fr: "snowboard", zh: "单板滑雪板", pinyin: "dānbǎn huáxuěbǎn", es: "snowboard"),
-        Row("sports ball", fr: "ballon", zh: "球", pinyin: "qiú", es: "pelota"),
+        Row("sports ball", fr: nil, zh: "球", pinyin: "qiú", es: "pelota"),
         Row("kite", fr: "cerf-volant", zh: "风筝", pinyin: "fēngzheng", es: "cometa"),
         Row("baseball bat", fr: "batte de baseball", zh: "棒球棒", pinyin: "bàngqiúbàng", es: "bate de béisbol"),
         Row("baseball glove", fr: "gant de baseball", zh: "棒球手套", pinyin: "bàngqiú shǒutào", es: "guante de béisbol"),
@@ -100,7 +101,7 @@ enum ObjectVocabularyTable {
         Row("carrot", fr: "carotte", zh: "胡萝卜", pinyin: "húluóbo", es: "zanahoria"),
         Row("hot dog", fr: "hot-dog", zh: "热狗", pinyin: "règǒu", es: "perrito caliente"),
         Row("pizza", fr: "pizza", zh: "披萨", pinyin: "pīsà", es: "pizza"),
-        Row("donut", fr: "beignet", zh: "甜甜圈", pinyin: "tiántiánquān", es: "dónut"),
+        Row("donut", fr: "donut", zh: "甜甜圈", pinyin: "tiántiánquān", es: "dónut"),
         Row("cake", fr: "gâteau", zh: "蛋糕", pinyin: "dàngāo", es: "tarta"),
         Row("chair", fr: "chaise", zh: "椅子", pinyin: "yǐzi", es: "silla"),
         Row("couch", fr: "canapé", zh: "沙发", pinyin: "shāfā", es: "sofá"),
@@ -117,7 +118,7 @@ enum ObjectVocabularyTable {
         Row("microwave", fr: "micro-ondes", zh: "微波炉", pinyin: "wēibōlú", es: "microondas"),
         Row("oven", fr: "four", zh: "烤箱", pinyin: "kǎoxiāng", es: "horno"),
         Row("toaster", fr: "grille-pain", zh: "烤面包机", pinyin: "kǎomiànbāojī", es: "tostadora"),
-        Row("sink", fr: nil, zh: "水槽", pinyin: "shuǐcáo", es: nil),
+        Row("sink", fr: nil, zh: nil, pinyin: nil, es: nil),
         Row("refrigerator", fr: "réfrigérateur", zh: "冰箱", pinyin: "bīngxiāng", es: "frigorífico"),
         Row("book", fr: "livre", zh: "书", pinyin: "shū", es: "libro"),
         Row("clock", fr: "horloge", zh: "钟", pinyin: "zhōng", es: "reloj"),

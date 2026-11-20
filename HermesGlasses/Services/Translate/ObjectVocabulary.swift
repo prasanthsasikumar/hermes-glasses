@@ -46,6 +46,13 @@ enum ObjectVocabulary {
         }
     }
 
+    /// Whether a detection with this label may hold the reticle. A label
+    /// with nothing to say must not: a person standing behind the cup you
+    /// are aiming at would otherwise win the reticle and block it.
+    static func isSpeakable(_ label: String, in language: TranslateLanguage) -> Bool {
+        term(for: label, in: language) != nil
+    }
+
     /// The word to speak, or nil for an unknown, silent or skipped label.
     static func term(for label: String, in language: TranslateLanguage) -> TranslatedTerm? {
         guard !skippedLabels.contains(label),

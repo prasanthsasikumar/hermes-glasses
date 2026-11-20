@@ -45,6 +45,12 @@ enum TranslatePrompt {
 enum TranslateAnswerParser {
     /// Longer than this is prose, not a name.
     static let maxWordLength = 40
+    /// "boca de incendios" is three words; "It is a banana" is four.
+    static let maxWords = 3
+    private static let sentenceMarks = CharacterSet(charactersIn: ".!?:;。！？：；\n")
+    private static let placeholders: Set<String> = [
+        "n/a", "na", "none", "null", "unknown", "nothing", "?", "-",
+    ]
 
     static func parse(_ reply: String, language: TranslateLanguage) -> TranslateAnswer {
         guard let object = firstJSONObject(in: reply) else { return .malformed }
@@ -52,13 +58,29 @@ enum TranslateAnswerParser {
 
         guard let word = clean(object["word"]),
               let english = clean(object["english"]),
-              word.count <= maxWordLength, english.count <= maxWordLength
+              isName(word), isName(english)
         else { return .malformed }
 
-        let romanized = language.needsRomanization ? clean(object["romanized"]) : nil
+        // A reading that turned into a sentence is dropped; the word stands.
+        let romanized = language.needsRomanization
+            ? clean(object["romanized"]).flatMap { isReading($0) ? $0 : nil }
+            : nil
         return .term(TranslatedTerm(
             word: word, romanized: romanized, english: english, language: language
         ))
+    }
+
+    /// A name, not a sentence: short, few words, no sentence punctuation,
+    /// and not a model's way of saying "I don't know".
+    private static func isName(_ s: String) -> Bool {
+        s.count <= maxWordLength
+            && s.rangeOfCharacter(from: sentenceMarks) == nil
+            && s.split(whereSeparator: \.isWhitespace).count <= maxWords
+            && !placeholders.contains(s.lowercased())
+    }
+
+    private static func isReading(_ s: String) -> Bool {
+        s.count <= maxWordLength && s.rangeOfCharacter(from: sentenceMarks) == nil
     }
 
     /// A trimmed, non-empty string, or nil.

@@ -26,16 +26,33 @@ struct TranslateSpeakPolicy {
 
     private var lastSpoken: [String: TimeInterval] = [:]
 
-    /// Instant path. True = speak now; the policy records it.
+    enum Verdict: Equatable {
+        /// Say it now. The policy has recorded it.
+        case speak
+        /// The detector wasn't sure enough on this frame. Worth another
+        /// look: the caller restarts the dwell rather than spending it.
+        case uncertain
+        /// Said recently. Silence is the intended outcome - do not retry.
+        case quiet
+    }
+
+    /// Instant path: what to do with a word the detector just offered.
+    mutating func verdict(
+        _ term: TranslatedTerm, confidence: Float, at time: TimeInterval
+    ) -> Verdict {
+        guard confidence >= Self.minimumConfidence else { return .uncertain }
+        if let last = lastSpoken[key(term)], time - last < Self.quietPeriod {
+            return .quiet
+        }
+        lastSpoken[key(term)] = time
+        return .speak
+    }
+
+    /// True = speak now; the policy records it.
     mutating func shouldSpeak(
         _ term: TranslatedTerm, confidence: Float, at time: TimeInterval
     ) -> Bool {
-        guard confidence >= Self.minimumConfidence else { return false }
-        if let last = lastSpoken[key(term)], time - last < Self.quietPeriod {
-            return false
-        }
-        lastSpoken[key(term)] = time
-        return true
+        verdict(term, confidence: confidence, at: time) == .speak
     }
 
     /// AI path: the user tapped, so the word is always spoken - but it

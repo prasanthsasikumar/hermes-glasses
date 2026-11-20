@@ -38,11 +38,13 @@ final class TranslateViewModel {
     var language: TranslateLanguage {
         didSet {
             UserDefaults.standard.set(language.rawValue, forKey: TranslateLanguage.storageKey)
+            // Restart the hold: the tracker is in cooldown on whatever the
+            // reticle is resting on, so without this a language switch
+            // would say nothing until the user looked away and back.
+            _ = dwell.flush(at: CACurrentMediaTime())
         }
     }
     var feedImage: UIImage?
-    /// Every box this frame, for the overlay (normalized, top-left origin).
-    var detections: [Detection] = []
     /// The box under the reticle, nil when none.
     var targetBox: CGRect?
     var holdProgress: Double = 0
@@ -95,7 +97,9 @@ final class TranslateViewModel {
 
         if route == .glasses {
             statusText = "Connecting to glasses…"
-            if await hermesVM.glassesCameraGranted() == false {
+            let granted = await hermesVM.glassesCameraGranted()
+            guard !didStop else { return }
+            if granted == false {
                 needsGlassesCameraGrant = true
                 errorBanner = "The glasses camera isn't allowed yet."
                 statusText = "Tap Allow camera to grant it in the Meta AI app"
@@ -104,6 +108,10 @@ final class TranslateViewModel {
             do {
                 try await hermesVM.ensureCameraSession()
             } catch {
+                // Closed while connecting: the cancelled wait throws, and
+                // must not be mistaken for "glasses unreachable, use the
+                // iPhone" - that would start a camera for a gone screen.
+                if didStop { teardown(); return }
                 guard VisionRouting.mayFallBackToPhone(
                     preference: hermesVM.phoneModePreference
                 ) else {
@@ -117,7 +125,12 @@ final class TranslateViewModel {
             }
         }
 
+        // Every await below can outlast the screen. stop() ran with nothing
+        // to stop then, so whatever was acquired since is torn down here.
+        if didStop { teardown(); return }
+
         hermesVM.pinVisionRoute(route)
+        hermesVM.prepareCuePlaybackIfIdle()
         vision = hermesVM.vision
         sharesSessionStream = hermesVM.visionStreamIsShared
         // Word cards go to the real lens even without a voice session.
@@ -132,6 +145,8 @@ final class TranslateViewModel {
             NSLog("[Hermes] translate: detector failed to load - \(error.localizedDescription)")
             errorBanner = "Object model failed to load - tap to name things instead."
         }
+
+        if didStop { teardown(); return }
 
         detector.onDetections = { [weak self] detections in
             MainActor.assumeIsolated {
@@ -173,8 +188,12 @@ final class TranslateViewModel {
                     }
                 }
             )
+            // Closed while the camera was waking up: the stream that just
+            // started is ours, and nobody is left to stop it.
+            if didStop { teardown(); return }
             streamStarted()
         } catch {
+            if didStop { teardown(); return }
             NSLog("[Hermes] translate: \(hermesVM.visionRoute) stream failed - \(error.localizedDescription)")
             hermesVM.logVisionDiagnostics("translate-stream-failed")
 
@@ -221,6 +240,13 @@ final class TranslateViewModel {
     func stop() {
         guard !didStop else { return }
         didStop = true
+        teardown()
+    }
+
+    /// Release everything Translate holds. Safe to run twice - a start
+    /// that was still awaiting when the screen closed calls it again for
+    /// whatever it acquired late.
+    private func teardown() {
         if sharesSessionStream {
             hermesVM.removeVisionFrameObserver(Self.observerKey)
         } else {
@@ -249,17 +275,31 @@ final class TranslateViewModel {
 
     private func handle(detections: [Detection]) {
         guard !didStop else { return }
-        self.detections = detections
         let now = CACurrentMediaTime()
-        let update = dwell.update(detections: detections, at: now)
+        // Only things with a word in this language may hold the reticle -
+        // a person behind the cup would otherwise win it and block the cup.
+        let speakable = detections.filter {
+            ObjectVocabulary.isSpeakable($0.label, in: language)
+        }
+        let update = dwell.update(detections: speakable, at: now)
         targetBox = update.target?.rect
         holdProgress = update.progress
 
         guard let snap = update.snap,
-              let term = ObjectVocabulary.term(for: snap.label, in: language),
-              policy.shouldSpeak(term, confidence: snap.confidence, at: now)
+              let term = ObjectVocabulary.term(for: snap.label, in: language)
         else { return }
-        deliver(term)
+
+        switch policy.verdict(term, confidence: snap.confidence, at: now) {
+        case .speak:
+            deliver(term)
+        case .uncertain:
+            // The tracker spent its snap on a frame the detector wasn't
+            // sure of. Restart the hold so a better frame gets its turn,
+            // instead of a full ring and silence.
+            _ = dwell.flush(at: now)
+        case .quiet:
+            break
+        }
     }
 
     /// A word has been decided on: card, session list, lens, voice. The

@@ -584,7 +584,12 @@ photo via the DAT camera API.
   cooldown clears on one missed frame - right for a log, chatter for a
   voice. The policy adds a 0.6 speak floor (the detector passes 0.4) and an
   8 s same-word quiet period keyed by language + word. Those two and the
-  1.0 s dwell are PROVISIONAL - not yet tried on a real walk.
+  1.0 s dwell are PROVISIONAL - not yet tried on a real walk. The tracker
+  spends its snap whatever the policy decides, so `TranslateViewModel`
+  calls `dwell.flush` to restart the hold on an `.uncertain` verdict and
+  on a language change (never on `.quiet` - that silence is intended), and
+  feeds the tracker only labels with a word in the current language, so a
+  person behind the cup can't win the reticle.
 - **Translate words bypass ElevenLabs on purpose.**
   `HermesSpeechSynthesizer.speak(_:language:)` marks the segment with a
   BCP-47 code and such a segment is never fetched from the cloud: a network
