@@ -54,6 +54,9 @@
 		AAAA00000000000000000821 /* LensContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000822 /* LensContent.swift */; };
 		AAAA00000000000000000841 /* ChoiceDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000842 /* ChoiceDetector.swift */; };
 		AAAA00000000000000000869 /* PersonLookupGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000870 /* PersonLookupGate.swift */; };
+		AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C02 /* TranslateLanguage.swift */; };
+		AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C04 /* ObjectVocabulary.swift */; };
+		AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */; };
 		AAAA00000000000000000877 /* RosterPerson.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000878 /* RosterPerson.swift */; };
 		AAAA00000000000000000879 /* RosterImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000880 /* RosterImporter.swift */; };
 		AAAA00000000000000000881 /* RosterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000882 /* RosterStore.swift */; };
@@ -231,6 +234,9 @@
 		AAAA00000000000000000822 /* LensContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensContent.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000842 /* ChoiceDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceDetector.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000870 /* PersonLookupGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonLookupGate.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C02 /* TranslateLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateLanguage.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C04 /* ObjectVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabulary.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabularyTable.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000878 /* RosterPerson.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterPerson.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000880 /* RosterImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterImporter.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000882 /* RosterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterStore.swift; sourceTree = "<group>"; };
@@ -453,6 +459,9 @@
 				AAAA00000000000000000842 /* ChoiceDetector.swift */,
 				AAAA00000000000000000844 /* HermesApp.swift */,
 				AAAA00000000000000000870 /* PersonLookupGate.swift */,
+				AAAA00000000000000000C02 /* TranslateLanguage.swift */,
+				AAAA00000000000000000C04 /* ObjectVocabulary.swift */,
+				AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */,
 				AAAA00000000000000000878 /* RosterPerson.swift */,
 				AAAA00000000000000000880 /* RosterImporter.swift */,
 				AAAA00000000000000000882 /* RosterStore.swift */,
@@ -671,6 +680,9 @@
 				AAAA00000000000000000841 /* ChoiceDetector.swift in Sources */,
 				AAAA00000000000000000843 /* HermesApp.swift in Sources */,
 				AAAA00000000000000000869 /* PersonLookupGate.swift in Sources */,
+				AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */,
+				AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */,
+				AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */,
 				AAAA00000000000000000877 /* RosterPerson.swift in Sources */,
 				AAAA00000000000000000879 /* RosterImporter.swift in Sources */,
 				AAAA00000000000000000881 /* RosterStore.swift in Sources */,
