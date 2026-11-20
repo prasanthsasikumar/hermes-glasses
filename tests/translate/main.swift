@@ -141,5 +141,84 @@ expect(ObjectVocabulary.entry(for: "sports ball", in: .french) == .silent, "spor
 expect(ObjectVocabulary.term(for: "donut", in: .french)?.word == "donut", "donut fr is not a beignet")
 expect(ObjectVocabulary.entry(for: "sink", in: .chinese) == .silent, "sink is silent in every translated language")
 
+
+// MARK: - Finger pointing
+
+func joint(_ x: Double, _ y: Double, _ c: Double = 0.9) -> HandJoint {
+    HandJoint(point: CGPoint(x: x, y: y), confidence: c)
+}
+/// Index finger straight up from (0.5, 0.8) to (0.5, 0.6).
+func straightIndex() -> HandJoints {
+    var j = HandJoints()
+    j.indexMCP = joint(0.5, 0.8); j.indexPIP = joint(0.5, 0.7)
+    j.indexDIP = joint(0.5, 0.65); j.indexTip = joint(0.5, 0.6)
+    return j
+}
+func curlMiddle(_ j: inout HandJoints) {
+    j.middleMCP = joint(0.55, 0.8); j.middlePIP = joint(0.55, 0.72)
+    j.middleDIP = joint(0.56, 0.76); j.middleTip = joint(0.56, 0.8)
+}
+func straightenMiddle(_ j: inout HandJoints) {
+    j.middleMCP = joint(0.55, 0.8); j.middlePIP = joint(0.55, 0.69)
+    j.middleDIP = joint(0.55, 0.63); j.middleTip = joint(0.55, 0.58)
+}
+
+var pointHand = straightIndex(); curlMiddle(&pointHand)
+let pointed = FingerPointer.pointing(from: pointHand, aspect: 1)
+expect(pointed != nil, "straight index + curled middle is a point")
+expect(pointed.map { abs($0.direction.dx) < 0.001 && abs($0.direction.dy + 1) < 0.001 } == true,
+       "direction is a unit vector along the finger")
+expect(pointed?.tip == CGPoint(x: 0.5, y: 0.6), "tip is the index tip")
+expect(pointed.map { abs($0.probe.y - 0.54) < 0.001 } == true, "probe sits 0.06 past the tip")
+
+var palm = straightIndex(); straightenMiddle(&palm)
+expect(FingerPointer.pointing(from: palm, aspect: 1) == nil, "open palm / peace sign is not a point")
+
+var fist = HandJoints()
+fist.indexMCP = joint(0.5, 0.8); fist.indexPIP = joint(0.5, 0.72)
+fist.indexDIP = joint(0.51, 0.76); fist.indexTip = joint(0.51, 0.8)
+curlMiddle(&fist)
+expect(FingerPointer.pointing(from: fist, aspect: 1) == nil, "a fist is not a point")
+
+var unsure = pointHand; unsure.indexDIP = joint(0.5, 0.65, 0.4)
+expect(FingerPointer.pointing(from: unsure, aspect: 1) == nil, "a low-confidence index joint is not a point")
+expect(FingerPointer.pointing(from: straightIndex(), aspect: 1) != nil, "middle finger not found still points")
+expect(FingerPointer.pointing(from: HandJoints(), aspect: 1) == nil, "no joints, no point")
+
+// A middle finger seen at low confidence is "not confidently found".
+var faintMiddle = straightIndex(); straightenMiddle(&faintMiddle)
+faintMiddle.middleTip = joint(0.55, 0.58, 0.2)
+expect(FingerPointer.pointing(from: faintMiddle, aspect: 1) != nil, "an unsure middle finger does not veto the point")
+
+// Target choice. `up` points straight up from (0.5, 0.6); probe (0.5, 0.54).
+let up = Pointing(tip: CGPoint(x: 0.5, y: 0.6), direction: CGVector(dx: 0, dy: -1))
+let small = CGRect(x: 0.45, y: 0.5, width: 0.1, height: 0.1)
+let around = CGRect(x: 0.3, y: 0.4, width: 0.4, height: 0.3)
+expect(FingerPointer.target(for: up, boxes: [small]) == .box(0), "probe inside a box picks it")
+expect(FingerPointer.target(for: up, boxes: [around, small]) == .box(1), "nested boxes: the smaller wins")
+let table = CGRect(x: 0.1, y: 0.2, width: 0.8, height: 0.6)
+expect(FingerPointer.target(for: up, boxes: [table]) == .region(FingerPointer.region(for: up)),
+       "a box over 0.35 of the frame is never a finger target")
+expect(FingerPointer.target(for: up, boxes: [table, small]) == .box(1), "the thing on the table still wins")
+let ahead = CGRect(x: 0.45, y: 0.3, width: 0.1, height: 0.1)      // entered at 0.2
+let further = CGRect(x: 0.45, y: 0.27, width: 0.1, height: 0.02)  // entered at 0.31
+expect(FingerPointer.target(for: up, boxes: [further, ahead]) == .box(1), "the ray takes the box it enters first")
+let tooFar = CGRect(x: 0.45, y: 0.05, width: 0.1, height: 0.1)    // entered at 0.45
+expect(FingerPointer.target(for: up, boxes: [tooFar]) == .region(FingerPointer.region(for: up)),
+       "a box beyond reach is not a target")
+let aside = CGRect(x: 0.7, y: 0.3, width: 0.1, height: 0.1)
+expect(FingerPointer.target(for: up, boxes: [aside]) == .region(FingerPointer.region(for: up)),
+       "a box off the ray is not a target")
+expect(FingerPointer.target(for: up, boxes: []) == .region(FingerPointer.region(for: up)), "no boxes -> region")
+
+let region = FingerPointer.region(for: up)
+expect(abs(region.width - 0.4) < 0.001 && abs(region.height - 0.4) < 0.001, "region is 0.4 square")
+expect(abs(region.midX - 0.5) < 0.001 && abs(region.midY - 0.45) < 0.001, "region is centred 0.15 past the tip")
+expect(region.contains(up.tip), "the region includes the fingertip")
+let corner = Pointing(tip: CGPoint(x: 0.05, y: 0.05), direction: CGVector(dx: -0.7071, dy: -0.7071))
+let clamped = FingerPointer.region(for: corner)
+expect(clamped.minX >= 0 && clamped.minY >= 0 && clamped.maxX <= 1 && clamped.maxY <= 1
+       && abs(clamped.width - 0.4) < 0.001, "region is clamped inside the frame at full size")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")
