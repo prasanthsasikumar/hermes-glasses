@@ -572,13 +572,37 @@ photo via the DAT camera API.
   "anjana viduranga" are all real entries and any tidying would damage them.
 - **Translate has two paths with opposite costs - keep them apart.** The
   INSTANT path is detector label -> `ObjectVocabulary` -> iPhone voice:
-  on-device, offline, free. The TAP path sends the centre crop to
-  `DirectClient.askOneShot` and is the ONLY place Translate calls the AI.
-  No tap, no call - never wire the AI to the dwell, or a walk becomes
-  dozens of paid requests nobody asked for. `TranslateViewModel` mirrors
+  on-device, offline, free. The AI path sends a crop to
+  `DirectClient.askOneShot`, and exactly two things may start it: a TAP,
+  or a pointing FINGER held still. No tap and no held finger, no call -
+  never wire the AI to the reticle dwell, or a walk becomes dozens of
+  paid requests nobody asked for. `TranslateViewModel` mirrors
   `LookupViewModel`'s camera lifecycle (camera-only, observer key
   `translate`, never starts the voice session) and is refused during a
   Build Check run in `ContentView.open` like Lens and Lookup.
+- **A hand in view is not a point.** Translate's finger path
+  (`HandPoseDetector` -> `FingerPointer` -> `PointHold`, the last two pure
+  and in `tests/translate`) sends to the AI with nobody tapping, so the
+  gate is strict: index finger straight AND middle finger not extended -
+  an open palm, a fist or two fingers up must never count. `PointHold`
+  fires ONCE per hold and stays spent until the probe moves 0.12 away or
+  the hand is gone 1 s; a send that went out is never retried on the same
+  hold (dead networks are the normal case abroad), while a hold blocked
+  by a guard (call in flight, 3 s gap) is `restart()`ed, not spent. A
+  key / provider error turns automatic sends OFF until the screen is
+  reopened (`autoSendOff`); tap still tries. Boxes over 0.35 of the frame
+  are never a finger target - a stall's table would otherwise answer
+  "table" for everything on it. Phone camera ONLY (`fingerAvailable`):
+  on glasses the wearer's hands are always in view and the path is
+  untested. Every constant is PROVISIONAL - none tuned on a real hand.
+- **A Translate phrase pins the card.** `TranslatePhrases` is six bundled
+  offline phrases (builder-written, not native-reviewed). Tapping one
+  speaks it and sets `pinnedPhrase`, which pauses the reticle, the finger
+  and taps for 20 s or until closed - the phone is being held up to
+  someone, and the camera is now aimed at things nobody asked about. An
+  AI answer landing mid-pin goes to `current`/`recent` silently.
+  `HandPoseDetector` lives in `Services/Lens/`, not `Services/Translate/`,
+  because `tests/translate` globs that directory without Vision.
 - **`TranslateSpeakPolicy` sits ON TOP of `DwellTracker`; don't push it
   down.** The tracker is shared with Lens and conversation capture and its
   cooldown clears on one missed frame - right for a log, chatter for a
