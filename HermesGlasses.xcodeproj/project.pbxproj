@@ -57,6 +57,7 @@
 		AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C02 /* TranslateLanguage.swift */; };
 		AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C04 /* ObjectVocabulary.swift */; };
 		AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */; };
+		AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */; };
 		AAAA00000000000000000877 /* RosterPerson.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000878 /* RosterPerson.swift */; };
 		AAAA00000000000000000879 /* RosterImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000880 /* RosterImporter.swift */; };
 		AAAA00000000000000000881 /* RosterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000882 /* RosterStore.swift */; };
@@ -237,6 +238,7 @@
 		AAAA00000000000000000C02 /* TranslateLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateLanguage.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C04 /* ObjectVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabulary.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabularyTable.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateSpeakPolicy.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000878 /* RosterPerson.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterPerson.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000880 /* RosterImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterImporter.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000882 /* RosterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterStore.swift; sourceTree = "<group>"; };
@@ -462,6 +464,7 @@
 				AAAA00000000000000000C02 /* TranslateLanguage.swift */,
 				AAAA00000000000000000C04 /* ObjectVocabulary.swift */,
 				AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */,
+				AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */,
 				AAAA00000000000000000878 /* RosterPerson.swift */,
 				AAAA00000000000000000880 /* RosterImporter.swift */,
 				AAAA00000000000000000882 /* RosterStore.swift */,
@@ -683,6 +686,7 @@
 				AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */,
 				AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */,
 				AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */,
+				AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */,
 				AAAA00000000000000000877 /* RosterPerson.swift in Sources */,
 				AAAA00000000000000000879 /* RosterImporter.swift in Sources */,
 				AAAA00000000000000000881 /* RosterStore.swift in Sources */,

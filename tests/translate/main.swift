@@ -54,5 +54,25 @@ expect(TranslateLanguage.allCases.map(\.voiceCode) == ["en-US", "fr-FR", "zh-CN"
 expect(TranslateLanguage.defaultLanguage == .french, "default is French")
 expect(TranslateLanguage.allCases.filter(\.needsRomanization) == [.chinese], "only Chinese is romanized")
 
+// MARK: - Speak policy
+
+let fr = ObjectVocabulary.term(for: "banana", in: .french)!
+let zh = ObjectVocabulary.term(for: "banana", in: .chinese)!
+let chair = ObjectVocabulary.term(for: "chair", in: .french)!
+
+var p = TranslateSpeakPolicy()
+expect(!p.shouldSpeak(fr, confidence: 0.59, at: 0), "below floor is silent")
+expect(p.shouldSpeak(fr, confidence: 0.6, at: 0), "at floor speaks")
+expect(!p.shouldSpeak(fr, confidence: 0.9, at: 7.9), "same word inside 8 s")
+expect(p.shouldSpeak(chair, confidence: 0.9, at: 1), "different word inside 8 s")
+expect(p.shouldSpeak(zh, confidence: 0.9, at: 2), "same object, other language")
+expect(p.shouldSpeak(fr, confidence: 0.9, at: 8.0), "same word at 8 s")
+var q = TranslateSpeakPolicy()
+expect(!q.shouldSpeak(fr, confidence: 0.3, at: 0), "rejected")
+expect(q.shouldSpeak(fr, confidence: 0.9, at: 1), "a rejection does not start the quiet period")
+q.noteSpoken(chair, at: 10)
+expect(!q.shouldSpeak(chair, confidence: 0.9, at: 12), "AI-spoken word is quiet too")
+expect(q.shouldSpeak(chair, confidence: 0.9, at: 18), "AI-spoken word speaks again after 8 s")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")
