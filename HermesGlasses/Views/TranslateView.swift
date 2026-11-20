@@ -56,6 +56,24 @@ struct TranslateView: View {
                     .scaleEffect(0.8)
             }
 
+            if model.fingerAvailable {
+                Button {
+                    model.fingerEnabled.toggle()
+                } label: {
+                    Image(systemName: "hand.point.up.left.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(model.fingerEnabled ? .white : HermesTheme.cream.opacity(0.55))
+                        .frame(width: 36, height: 32)
+                        .background(
+                            model.fingerEnabled ? HermesTheme.accent : HermesTheme.cream.opacity(0.08),
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Point with a finger")
+                .accessibilityValue(model.fingerEnabled ? "On" : "Off")
+            }
+
             HermesChromePill(title: "Done", prominent: true) {
                 dismiss()
             }
@@ -110,6 +128,12 @@ struct TranslateView: View {
 
                         reticle
                             .position(x: fitted.midX, y: fitted.midY)
+                            // The finger has the floor while it points.
+                            .opacity(model.pointing == nil ? 1 : 0.25)
+
+                        if let pointing = model.pointing {
+                            fingerMarks(pointing, in: fitted)
+                        }
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { model.tapped() }
@@ -197,6 +221,37 @@ struct TranslateView: View {
         .allowsHitTesting(false)
     }
 
+    /// Where the finger is taken to point: a dot on the fingertip and a
+    /// ring just past it that fills while the finger holds still.
+    private func fingerMarks(_ pointing: Pointing, in fitted: CGRect) -> some View {
+        func place(_ p: CGPoint) -> CGPoint {
+            CGPoint(x: fitted.minX + p.x * fitted.width,
+                    y: fitted.minY + p.y * fitted.height)
+        }
+        return ZStack {
+            Circle()
+                .fill(HermesTheme.accentLight)
+                .frame(width: 8, height: 8)
+                .position(place(pointing.tip))
+            ZStack {
+                Circle()
+                    .stroke(HermesTheme.cream.opacity(0.45), lineWidth: 3)
+                Circle()
+                    .trim(from: 0, to: model.pointProgress)
+                    .stroke(
+                        HermesTheme.accent,
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.1), value: model.pointProgress)
+            }
+            .frame(width: 36, height: 36)
+            .position(place(pointing.probe))
+        }
+        .shadow(color: .black.opacity(0.4), radius: 2)
+        .allowsHitTesting(false)
+    }
+
     /// The aim point, with the hold filling round it.
     private var reticle: some View {
         ZStack {
@@ -224,7 +279,7 @@ struct TranslateView: View {
 
     private var resultArea: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if model.voiceMissing, let current = model.current {
+            if model.voiceMissing, let current = model.shown {
                 Text("No \(current.language.englishName) voice on this iPhone. Add one in Settings → Accessibility → Spoken Content → Voices.")
                     .font(.system(size: 12))
                     .foregroundStyle(HermesTheme.destructive)
@@ -233,6 +288,10 @@ struct TranslateView: View {
             }
 
             card
+
+            if !model.phrases.isEmpty, model.isStreaming {
+                phraseRow
+            }
 
             if model.recent.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -262,17 +321,44 @@ struct TranslateView: View {
         .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .animation(.snappy, value: model.current)
+        .animation(.snappy, value: model.shown)
+    }
+
+    /// Things to say to the person behind the counter. Labelled in
+    /// English - they are for the user to choose from, not to read out.
+    private var phraseRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(model.phrases) { phrase in
+                    Button {
+                        model.speakPhrase(phrase)
+                    } label: {
+                        Text(phrase.english)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(HermesTheme.cream.opacity(0.9))
+                            .padding(.horizontal, 12)
+                            .frame(height: 36)
+                            .background(
+                                HermesTheme.accent.opacity(0.35),
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Says it in \(model.language.englishName)")
+                }
+            }
+            .padding(.horizontal, 16)
+        }
     }
 
     @ViewBuilder
     private var card: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let term = model.current {
+            if let term = model.shown {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(term.word)
-                            .font(.system(size: 30, weight: .bold))
+                            .font(.system(size: model.pinnedPhrase == nil ? 30 : 34, weight: .bold))
                             .foregroundStyle(HermesTheme.cream)
                             .minimumScaleFactor(0.5)
                             .lineLimit(2)
@@ -297,15 +383,31 @@ struct TranslateView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Say it again")
+
+                    if model.pinnedPhrase != nil {
+                        Button {
+                            model.unpinPhrase()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(HermesTheme.cream)
+                                .frame(width: 44, height: 44)
+                                .background(HermesTheme.cream.opacity(0.14), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Close phrase")
+                    }
                 }
             } else if model.aiState == .idle {
-                Text("Aim the circle at something and hold still - you'll hear what it's called. Tap the picture to ask about anything it doesn't pick up.")
+                Text(model.fingerAvailable && model.fingerEnabled
+                     ? "Point a finger at something and hold still - you'll hear what it's called. No finger? Aim the circle at it, or tap the picture."
+                     : "Aim the circle at something and hold still - you'll hear what it's called. Tap the picture to ask about anything it doesn't pick up.")
                     .font(.system(size: 12))
                     .foregroundStyle(HermesTheme.cream.opacity(0.45))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            switch model.aiState {
+            switch model.pinnedPhrase == nil ? model.aiState : .idle {
             case .idle:
                 EmptyView()
             case .looking:
