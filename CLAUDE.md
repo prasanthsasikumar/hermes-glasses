@@ -570,6 +570,41 @@ photo via the DAT camera API.
   device (`tests/roster/`); the filesystem half is `RosterImport.swift`.
   Filename stems are names VERBATIM - "Malsha de Zoysa", "Sahan H",
   "anjana viduranga" are all real entries and any tidying would damage them.
+- **Translate has two paths with opposite costs - keep them apart.** The
+  INSTANT path is detector label -> `ObjectVocabulary` -> iPhone voice:
+  on-device, offline, free. The TAP path sends the centre crop to
+  `DirectClient.askOneShot` and is the ONLY place Translate calls the AI.
+  No tap, no call - never wire the AI to the dwell, or a walk becomes
+  dozens of paid requests nobody asked for. `TranslateViewModel` mirrors
+  `LookupViewModel`'s camera lifecycle (camera-only, observer key
+  `translate`, never starts the voice session) and is refused during a
+  Build Check run in `ContentView.open` like Lens and Lookup.
+- **`TranslateSpeakPolicy` sits ON TOP of `DwellTracker`; don't push it
+  down.** The tracker is shared with Lens and conversation capture and its
+  cooldown clears on one missed frame - right for a log, chatter for a
+  voice. The policy adds a 0.6 speak floor (the detector passes 0.4) and an
+  8 s same-word quiet period keyed by language + word. Those two and the
+  1.0 s dwell are PROVISIONAL - not yet tried on a real walk.
+- **Translate words bypass ElevenLabs on purpose.**
+  `HermesSpeechSynthesizer.speak(_:language:)` marks the segment with a
+  BCP-47 code and such a segment is never fetched from the cloud: a network
+  round-trip per word would undo the instant path, and the configured cloud
+  voice is an English one. A language is only offered if the iPhone has a
+  built-in voice for it - that is why Malayalam is not in the list.
+- **The vocabulary table is not native-reviewed, and silent beats guessed.**
+  `ObjectVocabularyTable.swift` is data only (80 detector labels x French /
+  Chinese + pinyin / Spain Spanish) so it can be handed to a speaker as-is.
+  A `nil` cell is deliberate ("sink": évier vs lavabo - the detector can't
+  tell kitchen from bathroom). `tests/translate` requires every cell to be
+  a word or an explicit nil, never missing. `person` is in the table but
+  skipped on the instant path (`skippedLabels`).
+- **A Translate AI reply is JSON or it is nothing.**
+  `TranslateAnswerParser` reads the first JSON object in the reply and
+  rejects anything else - including a `word` longer than 40 characters - so
+  a model that answers in a sentence never has the sentence read out as the
+  name of the thing. The language is captured at tap time; switching the
+  picker mid-call must not relabel the answer. The glasses camera path and
+  the real lens card are UNVERIFIED (built with no glasses to hand).
 
 ## Build & run
 
