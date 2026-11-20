@@ -21,13 +21,14 @@ enum TranslateAnswer: Equatable {
 }
 
 enum TranslatePrompt {
-    /// `pointing` is true when a finger chose the crop: the fingertip is
-    /// in the picture on purpose, and must not be what gets named.
+    /// `pointing` is true when a finger chose the target. The WHOLE frame
+    /// is sent then - a tight crop of a toolbox lid reads as "card
+    /// reader" - so the finger in the picture is what says which thing.
     static func system(for language: TranslateLanguage, pointing: Bool = false) -> String {
         var lines = [
             "You name objects for a language learner.",
             pointing
-                ? "A finger may be visible in the photo. Identify the single object it is pointing at - never the hand or the finger itself. If no finger is visible, identify the main object at the centre."
+                ? "The photo shows a hand pointing at something with its index finger. Identify the single object the index finger points at - the thing just beyond the fingertip - and never the hand or the finger itself. Use the rest of the scene to work out what it is, and give its specific everyday name, not a vague category."
                 : "Look at the photo and identify the single main object at its centre.",
             "Reply with ONE JSON object and nothing else:",
         ]

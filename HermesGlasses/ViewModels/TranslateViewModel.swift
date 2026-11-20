@@ -17,10 +17,13 @@
 //    TAP, or a pointing FINGER held still. No tap and no held finger, no
 //    call.
 //
-// The finger (phone camera only): when a pointing hand is in view the
-// target is what the index finger points at, not the centre reticle. A
-// known object is spoken at once; anything else is sent automatically,
-// behind guards, because nobody tapped.
+// The finger (phone camera only): while Finger is ON the centre reticle
+// is OFF altogether - only a pointing finger held still names things.
+// What it points at goes to the AI as the WHOLE frame (the bundled
+// detector forces everything into its 80 classes - a toolbox came back as
+// "keyboard" - and a tight crop loses the context the AI needs). The
+// detector's word is used only as a fallback when the AI can't be reached
+// or isn't set up, and is labelled as the phone's own guess.
 //
 // Phrases: six bundled things to say to a shopkeeper. A phrase PINS the
 // card and pauses recognition, so turning the phone towards someone does
@@ -103,7 +106,8 @@ final class TranslateViewModel {
     /// What the tap path sends when no box is under the reticle.
     static let centreCrop = CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
     static let readyStatus = "Hold on an object · tap for anything else"
-    static let fingerStatus = "Point at a thing · or hold the circle on it"
+    static let fingerStatus = "Point a finger at a thing and hold still"
+    static let offlineGuess = "Couldn't reach the AI - this is the phone's own guess"
     static let fingerKey = "translate_finger_enabled"
     /// Nobody tapped, so automatic sends are spaced out. PROVISIONAL.
     static let autoSendGap: TimeInterval = 3
@@ -129,7 +133,8 @@ final class TranslateViewModel {
     @ObservationIgnored private var autoSendOff = false
     @ObservationIgnored private var pinGeneration = 0
 
-    private var fingerActive: Bool { fingerEnabled && fingerAvailable }
+    /// Finger mode: the finger chooses, the centre reticle is off.
+    var fingerActive: Bool { fingerEnabled && fingerAvailable }
 
     private static let observerKey = "translate"
 
@@ -356,12 +361,12 @@ final class TranslateViewModel {
         if pointing != nil, let last = lastPointingAt, now - last > PointHold.lostReset {
             clearPointing()
         }
-        // The reticle is paused while a phrase is pinned, and while a
-        // finger is pointing - the two must never both speak.
-        if pinnedPhrase != nil || pointing != nil {
+        // The reticle is off while a phrase is pinned, and for as long as
+        // Finger is on: with pointing on, ONLY the finger names things.
+        if pinnedPhrase != nil || fingerActive {
             _ = dwell.flush(at: now)
             holdProgress = 0
-            if pinnedPhrase != nil { targetBox = nil }
+            targetBox = nil
             return
         }
         // Only things with a word in this language may hold the reticle -
@@ -404,15 +409,21 @@ final class TranslateViewModel {
             pointing = nil
             lastPointingAt = nil
             pointProgress = 0
-            targetBox = nil
         }
 
         let update = pointHold.update(probe: found?.probe, at: now)
         guard let found else { return }
         pointProgress = update.progress
-        let (target, detection) = fingerTarget(found)
-        targetBox = detection?.rect
-        if update.fired { firePoint(target, detection, at: now) }
+        if update.fired { firePoint(found, at: now) }
+    }
+
+    /// The detector's own word for what the finger is on, if it has a
+    /// confident one. A FALLBACK only - never the first answer.
+    private func detectorGuess(for pointing: Pointing) -> TranslatedTerm? {
+        guard case (.box, let detection?) = fingerTarget(pointing),
+              detection.confidence >= TranslateSpeakPolicy.minimumConfidence
+        else { return nil }
+        return ObjectVocabulary.term(for: detection.label, in: language)
     }
 
     /// What the finger is on: a known box, or a region for the AI.
@@ -426,20 +437,16 @@ final class TranslateViewModel {
     }
 
     /// The finger has rested on one spot for the hold time.
-    private func firePoint(_ target: PointTarget, _ detection: Detection?, at now: TimeInterval) {
-        // A known object the detector is sure of: the instant word. The
-        // same-word quiet period does not apply - the user pointed.
-        if let detection,
-           detection.confidence >= TranslateSpeakPolicy.minimumConfidence,
-           let term = ObjectVocabulary.term(for: detection.label, in: language) {
-            policy.noteSpoken(term, at: now)
-            deliver(term)
+    private func firePoint(_ pointing: Pointing, at now: TimeInterval) {
+        let guess = detectorGuess(for: pointing)
+
+        // No usable AI (no key, rejected key): the phone's guess is all
+        // there is, so say it rather than nothing.
+        guard !autoSendOff else {
+            if let guess { deliverGuess(guess) }
             return
         }
-
-        // Anything else goes to the AI with nobody having tapped - so
-        // behind guards a tap does not need.
-        guard !autoSendOff else { return }
+        // Nobody tapped, so this send sits behind guards a tap doesn't need.
         let tooSoon = lastAutoSend.map { now - $0 < Self.autoSendGap } ?? false
         guard aiState != .looking, !tooSoon else {
             // Blocked, not answered: let a finger still resting here send
@@ -448,7 +455,14 @@ final class TranslateViewModel {
             return
         }
         lastAutoSend = now
-        send(Self.crop(for: target, detection), pointing: true)
+        send(.frame, pointing: true, fallback: guess)
+    }
+
+    /// The detector's word, spoken because the AI couldn't answer.
+    private func deliverGuess(_ term: TranslatedTerm) {
+        aiState = .failed(Self.offlineGuess)
+        policy.noteSpoken(term, at: CACurrentMediaTime())
+        deliver(term)
     }
 
     private func clearPointing() {
@@ -525,15 +539,8 @@ final class TranslateViewModel {
         case box(CGRect)
         /// A bare part of the frame.
         case region(CGRect)
-    }
-
-    private static func crop(for target: PointTarget, _ detection: Detection?) -> Crop {
-        switch target {
-        case .box:
-            return detection.map { .box($0.rect) } ?? .region(centreCrop)
-        case .region(let rect):
-            return .region(rect)
-        }
+        /// Everything the camera sees - the finger says which thing.
+        case frame
     }
 
     /// Ask the AI about one thing. With a pointing finger in view that is
@@ -541,19 +548,19 @@ final class TranslateViewModel {
     func tapped() {
         guard !didStop, pinnedPhrase == nil, aiState != .looking else { return }
         if fingerActive, let pointing {
-            let (target, detection) = fingerTarget(pointing)
             // The tap is the send for this spot: the hold must not send
-            // it a second time, or speak the instant word over the answer.
+            // it a second time.
             pointHold.spend(at: pointing.probe)
             lastAutoSend = CACurrentMediaTime()
-            send(Self.crop(for: target, detection), pointing: true)
+            send(.frame, pointing: true, fallback: detectorGuess(for: pointing))
         } else {
-            send(targetBox.map { .box($0) } ?? .region(Self.centreCrop), pointing: false)
+            send(targetBox.map { .box($0) } ?? .region(Self.centreCrop), pointing: false, fallback: nil)
         }
     }
 
     /// One call at a time; a tap and a held finger both end up here.
-    private func send(_ crop: Crop, pointing: Bool) {
+    /// `fallback` is what to say if the AI can't be reached.
+    private func send(_ crop: Crop, pointing: Bool, fallback: TranslatedTerm?) {
         guard !didStop, aiState != .looking, let frame = feedImage else { return }
         // The language is captured NOW: switching the picker while the
         // call is in flight must not relabel the answer.
@@ -562,11 +569,13 @@ final class TranslateViewModel {
         switch crop {
         case .box(let rect): cropped = LensViewModel.crop(frame, to: rect)
         case .region(let rect): cropped = LensViewModel.crop(frame, to: rect, padding: 0)
+        case .frame: cropped = frame
         }
         let image = cropped
             ?? LensViewModel.crop(frame, to: Self.centreCrop, padding: 0)
             ?? frame
-        guard let jpeg = Self.jpeg(image) else {
+        // A whole scene needs more pixels than one cropped object.
+        guard let jpeg = Self.jpeg(image, longestSide: pointing ? 1280 : 768) else {
             aiState = .failed("Couldn't read the camera frame")
             return
         }
@@ -586,11 +595,14 @@ final class TranslateViewModel {
             } catch {
                 outcome = .failure(error)
             }
-            self?.finishTap(outcome, language: language)
+            self?.finishTap(outcome, language: language, fallback: fallback)
         }
     }
 
-    private func finishTap(_ outcome: Result<String, Error>, language: TranslateLanguage) {
+    private func finishTap(
+        _ outcome: Result<String, Error>, language: TranslateLanguage,
+        fallback: TranslatedTerm?
+    ) {
         // Closed while the call was in flight: say and show nothing.
         guard !didStop else { return }
 
@@ -614,6 +626,15 @@ final class TranslateViewModel {
             // A missing or rejected key fails the same way every time;
             // pointing must not keep trying it. Tap still does.
             if Self.isSetupError(error) { autoSendOff = true }
+            // The AI never saw it. The detector's word is better than
+            // nothing, as long as it is shown for what it is. (Not after
+            // "couldn't tell" above: the AI looked, and a guess would
+            // contradict it.)
+            if let fallback, pinnedPhrase == nil {
+                hermesVM.clearTranslationPendingOnLens()
+                deliverGuess(fallback)
+                return
+            }
         }
         // The lens is showing the pinned phrase, not "Looking…".
         guard pinnedPhrase == nil else { return }
@@ -653,12 +674,12 @@ final class TranslateViewModel {
         }
     }
 
-    /// Longest side capped at 768 px: plenty to name one object, and a
-    /// small upload on a phone connection.
-    private static func jpeg(_ image: UIImage) -> Data? {
+    /// Longest side capped (768 px for one cropped object, 1280 px for a
+    /// whole pointed-at scene): a small upload on a phone connection.
+    private static func jpeg(_ image: UIImage, longestSide: CGFloat) -> Data? {
         let longest = max(image.size.width, image.size.height)
         guard longest > 0 else { return nil }
-        let scale = min(1, 768 / longest)
+        let scale = min(1, longestSide / longest)
         guard scale < 1 else { return image.jpegData(compressionQuality: 0.7) }
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let format = UIGraphicsImageRendererFormat()

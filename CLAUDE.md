@@ -595,6 +595,17 @@ photo via the DAT camera API.
   "table" for everything on it. Phone camera ONLY (`fingerAvailable`):
   on glasses the wearer's hands are always in view and the path is
   untested. Every constant is PROVISIONAL - none tuned on a real hand.
+- **Finger on = finger only, and AI first.** While `fingerActive` the
+  centre reticle is OFF (not drawn, dwell flushed every frame) - the owner
+  found the app naming whatever was in front of it. A held point sends the
+  WHOLE frame (1280 px) with the pointing prompt; it does NOT go through
+  the detector first. The bundled YOLO forces everything into 80 classes
+  (a toolbox was spoken as "keyboard") and a tight fingertip crop lost the
+  context (the same toolbox came back "card reader"). The detector's word
+  survives only as `fallback`: spoken when the call fails or automatic
+  sends are off, and always under "this is the phone's own guess". Never
+  after the AI answered "couldn't tell". Don't reintroduce a
+  detector-first shortcut to save a request.
 - **A Translate phrase pins the card.** `TranslatePhrases` is six bundled
   offline phrases (builder-written, not native-reviewed). Tapping one
   speaks it and sets `pinnedPhrase`, which pauses the reticle, the finger

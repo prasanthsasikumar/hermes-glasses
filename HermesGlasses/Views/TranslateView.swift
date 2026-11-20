@@ -126,10 +126,12 @@ struct TranslateView: View {
 
                         boxOverlay(in: fitted)
 
-                        reticle
-                            .position(x: fitted.midX, y: fitted.midY)
-                            // The finger has the floor while it points.
-                            .opacity(model.pointing == nil ? 1 : 0.25)
+                        // With Finger on only the finger names things;
+                        // there is no centre point to aim.
+                        if !model.fingerActive {
+                            reticle
+                                .position(x: fitted.midX, y: fitted.midY)
+                        }
 
                         if let pointing = model.pointing {
                             fingerMarks(pointing, in: fitted)
@@ -399,8 +401,8 @@ struct TranslateView: View {
                     }
                 }
             } else if model.aiState == .idle {
-                Text(model.fingerAvailable && model.fingerEnabled
-                     ? "Point a finger at something and hold still - you'll hear what it's called. No finger? Aim the circle at it, or tap the picture."
+                Text(model.fingerActive
+                     ? "Point your index finger at something and hold still - the AI names it. Nothing is said until you point. Turn the hand icon off to aim with the circle instead."
                      : "Aim the circle at something and hold still - you'll hear what it's called. Tap the picture to ask about anything it doesn't pick up.")
                     .font(.system(size: 12))
                     .foregroundStyle(HermesTheme.cream.opacity(0.45))

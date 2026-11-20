@@ -297,3 +297,22 @@ Wiring:
 - NOT verifiable by the builder: whether pointing picks the right thing
   in practice, every threshold, the glasses camera view of a hand, and
   the phrase wording by a native speaker. Say so in the hand-back.
+
+## Amendment (2026-11-20, after the owner tried it)
+
+Two things changed on the owner's instruction; where this section and
+the text above disagree, this section wins.
+
+- **Finger on = finger only.** The centre reticle is off for as long as
+  the Finger switch is on, not merely while a hand is in view. The app
+  was naming whatever sat in front of the camera.
+- **AI first, whole frame.** A held point sends the whole frame to the
+  AI; the detector is no longer asked first, and no fingertip crop is
+  made. Pointing at a toolbox had produced "keyboard" (the detector,
+  forcing it into one of its 80 classes) and then "card reader" (the AI,
+  shown a tight crop with no context). The detector's word is now only a
+  fallback when the AI cannot be reached or is not set up, labelled as
+  the phone's own guess.
+- Consequence: with Finger on, every point is one AI request and takes a
+  second or two, and with no connection the answer is at best the
+  detector's guess after the 10 s timeout.

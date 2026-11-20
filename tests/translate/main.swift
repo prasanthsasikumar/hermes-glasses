@@ -348,5 +348,12 @@ var halfSure = straightIndex(); straightenMiddle(&halfSure)
 halfSure.middleTip = joint(0.55, 0.58, 0.4)
 expect(FingerPointer.pointing(from: halfSure, aspect: 1) == nil, "a half-sure extended middle finger still vetoes")
 
+
+// The pointing send is the WHOLE frame, so the prompt must make the
+// finger - not the middle of the picture - the thing that chooses.
+expect(pointingPrompt.contains("index finger"), "the pointing prompt names the index finger as the chooser")
+expect(!pointingPrompt.contains("at the centre"), "the pointing prompt never falls back to the centre of a whole frame")
+expect(pointingPrompt.lowercased().contains("specific"), "the pointing prompt asks for the specific name, not a category guess")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")
