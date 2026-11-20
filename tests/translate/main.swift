@@ -74,5 +74,39 @@ q.noteSpoken(chair, at: 10)
 expect(!q.shouldSpeak(chair, confidence: 0.9, at: 12), "AI-spoken word is quiet too")
 expect(q.shouldSpeak(chair, confidence: 0.9, at: 18), "AI-spoken word speaks again after 8 s")
 
+// MARK: - AI reply parser
+
+func parse(_ s: String, _ l: TranslateLanguage = .chinese) -> TranslateAnswer {
+    TranslateAnswerParser.parse(s, language: l)
+}
+let zhTerm = TranslatedTerm(word: "订书机", romanized: "dìngshūjī", english: "stapler", language: .chinese)
+expect(parse(#"{"english":"stapler","word":"订书机","romanized":"dìngshūjī"}"#) == .term(zhTerm), "plain json")
+expect(parse("```json\n{\"english\":\"stapler\",\"word\":\"订书机\",\"romanized\":\"dìngshūjī\"}\n```") == .term(zhTerm), "code fence")
+expect(parse("Sure! {\"english\":\"stapler\",\"word\":\"订书机\",\"romanized\":\"dìngshūjī\"} Hope that helps.") == .term(zhTerm), "prose around")
+expect(parse(#"{"english":" stapler ","word":" agrafeuse ","romanized":"x"}"#, .french) ==
+       .term(TranslatedTerm(word: "agrafeuse", romanized: nil, english: "stapler", language: .french)),
+       "trimmed; romanized dropped for Latin script")
+expect(parse(#"{"english":"stapler","word":"订书机"}"#) ==
+       .term(TranslatedTerm(word: "订书机", romanized: nil, english: "stapler", language: .chinese)),
+       "missing pinyin tolerated")
+expect(parse(#"{"english":"stapler","word":"订书机","romanized":"  "}"#) ==
+       .term(TranslatedTerm(word: "订书机", romanized: nil, english: "stapler", language: .chinese)),
+       "blank pinyin becomes nil")
+expect(parse(#"{"none":true}"#) == .nothing, "none")
+expect(parse(#"{"english":"stapler","word":""}"#) == .malformed, "empty word")
+expect(parse(#"{"english":"","word":"agrafeuse"}"#, .french) == .malformed, "empty english")
+expect(parse(#"{"english":"x","word":"C'est une agrafeuse posée sur un bureau en bois clair."}"#, .french) == .malformed,
+       "a sentence is not a word")
+expect(parse(#"{"english":"stapler","word":42}"#) == .malformed, "non-string word")
+expect(parse("I can't tell what that is.") == .malformed, "no json")
+expect(parse("{not json}") == .malformed, "broken json")
+expect(parse("") == .malformed, "empty")
+expect(parse(#"{"english":"pair of scissors","word":"paire de ciseaux"}"#, .french) ==
+       .term(TranslatedTerm(word: "paire de ciseaux", romanized: nil, english: "pair of scissors", language: .french)),
+       "multi-word noun accepted")
+expect(TranslatePrompt.system(for: .french).contains("French"), "prompt names the language")
+expect(TranslatePrompt.system(for: .chinese).contains("pinyin"), "Chinese prompt asks for pinyin")
+expect(!TranslatePrompt.system(for: .french).contains("pinyin"), "French prompt does not")
+
 if failures > 0 { print("\n\(failures) FAILURES"); exit(1) }
 print("\nAll translate tests passed")
