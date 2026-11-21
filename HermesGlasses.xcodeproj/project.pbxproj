@@ -54,6 +54,15 @@
 		AAAA00000000000000000821 /* LensContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000822 /* LensContent.swift */; };
 		AAAA00000000000000000841 /* ChoiceDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000842 /* ChoiceDetector.swift */; };
 		AAAA00000000000000000869 /* PersonLookupGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000870 /* PersonLookupGate.swift */; };
+		AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C02 /* TranslateLanguage.swift */; };
+		AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C04 /* ObjectVocabulary.swift */; };
+		AAAA00000000000000000C13 /* TranslatePhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C14 /* TranslatePhrases.swift */; };
+		AAAA00000000000000000C11 /* PointHold.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C12 /* PointHold.swift */; };
+		AAAA00000000000000000C17 /* FocusSteer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C18 /* FocusSteer.swift */; };
+		AAAA00000000000000000C0F /* FingerPointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C10 /* FingerPointer.swift */; };
+		AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */; };
+		AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */; };
+		AAAA00000000000000000C09 /* TranslateAnswerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C0A /* TranslateAnswerParser.swift */; };
 		AAAA00000000000000000877 /* RosterPerson.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000878 /* RosterPerson.swift */; };
 		AAAA00000000000000000879 /* RosterImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000880 /* RosterImporter.swift */; };
 		AAAA00000000000000000881 /* RosterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000882 /* RosterStore.swift */; };
@@ -64,9 +73,11 @@
 		AAAA0000000000000000889 /* RosterImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000890 /* RosterImport.swift */; };
 		AAAA0000000000000000891 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000892 /* RosterView.swift */; };
 		AAAA00000000000000000873 /* LookupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000874 /* LookupViewModel.swift */; };
+		AAAA00000000000000000C0B /* TranslateViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C0C /* TranslateViewModel.swift */; };
 		AAAA00000000000000000A77 /* BuildCheckViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A78 /* BuildCheckViewModel.swift */; };
 		AAAA00000000000000000A98 /* MachineGuideViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A99 /* MachineGuideViewModel.swift */; };
 		AAAA00000000000000000875 /* LookupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000876 /* LookupView.swift */; };
+		AAAA00000000000000000C0D /* TranslateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C0E /* TranslateView.swift */; };
 		AAAA00000000000000000A7F /* BuildRunReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A80 /* BuildRunReviewView.swift */; };
 		AAAA00000000000000000A7D /* BuildRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7E /* BuildRunView.swift */; };
 		AAAA00000000000000000A7B /* ProcedureEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000A7C /* ProcedureEditorView.swift */; };
@@ -88,6 +99,7 @@
 		AAAA00000000000000000038 /* yolo11n.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000141 /* yolo11n.mlpackage */; };
 		AAAA0000000000000000895 /* faceid.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000896 /* faceid.mlpackage */; };
 		AAAA00000000000000000035 /* ObjectDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000138 /* ObjectDetector.swift */; };
+		AAAA00000000000000000C15 /* HandPoseDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000C16 /* HandPoseDetector.swift */; };
 		AAAA00000000000000000036 /* LensViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000139 /* LensViewModel.swift */; };
 		AAAA00000000000000000037 /* LensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000140 /* LensView.swift */; };
 		AAAA00000000000000000815 /* ObjectLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00000000000000000816 /* ObjectLogView.swift */; };
@@ -231,6 +243,15 @@
 		AAAA00000000000000000822 /* LensContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensContent.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000842 /* ChoiceDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceDetector.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000870 /* PersonLookupGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonLookupGate.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C02 /* TranslateLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateLanguage.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C04 /* ObjectVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabulary.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C14 /* TranslatePhrases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslatePhrases.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C12 /* PointHold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/PointHold.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C18 /* FocusSteer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/FocusSteer.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C10 /* FingerPointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/FingerPointer.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/ObjectVocabularyTable.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateSpeakPolicy.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C0A /* TranslateAnswerParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate/TranslateAnswerParser.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000878 /* RosterPerson.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterPerson.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000880 /* RosterImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterImporter.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000882 /* RosterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterStore.swift; sourceTree = "<group>"; };
@@ -241,9 +262,11 @@
 		AAAA0000000000000000890 /* RosterImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People/RosterImport.swift; sourceTree = "<group>"; };
 		AAAA0000000000000000892 /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000874 /* LookupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupViewModel.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C0C /* TranslateViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A78 /* BuildCheckViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildCheckViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A99 /* MachineGuideViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineGuideViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000876 /* LookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupView.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C0E /* TranslateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A80 /* BuildRunReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunReviewView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7E /* BuildRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildRunView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000A7C /* ProcedureEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcedureEditorView.swift; sourceTree = "<group>"; };
@@ -265,6 +288,7 @@
 		AAAA00000000000000000141 /* yolo11n.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = yolo11n.mlpackage; sourceTree = "<group>"; };
 		AAAA0000000000000000896 /* faceid.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = faceid.mlpackage; sourceTree = "<group>"; };
 		AAAA00000000000000000138 /* ObjectDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lens/ObjectDetector.swift; sourceTree = "<group>"; };
+		AAAA00000000000000000C16 /* HandPoseDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lens/HandPoseDetector.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000139 /* LensViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensViewModel.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000140 /* LensView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LensView.swift; sourceTree = "<group>"; };
 		AAAA00000000000000000816 /* ObjectLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectLogView.swift; sourceTree = "<group>"; };
@@ -386,6 +410,7 @@
 				AAAA00000000000000000834 /* PhoneModeSessionView.swift */,
 				AAAA00000000000000000846 /* AppDrawerView.swift */,
 				AAAA00000000000000000876 /* LookupView.swift */,
+				AAAA00000000000000000C0E /* TranslateView.swift */,
 				AAAA00000000000000000A80 /* BuildRunReviewView.swift */,
 				AAAA00000000000000000A7E /* BuildRunView.swift */,
 				AAAA00000000000000000A7C /* ProcedureEditorView.swift */,
@@ -403,6 +428,7 @@
 				AAAA00000000000000000105 /* HermesSessionViewModel.swift */,
 				AAAA00000000000000000139 /* LensViewModel.swift */,
 				AAAA00000000000000000874 /* LookupViewModel.swift */,
+				AAAA00000000000000000C0C /* TranslateViewModel.swift */,
 				AAAA00000000000000000A78 /* BuildCheckViewModel.swift */,
 				AAAA00000000000000000A99 /* MachineGuideViewModel.swift */,
 			);
@@ -453,6 +479,15 @@
 				AAAA00000000000000000842 /* ChoiceDetector.swift */,
 				AAAA00000000000000000844 /* HermesApp.swift */,
 				AAAA00000000000000000870 /* PersonLookupGate.swift */,
+				AAAA00000000000000000C02 /* TranslateLanguage.swift */,
+				AAAA00000000000000000C04 /* ObjectVocabulary.swift */,
+				AAAA00000000000000000C14 /* TranslatePhrases.swift */,
+				AAAA00000000000000000C12 /* PointHold.swift */,
+				AAAA00000000000000000C18 /* FocusSteer.swift */,
+				AAAA00000000000000000C10 /* FingerPointer.swift */,
+				AAAA00000000000000000C06 /* ObjectVocabularyTable.swift */,
+				AAAA00000000000000000C08 /* TranslateSpeakPolicy.swift */,
+				AAAA00000000000000000C0A /* TranslateAnswerParser.swift */,
 				AAAA00000000000000000878 /* RosterPerson.swift */,
 				AAAA00000000000000000880 /* RosterImporter.swift */,
 				AAAA00000000000000000882 /* RosterStore.swift */,
@@ -469,6 +504,7 @@
 				AAAA00000000000000000828 /* PermissionsCoordinator.swift */,
 				AAAA00000000000000000137 /* DwellTracker.swift */,
 				AAAA00000000000000000138 /* ObjectDetector.swift */,
+				AAAA00000000000000000C16 /* HandPoseDetector.swift */,
 				AAAA00000000000000000812 /* LensPDFRenderer.swift */,
 				AAAA00000000000000000806 /* LensLogAggregator.swift */,
 				AAAA00000000000000000808 /* LensSession.swift */,
@@ -671,6 +707,15 @@
 				AAAA00000000000000000841 /* ChoiceDetector.swift in Sources */,
 				AAAA00000000000000000843 /* HermesApp.swift in Sources */,
 				AAAA00000000000000000869 /* PersonLookupGate.swift in Sources */,
+				AAAA00000000000000000C01 /* TranslateLanguage.swift in Sources */,
+				AAAA00000000000000000C03 /* ObjectVocabulary.swift in Sources */,
+				AAAA00000000000000000C13 /* TranslatePhrases.swift in Sources */,
+				AAAA00000000000000000C11 /* PointHold.swift in Sources */,
+				AAAA00000000000000000C17 /* FocusSteer.swift in Sources */,
+				AAAA00000000000000000C0F /* FingerPointer.swift in Sources */,
+				AAAA00000000000000000C05 /* ObjectVocabularyTable.swift in Sources */,
+				AAAA00000000000000000C07 /* TranslateSpeakPolicy.swift in Sources */,
+				AAAA00000000000000000C09 /* TranslateAnswerParser.swift in Sources */,
 				AAAA00000000000000000877 /* RosterPerson.swift in Sources */,
 				AAAA00000000000000000879 /* RosterImporter.swift in Sources */,
 				AAAA00000000000000000881 /* RosterStore.swift in Sources */,
@@ -681,9 +726,11 @@
 				AAAA0000000000000000889 /* RosterImport.swift in Sources */,
 				AAAA0000000000000000891 /* RosterView.swift in Sources */,
 				AAAA00000000000000000873 /* LookupViewModel.swift in Sources */,
+				AAAA00000000000000000C0B /* TranslateViewModel.swift in Sources */,
 				AAAA00000000000000000A77 /* BuildCheckViewModel.swift in Sources */,
 				AAAA00000000000000000A98 /* MachineGuideViewModel.swift in Sources */,
 				AAAA00000000000000000875 /* LookupView.swift in Sources */,
+				AAAA00000000000000000C0D /* TranslateView.swift in Sources */,
 				AAAA00000000000000000A7F /* BuildRunReviewView.swift in Sources */,
 				AAAA00000000000000000A7D /* BuildRunView.swift in Sources */,
 				AAAA00000000000000000A7B /* ProcedureEditorView.swift in Sources */,
@@ -704,6 +751,7 @@
 				AAAA00000000000000000038 /* yolo11n.mlpackage in Sources */,
 				AAAA0000000000000000895 /* faceid.mlpackage in Sources */,
 				AAAA00000000000000000035 /* ObjectDetector.swift in Sources */,
+				AAAA00000000000000000C15 /* HandPoseDetector.swift in Sources */,
 				AAAA00000000000000000036 /* LensViewModel.swift in Sources */,
 				AAAA00000000000000000037 /* LensView.swift in Sources */,
 				AAAA00000000000000000815 /* ObjectLogView.swift in Sources */,

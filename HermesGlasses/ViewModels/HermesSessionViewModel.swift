@@ -3025,6 +3025,40 @@ final class HermesSessionViewModel {
         }
     }
 
+    /// A cue spoken with no session running uses whatever audio session
+    /// the app happens to have - by default one that obeys the ring/silent
+    /// switch, so a muted phone would say nothing and show no reason.
+    /// Translate's whole output is a spoken word, so it asks for playback
+    /// first. Only ever while idle: a live session owns the audio session.
+    func prepareCuePlaybackIfIdle() {
+        guard connectionState == .disconnected else { return }
+        do {
+            try audioManager.preparePlaybackOnly()
+        } catch {
+            NSLog("[Hermes] cue playback session failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Translate's form: one word in a chosen language (BCP-47), spoken by
+    /// the iPhone voice for it. Same gating as `speakCue(_:)`. Returns
+    /// false when the cue was dropped because Hermes is mid-answer - the
+    /// caller still shows the word.
+    @discardableResult
+    func speakCue(_ text: String, language: String) -> Bool {
+        switch connectionState {
+        case .listening:
+            connectionState = .speaking
+            speechRecognizer.isSuspended = true
+            speechSynthesizer.speak(text, language: language)
+            return true
+        case .disconnected:
+            speechSynthesizer.speak(text, language: language)
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Build Check's form: while another cue is speaking the line waits its
     /// turn (FIFO, drained by onFinished) instead of being dropped - a run's
     /// warnings and step prompts must all be heard.
@@ -3255,6 +3289,27 @@ final class HermesSessionViewModel {
     /// until it resolves, and nothing is being searched for.
     func showLookupSearchingOnLens() {
         displayManager.showThinking(query: "Matching…")
+    }
+
+    /// Translate's word on the lens (real or simulated). Best-effort.
+    func showTranslationOnLens(_ term: TranslatedTerm) {
+        displayManager.showTranslation(
+            word: term.word, romanized: term.romanized,
+            english: term.english, language: term.language.displayName
+        )
+    }
+
+    /// Translate's tap path is waiting on the AI.
+    func showTranslationPendingOnLens() {
+        displayManager.showThinking(query: "Looking…")
+    }
+
+    /// The tap path gave up: take "Looking…" off the lens, but only if it
+    /// is still what is showing.
+    func clearTranslationPendingOnLens() {
+        if displayManager.content == .thinking(query: "Looking…") {
+            displayManager.clear()
+        }
     }
 
     /// Lookup's finished card: name + roster details.

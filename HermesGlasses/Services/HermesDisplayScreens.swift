@@ -61,6 +61,24 @@ enum HermesDisplayScreens {
         .padding(24)
     }
 
+    /// Translate's card: the word large, with its reading and the English
+    /// underneath. A card, not a live state - it dwells away on its own.
+    static func translation(
+        word: String, romanized: String?, english: String, language: String
+    ) -> FlexBox {
+        let detail = [romanized, english].compactMap { $0 }.joined(separator: " · ")
+        return FlexBox(direction: .column, spacing: 8) {
+            Text(language.uppercased(), style: .body)
+            FlexBox(direction: .column, spacing: 4) {
+                Text(word, style: .heading)
+                Text(detail, style: .body)
+            }
+            .padding(16)
+            .background(.card)
+        }
+        .padding(24)
+    }
+
     /// The reply card. Stop appears only while TTS is playing.
     /// ComponentBuilder has no buildOptional, so conditional buttons are
     /// prebuilt as an array and emitted with a for-loop (buildArray).

@@ -189,6 +189,24 @@ final class HermesDisplayManager {
         scheduleDwell(seconds: 15)
     }
 
+    /// Translate's card. Like Lookup's it dwells away: looking continues
+    /// underneath and the next word replaces it anyway. `content` is set
+    /// before any display guard, so phone mode shows it with no glasses.
+    func showTranslation(
+        word: String, romanized: String?, english: String, language: String
+    ) {
+        content = .translation(
+            word: word, romanized: romanized, english: english, language: language
+        )
+        cancelDwell()
+        lastReplyText = ""
+        lastDefinitionImageURL = nil
+        send(HermesDisplayScreens.translation(
+            word: word, romanized: romanized, english: english, language: language
+        ))
+        scheduleDwell(seconds: 8)
+    }
+
     /// speaking=true keeps the card up (Stop button shown, no dwell);
     /// dwellSeconds non-nil blanks the lens after that many seconds.
     func showReply(text: String, speaking: Bool, dwellSeconds: Double?) {

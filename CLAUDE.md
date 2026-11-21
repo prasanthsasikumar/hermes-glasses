@@ -570,6 +570,93 @@ photo via the DAT camera API.
   device (`tests/roster/`); the filesystem half is `RosterImport.swift`.
   Filename stems are names VERBATIM - "Malsha de Zoysa", "Sahan H",
   "anjana viduranga" are all real entries and any tidying would damage them.
+- **Translate has two paths with opposite costs - keep them apart.** The
+  INSTANT path is detector label -> `ObjectVocabulary` -> iPhone voice:
+  on-device, offline, free. The AI path sends a crop to
+  `DirectClient.askOneShot`, and exactly two things may start it: a TAP,
+  or a pointing FINGER held still. No tap and no held finger, no call -
+  never wire the AI to the reticle dwell, or a walk becomes dozens of
+  paid requests nobody asked for. `TranslateViewModel` mirrors
+  `LookupViewModel`'s camera lifecycle (camera-only, observer key
+  `translate`, never starts the voice session) and is refused during a
+  Build Check run in `ContentView.open` like Lens and Lookup.
+- **A hand in view is not a point.** Translate's finger path
+  (`HandPoseDetector` -> `FingerPointer` -> `PointHold`, the last two pure
+  and in `tests/translate`) sends to the AI with nobody tapping, so the
+  gate is strict: index finger straight AND middle finger not extended -
+  an open palm, a fist or two fingers up must never count. `PointHold`
+  fires ONCE per hold and stays spent until the probe moves 0.12 away or
+  the hand is gone 1 s; a send that went out is never retried on the same
+  hold (dead networks are the normal case abroad), while a hold blocked
+  by a guard (call in flight, 3 s gap) is `restart()`ed, not spent. A
+  key / provider error turns automatic sends OFF until the screen is
+  reopened (`autoSendOff`); tap still tries. Boxes over 0.35 of the frame
+  are never a finger target - a stall's table would otherwise answer
+  "table" for everything on it. Phone camera ONLY (`fingerAvailable`):
+  on glasses the wearer's hands are always in view and the path is
+  untested. Every constant is PROVISIONAL - none tuned on a real hand.
+- **Finger on = finger only, and AI first.** While `fingerActive` the
+  centre reticle is OFF (not drawn, dwell flushed every frame) - the owner
+  found the app naming whatever was in front of it. A held point sends the
+  WHOLE frame (1280 px) with the pointing prompt; it does NOT go through
+  the detector first. The bundled YOLO forces everything into 80 classes
+  (a toolbox was spoken as "keyboard") and a tight fingertip crop lost the
+  context (the same toolbox came back "card reader"). The detector's word
+  survives only as `fallback`: spoken when the call fails or automatic
+  sends are off, and always under "this is the phone's own guess". Never
+  after the AI answered "couldn't tell". Don't reintroduce a
+  detector-first shortcut to save a request.
+- **Focus follows the point, not the hand.** The phone camera's default
+  autofocus measures the frame centre, and a pointing hand held in front
+  of the lens passes through it - the owner saw the picture pump in and
+  out of focus. `FocusSteer` (pure, `tests/translate`) aims
+  `PhoneCameraManager.focus(at:)` at the probe just past the fingertip,
+  moves it only when the probe has travelled 0.1 (every focus change is
+  itself a visible refocus), and hands the camera back centred when the
+  finger leaves or the screen closes - the camera can be the voice
+  session's too. The phone camera also runs smooth autofocus for every
+  consumer. `focusPointOfInterest` is in the SENSOR's landscape space:
+  convert with `FocusSteer.devicePoint(forPortrait:)`, never pass a
+  portrait point. Unverified on device as of 2026-11-20.
+- **A Translate phrase pins the card.** `TranslatePhrases` is six bundled
+  offline phrases (builder-written, not native-reviewed). Tapping one
+  speaks it and sets `pinnedPhrase`, which pauses the reticle, the finger
+  and taps for 20 s or until closed - the phone is being held up to
+  someone, and the camera is now aimed at things nobody asked about. An
+  AI answer landing mid-pin goes to `current`/`recent` silently.
+  `HandPoseDetector` lives in `Services/Lens/`, not `Services/Translate/`,
+  because `tests/translate` globs that directory without Vision.
+- **`TranslateSpeakPolicy` sits ON TOP of `DwellTracker`; don't push it
+  down.** The tracker is shared with Lens and conversation capture and its
+  cooldown clears on one missed frame - right for a log, chatter for a
+  voice. The policy adds a 0.6 speak floor (the detector passes 0.4) and an
+  8 s same-word quiet period keyed by language + word. Those two and the
+  1.0 s dwell are PROVISIONAL - not yet tried on a real walk. The tracker
+  spends its snap whatever the policy decides, so `TranslateViewModel`
+  calls `dwell.flush` to restart the hold on an `.uncertain` verdict and
+  on a language change (never on `.quiet` - that silence is intended), and
+  feeds the tracker only labels with a word in the current language, so a
+  person behind the cup can't win the reticle.
+- **Translate words bypass ElevenLabs on purpose.**
+  `HermesSpeechSynthesizer.speak(_:language:)` marks the segment with a
+  BCP-47 code and such a segment is never fetched from the cloud: a network
+  round-trip per word would undo the instant path, and the configured cloud
+  voice is an English one. A language is only offered if the iPhone has a
+  built-in voice for it - that is why Malayalam is not in the list.
+- **The vocabulary table is not native-reviewed, and silent beats guessed.**
+  `ObjectVocabularyTable.swift` is data only (80 detector labels x French /
+  Chinese + pinyin / Spain Spanish) so it can be handed to a speaker as-is.
+  A `nil` cell is deliberate ("sink": évier vs lavabo - the detector can't
+  tell kitchen from bathroom). `tests/translate` requires every cell to be
+  a word or an explicit nil, never missing. `person` is in the table but
+  skipped on the instant path (`skippedLabels`).
+- **A Translate AI reply is JSON or it is nothing.**
+  `TranslateAnswerParser` reads the first JSON object in the reply and
+  rejects anything else - including a `word` longer than 40 characters - so
+  a model that answers in a sentence never has the sentence read out as the
+  name of the thing. The language is captured at tap time; switching the
+  picker mid-call must not relabel the answer. The glasses camera path and
+  the real lens card are UNVERIFIED (built with no glasses to hand).
 
 ## Build & run
 

@@ -24,6 +24,11 @@ enum LensContent: Equatable {
     /// about them. `info` is the searched summary, already trimmed to a
     /// couple of sentences.
     case personLookup(name: String, info: String)
+    /// Translate named a thing: the word in the chosen language, a
+    /// romanisation when the script is not Latin, and the English.
+    /// `language` is the language's DISPLAY name - a plain string, so this
+    /// file still compiles alone in tests/lens-content.
+    case translation(word: String, romanized: String?, english: String, language: String)
     case reply(text: String, speaking: Bool, choices: [ReplyChoice] = [])
     case definition(text: String, imageURL: String?)
     case navigation(title: String, step: String, eta: String, mapURL: String?, mode: TransportMode)
@@ -48,6 +53,7 @@ enum LensContent: Equatable {
         case .personSighted: return "PERSON"
         // The name is the label so the body is free for the summary.
         case .personLookup(let name, _): return name.uppercased()
+        case .translation(_, _, _, let language): return language.uppercased()
         case .reply: return nil
         case .definition: return nil
         case .navigation: return "NAVIGATION"
@@ -74,6 +80,8 @@ enum LensContent: Equatable {
             return name ?? "Photo captured"
         case .personLookup(_, let info):
             return info
+        case .translation(let word, _, _, _):
+            return word
         case .reply(let text, _, _):
             return text
         case .definition(let text, _):
@@ -103,6 +111,8 @@ enum LensContent: Equatable {
             return subtitle
         case .personLookup:
             return "web lookup"
+        case .translation(_, let romanized, let english, _):
+            return [romanized, english].compactMap { $0 }.joined(separator: " · ")
         case .listening:
             return "listening"
         case .thinking:
@@ -138,7 +148,7 @@ enum LensContent: Equatable {
     var isLive: Bool {
         switch self {
         case .blank, .photoCaptured, .encounterSaved, .newConversation,
-             .personSighted, .personLookup:
+             .personSighted, .personLookup, .translation:
             return false
         case .listening, .thinking, .reply, .definition, .navigation,
              .encounterPrompt, .recording, .buildCheck:

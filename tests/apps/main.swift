@@ -142,22 +142,33 @@ expect(HermesAppRegistry.newAppIDs.allSatisfy { HermesAppRegistry.app(id: $0) !=
 expect(HermesAppRegistry.newAppIDs.contains("buildcheck"), "Build Check is announced as new")
 expect(HermesAppRegistry.unseenNew(opened: []).map(\.id) == HermesAppRegistry.newAppIDs,
        "nothing opened yet → every new app is unseen, in declared order")
-expect(HermesAppRegistry.unseenNew(opened: ["buildcheck"]).map(\.id) == ["manuals"],
+expect(HermesAppRegistry.unseenNew(opened: ["buildcheck"]).map(\.id) == ["translate", "manuals"],
        "opening an app clears its 'new' state and nobody else's")
-expect(HermesAppRegistry.unseenNew(opened: ["buildcheck", "manuals"]).isEmpty,
+expect(HermesAppRegistry.unseenNew(opened: ["buildcheck", "manuals", "translate"]).isEmpty,
        "every new app opened → nothing is new")
-expect(HermesAppRegistry.whatsNew(opened: [], dismissed: [])?.id == "manuals",
+expect(HermesAppRegistry.whatsNew(opened: [], dismissed: [])?.id == "translate",
        "the card announces the first unseen new app - the newest is declared first")
-expect(HermesAppRegistry.whatsNew(opened: [], dismissed: ["manuals"])?.id == "buildcheck",
+expect(HermesAppRegistry.whatsNew(opened: [], dismissed: ["translate", "manuals"])?.id == "buildcheck",
        "dismissing one card reveals the next new app")
-expect(HermesAppRegistry.whatsNew(opened: [], dismissed: ["buildcheck", "manuals"]) == nil,
+expect(HermesAppRegistry.whatsNew(opened: [], dismissed: ["buildcheck", "manuals", "translate"]) == nil,
        "a dismissed card stays dismissed")
-expect(HermesAppRegistry.whatsNew(opened: ["buildcheck", "manuals"], dismissed: []) == nil,
+expect(HermesAppRegistry.whatsNew(opened: ["buildcheck", "manuals", "translate"], dismissed: []) == nil,
        "no card for an app already opened")
 expect(HermesAppRegistry.idSet(from: "") == [], "empty storage → empty set")
 expect(HermesAppRegistry.idSet(from: "a,b,,a") == ["a", "b"], "storage parses, drops blanks and duplicates")
 expect(HermesAppRegistry.idSet(from: HermesAppRegistry.idString(["lens", "buildcheck"])) == ["lens", "buildcheck"],
        "storage round-trips")
+
+// MARK: - Translate
+
+let translate = HermesAppRegistry.app(id: "translate")
+expect(translate != nil, "translate registered")
+expect(translate?.presentation == .fullScreen, "translate holds a live stream")
+expect(translate?.capabilities == [.vision, .lens], "translate capabilities")
+expect(translate?.voiceGroupIDs.isEmpty == true, "translate has no voice trigger")
+expect(translate?.requiresGlasses == false, "translate works in phone mode")
+expect(HermesAppRegistry.newAppIDs.first == "translate", "translate is announced first")
+expect(HermesAppRegistry.all.last?.id == "translate", "translate is appended - the pinned row is unchanged")
 
 print(failures == 0 ? "\nALL PASS" : "\n\(failures) FAILURE(S)")
 exit(failures == 0 ? 0 : 1)
